@@ -2,468 +2,165 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Draft untuk validasi stakeholder  
+**Status:** Final / Locked Baseline  
 **Scope:** ULP Sribhawono  
-**Platform:** Android App + Web Application  
-**Pengguna utama:** Admin, Posko, Harsus, ROW  
+**Platform:** Android App + Web Admin  
+**Pengguna utama:** ADMIN, POSKO, HARSUS, ROW  
 **Fokus:** Pengelolaan pekerjaan preventive jaringan distribusi secara end-to-end
 
 ---
 
 # 1. Problem Statement
 
-## Masalah
+Kegiatan preventive jaringan distribusi melibatkan banyak titik aset, Posko, Section, histori gangguan, inspeksi, vegetasi, dokumentasi, dan tindak lanjut. Sistem dibutuhkan agar alur kondisi/temuan → prioritas → penugasan → eksekusi → dokumentasi → tindak lanjut → histori → evaluasi berada dalam satu alur yang dapat dipantau.
 
-Kegiatan preventive jaringan distribusi melibatkan beberapa tim, wilayah kerja, jenis pekerjaan, temuan lapangan, histori gangguan, dan tindak lanjut yang saling berkaitan.
-
-Sistem yang dibutuhkan tidak cukup hanya menampilkan kondisi jaringan dalam bentuk dashboard. Dibutuhkan satu sistem yang dapat menghubungkan proses:
-
-**identifikasi kondisi → penentuan prioritas → penugasan → pelaksanaan → dokumentasi → tindak lanjut → histori → evaluasi.**
-
-Tanpa alur yang terintegrasi, terdapat risiko:
-
-- pekerjaan preventive tidak memiliki urutan prioritas yang jelas;
-- temuan inspeksi tidak langsung mempunyai tindak lanjut;
-- pekerjaan yang tidak dapat diselesaikan di lapangan hanya menjadi catatan;
-- histori tindakan pada suatu aset sulit digunakan untuk menentukan pekerjaan berikutnya;
-- pekerjaan vegetasi dapat dilakukan berulang karena tidak diketahui sudah pernah ditangani;
-- gangguan berulang tidak langsung diterjemahkan menjadi pekerjaan preventive;
-- Admin sulit melihat status keseluruhan pekerjaan seluruh Posko secara terpusat.
-
-## Siapa yang terdampak?
-
-### Admin
-
-Admin membutuhkan visibilitas terhadap pekerjaan seluruh Posko, Harsus, dan ROW serta kemampuan untuk memberikan pekerjaan manual ketika diperlukan.
-
-### Posko
-
-Posko membutuhkan daftar pekerjaan yang jelas, terurut berdasarkan prioritas, memiliki titik lokasi, informasi pekerjaan, dan mekanisme pelaporan hasil langsung dari lapangan.
-
-### Harsus
-
-Harsus membutuhkan mekanisme untuk mencatat hasil inspeksi dan memastikan temuan yang membutuhkan tindakan diteruskan menjadi pekerjaan.
-
-### ROW
-
-ROW membutuhkan informasi pekerjaan vegetasi serta histori titik yang telah ditangani agar pekerjaan tidak dilakukan berulang tanpa kebutuhan.
-
-### ULP Sribhawono
-
-ULP membutuhkan mekanisme preventive yang tidak hanya bereaksi setelah gangguan terjadi, tetapi dapat menggunakan kondisi dan histori jaringan untuk menentukan tindakan berikutnya.
+Kondisi lapangan juga dapat memiliki jaringan internet yang tidak stabil. Karena itu, aplikasi mobile harus tetap memungkinkan petugas menyimpan input dan foto sebagai draft lokal ketika offline, lalu mengirimkannya saat koneksi tersedia.
 
 ---
 
 # 2. Target User + Persona
 
-Sistem memiliki tepat **4 role utama**:
+## 2.1 ADMIN
 
-1. Admin
-2. Posko
-3. Harsus
-4. ROW
+ADMIN menggunakan Web Admin untuk:
+- memonitor seluruh pekerjaan;
+- membuat P0 dan WO manual;
+- mengelola seluruh master data;
+- memvalidasi titik aset/vegetasi baru;
+- menyetujui atau menolak reschedule P0 khusus;
+- melakukan koreksi data yang sudah masuk server;
+- melihat audit trail dan histori.
 
-## Persona 1 — Petugas Posko
+## 2.2 POSKO
 
-**Konteks kerja:**  
-Melakukan pekerjaan jaringan di lapangan berdasarkan wilayah tanggung jawab Posko.
+POSKO menggunakan Android App untuk:
+- menerima P0 dan WO;
+- menjalankan PASILA;
+- memilih petugas aktual dari master Petugas;
+- menyimpan input sebagai draft ketika offline;
+- mengirim satu draft atau seluruh draft saat online;
+- membuka Maps dan navigasi ketika online.
 
-**Kebutuhan utama:**
+## 2.3 HARSUS
 
-- mengetahui pekerjaan yang harus dilakukan pada shift berjalan;
-- mengetahui pekerjaan mana yang harus didahulukan;
-- melihat titik dan detail pekerjaan;
-- membuka navigasi ke lokasi;
-- melihat informasi/histori titik;
-- memilih nama petugas yang benar-benar turun melalui dropdown;
-- menginput hasil pekerjaan;
-- mengambil dokumentasi;
-- tetap dapat melakukan input ketika tidak tersedia koneksi;
-- mengirim/sinkronisasi hasil ketika koneksi kembali tersedia.
+HARSUS adalah Tim inspeksi Harsus. Kepanjangan resmi HARSUS belum dikunci dan tidak boleh diinvensi di dokumen.
 
-**Prioritas pekerjaan:**
+HARSUS dapat mencatat temuan, kebutuhan padam, rekomendasi, koordinat, dan dokumentasi. Bila menemukan titik yang belum terdaftar, HARSUS boleh menyimpan temuan dengan koordinat/foto lalu Admin memvalidasi atau membuat master aset.
 
-**P0 → Work Order → PASILA**
+## 2.4 ROW
 
-Satu akun Posko mewakili **satu Posko**, bukan satu petugas individu.
+ROW menangani pekerjaan vegetasi RABAS, PANGKAS, dan TEBANG. Kepanjangan resmi ROW belum dikunci dan tidak boleh ditulis sebagai kepanjangan tertentu sampai dikonfirmasi stakeholder.
 
-Identitas petugas aktual dipilih ketika pekerjaan dilaksanakan.
-
----
-
-## Persona 2 — Admin
-
-**Konteks kerja:**  
-Mengawasi seluruh aktivitas preventive ULP Sribhawono.
-
-**Kebutuhan utama:**
-
-- melihat aktivitas seluruh Posko;
-- melihat P0, WO, PASILA, Harsus, dan ROW;
-- melihat pekerjaan aktif, selesai, tertunda, atau membutuhkan tindak lanjut;
-- menerbitkan WO manual;
-- membuat P0 manual;
-- melihat Special Case;
-- melihat Maps dan histori aset;
-- melakukan koreksi/administrasi apabila diperlukan;
-- melihat performa operasional Posko.
+ROW dapat mengusulkan titik vegetasi baru dengan koordinat, foto, dan catatan untuk divalidasi Admin.
 
 ---
 
 # 3. Goals dan Non-Goals
 
-## Goals MVP
+## 3.1 Goals MVP
 
-### G-01 — Pengelolaan pekerjaan end-to-end
+### G-01 — Pengelolaan end-to-end
+Sistem mengelola pekerjaan dari penugasan sampai penyelesaian, dokumentasi, histori, dan evaluasi.
 
-Sistem mampu mengelola pekerjaan dari tahap penugasan sampai penyelesaian dan histori.
+### G-02 — Prioritas kerja POSKO
+Urutan prioritas operasional:
 
-### G-02 — Prioritas kerja Posko
+**P0 → WO → PASILA**
 
-Posko mendapatkan pekerjaan berdasarkan urutan:
-
-**P0 → Work Order → PASILA**
-
-P0 selalu memiliki prioritas tertinggi.
+P0 selalu didahulukan.
 
 ### G-03 — Work Order preventive
-
-Sistem dapat menghasilkan Work Order preventive.
-
-Target awal:
-
-**6 WO per shift per Posko.**
-
-Satu WO mewakili satu titik aset.
-
-Jenis utama WO pada MVP:
-
-**pemasangan APKUK.**
-
-Admin juga dapat memberikan WO secara manual.
+Target operasional adalah **6 WO per shift per Posko**. Pada MVP, WO hanya untuk **PEMASANGAN_APKUK**. Jika P0 menyita waktu shift, P0 tetap didahulukan dan WO yang belum dikerjakan dijadwalkan ulang.
 
 ### G-04 — PASILA setiap shift
-
-Setiap Posko menjalankan PASILA pada setiap shift.
-
-PASILA merupakan:
-
-**patroli + eksekusi langsung.**
-
-Satu sesi PASILA dapat menghasilkan banyak action.
+PASILA wajib tersedia setiap shift. Sistem memberi rekomendasi area/aset berdasarkan prioritas gangguan/trip. POSKO boleh mengganti rekomendasi dengan alasan wajib.
 
 ### G-05 — Tindak lanjut temuan
+Temuan yang tidak dapat dieksekusi langsung dapat menjadi P0.
 
-Temuan yang tidak dapat diselesaikan langsung harus dapat diteruskan menjadi P0.
-
-### G-06 — Inspeksi Harsus
-
-Harsus dapat mencatat temuan inspeksi dan menghasilkan tindak lanjut berupa P0.
+### G-06 — Inspeksi HARSUS
+HARSUS dapat mencatat temuan dan menghasilkan tindak lanjut P0.
 
 ### G-07 — Pengelolaan ROW
-
-ROW dapat mengelola pekerjaan rabas, pangkas, dan tebang.
-
-Vegetasi yang ditangani Posko saat PASILA juga harus masuk histori ROW.
+ROW mengelola pekerjaan vegetasi. Vegetasi yang ditangani POSKO melalui PASILA tetap masuk histori ROW.
 
 ### G-08 — Special Case
-
-Gangguan berulang dapat dikenali sistem dan diterjemahkan menjadi P0 untuk tindakan preventive.
+Rule awal Special Case adalah **lebih dari 3 trip pada satu penyulang dalam satu bulan kalender**. Special Case dapat memengaruhi prioritas WO dan dapat menghasilkan P0 investigasi.
 
 ### G-09 — Maps operasional
-
-Sistem memiliki Maps untuk:
-
-- melihat titik;
-- melihat informasi aset;
-- melihat histori;
-- melihat pekerjaan;
-- membuka navigasi.
+Maps menampilkan titik, informasi aset, pekerjaan, dan navigasi. Peta lengkap bersifat online-primary.
 
 ### G-10 — Mobile field operation
-
-Petugas lapangan dapat menggunakan Android App.
+POSKO, HARSUS, dan ROW menggunakan Flutter Android App.
 
 ### G-11 — Web operation
+Web Admin khusus role ADMIN untuk MVP.
 
-Admin dan pengguna yang membutuhkan akses desktop dapat menggunakan Web Application.
+### G-12 — Offline draft
+Input lapangan dan foto dapat disimpan sebagai draft lokal ketika offline. Draft tidak otomatis menjadi data resmi server. User menekan **Kirim** atau **Kirim Semua** ketika online.
 
-### G-12 — Offline input
+### G-13 — Histori & audit
+Perubahan status, reschedule, koreksi Admin, dan pekerjaan selesai tercatat dalam histori/audit.
 
-Input pekerjaan lapangan harus tetap dapat dilakukan saat perangkat tidak memiliki koneksi.
+## 3.2 Non-Goals MVP
 
-Data kemudian disinkronkan ketika koneksi kembali tersedia.
-
-### G-13 — Histori
-
-Hasil pekerjaan menjadi histori dan dapat digunakan sebagai bahan evaluasi pekerjaan berikutnya.
-
----
-
-## Non-Goals MVP
-
-Hal berikut **tidak menjadi bagian MVP**:
-
-- ranking/skor final performa Posko;
-- sistem payroll atau insentif;
-- aplikasi native iOS;
-- customer complaint management;
-- sistem inventory/gudang penuh;
-- multi-ULP;
-- integrasi enterprise ke seluruh sistem PLN;
-- AI/ML kompleks sebagai syarat MVP;
-- penggantian sistem gangguan pusat.
-
-Ranking Posko masuk **v2**.
+- Ranking/skor final performa Posko — **v2**.
+- Native iOS.
+- Multi-ULP.
+- Payroll/insentif.
+- Inventory/gudang penuh.
+- Full offline Maps basemap.
+- Full bidirectional database synchronization.
+- PowerSync.
+- Realtime WebSocket sebagai syarat MVP.
+- AI/ML kompleks sebagai blocker untuk membangun alur inti. Integrasi ML dapat ditambahkan setelah alur dasar stabil.
 
 ---
 
 # 4. User Stories
 
-## Admin
+## ADMIN
+- Melihat seluruh P0, WO, PASILA, HARSUS, ROW, Special Case, serta status submission yang sudah masuk server.
+- Membuat P0/WO manual.
+- Mengelola Posko, Penyulang, Section, Asset, APKUK, Vegetasi, Petugas, dan User.
+- Memvalidasi usulan aset/vegetasi baru.
+- Menyetujui atau menolak custom reschedule P0.
+- Mengoreksi data server dan meninggalkan audit log.
 
-### US-ADM-01
-Sebagai **Admin**, saya ingin melihat seluruh pekerjaan P0, WO, PASILA, Harsus, dan ROW supaya saya dapat memonitor operasional seluruh Posko.
+## POSKO
+- Melihat pekerjaan dengan urutan P0 → WO → PASILA.
+- Menjalankan pekerjaan dan memilih petugas aktual.
+- Menyimpan draft saat offline dan mengeditnya sebelum dikirim.
+- Mengirim satu atau banyak draft saat online.
+- Melanjutkan P0 ke shift berikutnya atau mengajukan custom reschedule.
 
-### US-ADM-02
-Sebagai **Admin**, saya ingin membuat P0 manual supaya pekerjaan khusus dapat langsung diberikan kepada Posko yang bertanggung jawab.
-
-### US-ADM-03
-Sebagai **Admin**, saya ingin memberikan WO manual supaya pekerjaan preventive tertentu dapat diberikan meskipun tidak berasal dari rekomendasi otomatis sistem.
-
-### US-ADM-04
-Sebagai **Admin**, saya ingin melihat Special Case supaya gangguan berulang dapat segera ditindaklanjuti.
-
-### US-ADM-05
-Sebagai **Admin**, saya ingin melihat histori suatu aset supaya saya dapat mengetahui gangguan dan tindakan yang pernah dilakukan sebelumnya.
-
-### US-ADM-06
-Sebagai **Admin**, saya ingin melihat pekerjaan berdasarkan Posko dan section supaya monitoring wilayah dapat dilakukan dengan jelas.
-
----
-
-## Posko
-
-### US-PSK-01
-Sebagai **Posko**, saya ingin melihat pekerjaan shift saya berdasarkan urutan P0 → WO → PASILA supaya saya mengetahui pekerjaan yang harus didahulukan.
-
-### US-PSK-02
-Sebagai **Posko**, saya ingin melihat lokasi pekerjaan di Maps supaya saya dapat menuju titik yang benar.
-
-### US-PSK-03
-Sebagai **Posko**, saya ingin memilih petugas pelaksana dari dropdown supaya pekerjaan tercatat atas nama orang yang benar-benar turun ke lapangan.
-
-### US-PSK-04
-Sebagai **Posko**, saya ingin mengisi hasil dan dokumentasi pekerjaan supaya pekerjaan dapat dipertanggungjawabkan.
-
-### US-PSK-05
-Sebagai **Posko**, saya ingin tetap menginput pekerjaan saat offline supaya kegiatan lapangan tidak berhenti karena kehilangan sinyal.
-
-### US-PSK-06
-Sebagai **Posko**, saya ingin data offline otomatis tersinkron ketika online supaya saya tidak perlu input ulang.
-
-### US-PSK-07
-Sebagai **Posko**, saya ingin mencatat banyak action dalam satu PASILA supaya seluruh temuan selama patroli dapat tercatat.
-
-### US-PSK-08
-Sebagai **Posko**, saya ingin mengubah temuan PASILA yang tidak dapat diselesaikan menjadi P0 supaya temuan tersebut tetap ditindaklanjuti.
-
-### US-PSK-09
-Sebagai **Posko**, saya ingin menangani vegetasi yang memungkinkan saat PASILA supaya risiko yang dapat langsung diatasi tidak perlu menunggu Tim ROW.
-
----
-
-## Harsus
-
-### US-HAR-01
-Sebagai **Harsus**, saya ingin memilih titik aset dan menginput hasil inspeksi supaya kondisi jaringan dapat tercatat.
-
-### US-HAR-02
-Sebagai **Harsus**, saya ingin memberikan rekomendasi perlu padam atau tanpa padam supaya tindak lanjut pekerjaan mempunyai informasi awal.
-
-### US-HAR-03
-Sebagai **Harsus**, saya ingin temuan yang membutuhkan tindakan diteruskan menjadi P0 supaya Posko menerima pekerjaan tersebut.
-
-### US-HAR-04
-Sebagai **Harsus**, saya ingin tetap dapat melakukan input ketika offline supaya inspeksi tetap dapat dicatat di lapangan.
-
----
+## HARSUS
+- Membuat inspeksi dan foto temuan.
+- Menyimpan draft offline.
+- Mengirim temuan yang belum memiliki master aset melalui koordinat untuk divalidasi Admin.
 
 ## ROW
-
-### US-ROW-01
-Sebagai **ROW**, saya ingin melihat pekerjaan vegetasi berdasarkan wilayah/section supaya pekerjaan rabas, pangkas, dan tebang dapat dilaksanakan secara terencana.
-
-### US-ROW-02
-Sebagai **ROW**, saya ingin mencatat hasil pekerjaan vegetasi supaya kondisi terbaru dapat diketahui sistem.
-
-### US-ROW-03
-Sebagai **ROW**, saya ingin melihat pekerjaan vegetasi yang telah dilakukan Posko saat PASILA supaya titik tersebut tidak ditangani ulang tanpa kebutuhan.
-
-### US-ROW-04
-Sebagai **ROW**, saya ingin bekerja secara offline dan melakukan sinkronisasi setelah online supaya input lapangan tidak bergantung penuh pada koneksi.
+- Mencatat pekerjaan RABAS/PANGKAS/TEBANG.
+- Menyimpan draft offline.
+- Mengusulkan titik vegetasi baru untuk validasi Admin.
 
 ---
 
-# 5. Daftar Fitur
+# 5. Daftar Fitur MVP
 
-## MVP — WAJIB
-
-### Authentication & Role
-- Login.
-- Role Admin.
-- Role Posko.
-- Role Harsus.
-- Role ROW.
-- Satu akun Posko = satu Posko.
-
-### Master dan Mapping Operasional
-- Posko.
-- Section.
-- Aset jaringan.
-- Mapping Section → Posko.
-- APKUK.
-- Vegetasi.
-- Daftar petugas untuk dropdown.
-
-### P0
-- P0 dari Admin.
-- P0 dari Harsus.
-- P0 dari PASILA.
-- P0 dari Special Case.
-- Assignment otomatis berdasarkan wilayah.
-- Progress pekerjaan.
-- Dokumentasi.
-- Histori.
-
-### Work Order
-- Rekomendasi WO otomatis.
-- Target 6 WO/shift/Posko.
-- Pemasangan APKUK.
-- WO manual Admin.
-- Progress.
-- Dokumentasi.
-- Reschedule/cancel dengan histori.
-
-### PASILA
-- PASILA setiap shift.
-- Penentuan area/titik prioritas.
-- Multi-action.
-- Eksekusi langsung.
-- Dokumentasi.
-- Escalation menjadi P0.
-- Vegetasi insidental.
-
-### Harsus
-- Input inspeksi.
-- Pilih aset.
-- Temuan.
-- Dokumentasi.
-- Perlu padam/tanpa padam.
-- Rekomendasi.
-- Generate P0.
-
-### ROW
-- Daftar pekerjaan vegetasi.
-- Rabas.
-- Pangkas.
-- Tebang.
-- Histori.
-- Pekerjaan insidental Posko.
-- Perencanaan pekerjaan berikutnya.
-
-### Special Case
-- Deteksi trip berulang.
-- Identifikasi titik terkait.
-- Generate P0.
-- Monitoring Special Case.
-
-### Maps
-- Titik aset.
-- Gardu.
-- Tiang.
-- Keypoint.
-- Vegetasi.
-- Informasi gangguan.
-- Filter wilayah.
-- Detail titik.
-- Histori.
-- Tombol navigasi.
-
-### Dokumentasi
-- Foto sebelum.
-- Foto sesudah.
-- Waktu.
-- Petugas.
-- Status pekerjaan.
-- Catatan.
-- Lokasi bila tersedia.
-
-### Histori
-- Histori per aset.
-- Gangguan.
-- P0.
-- WO.
-- PASILA.
-- Harsus.
-- ROW.
-- APKUK.
-
-### Admin Dashboard
-- Monitoring seluruh Posko.
-- P0.
-- WO.
-- PASILA.
-- Harsus.
-- ROW.
-- Special Case.
-- Status pekerjaan.
-
-### Offline & Sync
-- Input offline.
-- Penyimpanan lokal.
-- Queue sinkronisasi.
-- Retry sync.
-- Status data belum/sudah tersinkron.
-
----
-
-## v2
-
-### Ranking Performa Posko
-- skor performa;
-- ranking;
-- bobot gangguan;
-- bobot action;
-- evaluasi per periode.
-
-### Prioritization Engine Lanjutan
-- risk score lebih kompleks;
-- histori lebih panjang;
-- kemungkinan pemanfaatan machine learning apabila data mencukupi.
-
-### Advanced Analytics
-- trend gangguan;
-- efektivitas pekerjaan;
-- efektivitas APKUK;
-- pola gangguan per section/penyulang;
-- analisis ROW.
-
-### Reporting
-- PDF.
-- Excel.
-- laporan periodik.
-
----
-
-## Nanti
-
-- integrasi enterprise PLN yang lebih luas;
-- inventory/material management;
-- native iOS;
-- multi-ULP;
-- payroll/insentif;
-- predictive maintenance tingkat lanjut.
+- Authentication dan role: ADMIN, POSKO, HARSUS, ROW.
+- Master Posko, Penyulang, Section, Asset, APKUK, Vegetasi, Petugas, User.
+- P0 manual/HARSUS/PASILA/Special Case.
+- WO pemasangan APKUK, target 6/shift/Posko.
+- PASILA per shift, rekomendasi target + override dengan alasan.
+- HARSUS inspection.
+- ROW work + proposal vegetasi.
+- Special Case >3 trip/penyulang/bulan kalender.
+- Maps online-primary.
+- Dokumentasi foto.
+- Draft offline + local queue + Kirim/Kirim Semua.
+- Histori dan audit log.
+- Admin dashboard polling ringan, default sekitar 15 detik + tombol Refresh.
 
 ---
 
@@ -471,1009 +168,196 @@ Sebagai **ROW**, saya ingin bekerja secara offline dan melakukan sinkronisasi se
 
 ## 6.1 Authentication dan User Access
 
-**FR-AUTH-01**  
-Sistem harus menyediakan login.
+**FR-AUTH-01** Sistem menyediakan login online melalui Laravel backend.  
+**FR-AUTH-02** Role aplikasi hanya: ADMIN, POSKO, HARSUS, ROW.  
+**FR-AUTH-03** Satu akun dapat mewakili satu tim/unit; jumlah akun mengikuti jumlah tim yang tersedia.  
+**FR-AUTH-04** Satu akun POSKO terhubung ke satu Posko.  
+**FR-AUTH-05** Akun dapat digunakan di lebih dari satu device.  
+**FR-AUTH-06** Petugas aktual dipilih dari master Petugas.  
+**FR-AUTH-07** Login baru membutuhkan internet. Session yang sudah tersimpan dapat digunakan untuk membuka mode draft offline selama masih valid menurut aplikasi lokal; validasi server kembali dilakukan saat perangkat online.
 
-**FR-AUTH-02**  
-Setiap akun mempunyai satu role utama:
+## 6.2 Posko, Section, dan Shift
 
-- ADMIN
-- POSKO
-- HARSUS
-- ROW
+Satu Posko dapat memiliki banyak Section. Satu Section memiliki satu Posko penanggung jawab aktif pada satu waktu. Asset diturunkan ke Posko/Penyulang melalui Section.
 
-**FR-AUTH-03**  
-Satu akun Posko harus terhubung ke tepat satu `POSKO_ID`.
+Jam operasional baseline:
+- Shift A: **08:00–16:00**
+- Shift B: **16:00–00:00**
+- Shift C: **00:00–08:00**
 
-**FR-AUTH-04**  
-Section yang dapat dilihat Posko ditentukan melalui section yang menjadi tanggung jawab Posko tersebut.
+Konfigurasi tetap disimpan di sistem agar dapat diubah Admin bila kebijakan operasional resmi berubah.
 
-**FR-AUTH-05**  
-Nama petugas aktual tidak harus sama dengan akun Posko.
+## 6.3 P0
 
-**FR-AUTH-06**  
-Saat melakukan pekerjaan, Posko memilih nama petugas dari daftar dropdown.
+**FR-P0-01** P0 adalah prioritas tertinggi.  
+**FR-P0-02** Sumber P0: ADMIN, HARSUS, PASILA, SPECIAL_CASE.  
+**FR-P0-03** P0 yang sudah dapat ditugaskan ke POSKO wajib menunjuk asset, Section, dan Posko yang sudah tervalidasi. Temuan lokasi yang belum terdaftar disimpan lebih dahulu pada sumbernya (mis. HARSUS/PASILA) sebagai temuan menunggu validasi Admin.  
+**FR-P0-04** Admin memetakan/membuat asset + Section/Posko untuk temuan unknown point; setelah validasi selesai barulah P0 dibuat dengan status `BARU` dan muncul ke POSKO.  
+**FR-P0-05** Status minimum: BARU, DITERIMA, DIKERJAKAN, RESCHEDULED, SELESAI, CANCELLED.  
+**FR-P0-06** Bila P0 belum selesai, POSKO memilih salah satu:
+1. **LANJUT_SHIFT_BERIKUTNYA** — otomatis diarahkan ke shift berikutnya, alasan wajib, tidak perlu approval Admin.
+2. **CUSTOM_RESCHEDULE** — pilih tanggal + shift, alasan wajib, menunggu APPROVED/REJECTED oleh Admin.
 
-**FR-AUTH-07**  
-Pengelolaan daftar nama petugas dilakukan oleh Admin.
+P0 tetap menggunakan record/ID yang sama. Tidak membuat child P0 hanya karena reschedule.
 
----
+**FR-P0-07** P0 menyimpan **snapshot kebutuhan eksekusi** (`kebutuhan_padam`, `kebutuhan_material`) agar POSKO menerima pekerjaan yang sudah siap dieksekusi. Jika P0 berasal dari HARSUS/PASILA, nilai dicopy dari sumber; jika dibuat manual, ADMIN mengisinya. Untuk P0 dari Special Case, kebutuhan eksekusi harus tersedia/ditinjau sebelum P0 ditugaskan.  
+**FR-P0-08** Histori status, shift, jadwal, alasan, requester, approver, `occurred_at` (waktu aktivitas/input) dan `recorded_at` (waktu diterima server) dicatat.  
+**FR-P0-09** Saat `CUSTOM_RESCHEDULE` masih menunggu keputusan Admin, status P0 tetap `DIKERJAKAN`. Jika disetujui/NEXT_SHIFT, status menjadi `RESCHEDULED`; saat pekerjaan dilanjutkan pada target shift, status kembali `DIKERJAKAN`. Jika request ditolak, status tetap `DIKERJAKAN`.
 
-# 6.2 Posko dan Section
+## 6.4 Work Order
 
-**FR-REG-01**  
-Sistem harus memiliki daftar Posko.
+**FR-WO-01** WO MVP hanya `PEMASANGAN_APKUK`.  
+**FR-WO-02** Target 6 WO/shift/Posko.  
+**FR-WO-03** P0 tetap didahulukan; WO yang tidak sempat dikerjakan dapat `RESCHEDULED` ke tanggal/shift berikutnya dengan alasan. WO carry-over **mengisi kuota terlebih dahulu**; total target pada shift target tetap 6 WO/Posko, bukan 6 baru ditambah backlog.  
+**FR-WO-04** Satu WO = satu aset.  
+**FR-WO-05** Aset dengan APKUK aktif tidak mendapat WO pemasangan APKUK identik.  
+**FR-WO-06** WO menyimpan `priority_score` dan `alasan_prioritas` agar POSKO dapat melihat “kenapa titik ini dipilih”.  
+**FR-WO-07** Admin dapat membuat WO manual dengan jenis yang sama pada MVP.  
+**FR-WO-08** Kandidat awal difilter dari aset eligible yang belum memiliki APKUK aktif dan tidak memiliki WO APKUK aktif. Ranking dapat menggunakan model ML ketika siap; alur utama tidak boleh bergantung pada model yang belum tersedia.  
+**FR-WO-09** Saat WO pemasangan APKUK berhasil `SELESAI`, server dalam proses yang sama membuat/memperbarui record APKUK menjadi aktif pada aset tersebut dengan tanggal pasang berdasarkan waktu pekerjaan, sehingga aset tidak terpilih lagi sebagai kandidat WO APKUK identik.
 
-**FR-REG-02**  
-Sistem harus memiliki daftar Section.
+## 6.5 PASILA
 
-**FR-REG-03**  
-Satu Posko dapat bertanggung jawab atas banyak Section.
+**FR-PAS-01** PASILA wajib setiap shift.  
+**FR-PAS-02** Sistem memberikan rekomendasi area/aset berdasarkan prioritas gangguan/trip.  
+**FR-PAS-03** POSKO boleh override rekomendasi dengan alasan wajib.  
+**FR-PAS-04** Satu sesi dapat memiliki banyak action.  
+**FR-PAS-05** Action yang tidak dapat dieksekusi wajib mencatat alasan, `kebutuhan_padam`, dan `kebutuhan_material`, lalu dapat menghasilkan P0.  
+**FR-PAS-06** Vegetasi yang dieksekusi langsung dicatat sebagai ROW insidental.
 
-**FR-REG-04**  
-Satu Section memiliki satu Posko penanggung jawab aktif pada satu waktu.
+## 6.6 HARSUS
 
-**FR-REG-05**  
-Section yang dimiliki satu Posko dapat berasal dari penyulang yang berbeda.
+HARSUS mencatat temuan, kondisi aset, dokumentasi, rekomendasi, `TANPA_PADAM/PERLU_PADAM`, kebutuhan material (gunakan `TIDAK_ADA` bila tidak membutuhkan material), koordinat, dan flag perlu P0. Asset boleh belum terdaftar; temuan tetap dapat disimpan menggunakan koordinat lalu masuk `PENDING_ASSET_VALIDATION`. Admin memetakan/membuat asset sebelum P0 executable dibuat.
 
----
+## 6.7 ROW
 
-# 6.3 P0
+Jenis tindakan: RABAS, PANGKAS, TEBANG. ROW cukup menyimpan **foto + catatan**, tidak memerlukan field teks khusus kondisi_sebelum/kondisi_sesudah. ROW dapat mengusulkan vegetasi baru dengan koordinat + foto + catatan untuk validasi Admin.
 
-**FR-P0-01**  
-P0 adalah pekerjaan dengan prioritas tertinggi.
+## 6.8 Special Case
 
-**FR-P0-02**  
-P0 dapat berasal dari:
+Rule awal: **>3 trip/penyulang/bulan kalender**.
 
-- Admin;
-- Harsus;
-- PASILA;
-- Special Case.
+Jika Special Case mengenai aset yang sudah memiliki P0 aktif:
+- masalah sama → jangan buat P0 baru; tambahkan info/alasan/evidence ke P0 aktif;
+- masalah berbeda → boleh membuat P0 baru.
 
-**FR-P0-03**  
-P0 harus mempunyai titik aset atau lokasi pekerjaan yang jelas.
+Special Case juga menjadi salah satu faktor prioritas WO/APKUK.
 
-**FR-P0-04**  
-Sistem menentukan Posko penerima berdasarkan section titik tersebut.
+## 6.9 Maps
 
-**FR-P0-05**  
-Status minimum:
+Maps tersedia di mobile dan Admin Web secara online-primary. Cache offline tidak wajib menyimpan basemap. Navigasi eksternal membutuhkan koneksi/ketersediaan aplikasi peta.
 
-- BARU
-- DITERIMA
-- DIKERJAKAN
-- SELESAI
-- RESCHEDULED / TIDAK SELESAI
-- CANCELLED oleh pihak berwenang.
+## 6.10 Dokumentasi
 
-**FR-P0-06**  
-P0 yang tidak selesai wajib mempunyai alasan.
+Semua pekerjaan yang akan disubmit wajib memiliki minimal satu foto. Jenis foto final:
+- BEFORE
+- AFTER
+- TEMUAN
+- SURVEY
 
-**FR-P0-07**  
-P0 lanjutan harus membawa referensi terhadap pekerjaan/temuan asal.
+Tidak semua pekerjaan wajib BEFORE+AFTER; aturan minimal per jenis pekerjaan dapat ditentukan di aplikasi. Foto dapat diambil offline dan disimpan bersama draft.
 
-**FR-P0-08**  
-Riwayat perubahan status harus disimpan.
+## 6.11 Histori dan Koreksi
 
----
+Draft lokal bebas diedit sebelum submit. Setelah data masuk server/pekerjaan selesai, field user lapangan tidak diedit langsung. Koreksi dilakukan oleh ADMIN melalui Web Admin dan seluruh perubahan dicatat pada audit log.
 
-# 6.4 Work Order
+## 6.12 Dashboard Admin
 
-**FR-WO-01**  
-Sistem harus mampu menghasilkan WO preventive.
+Web khusus ADMIN. Dashboard dapat menggunakan polling ringan sekitar 15 detik dan tombol Refresh; realtime WebSocket tidak menjadi requirement MVP.
 
-**FR-WO-02**  
-Target awal adalah:
+## 6.13 Offline Draft & Submission
 
-**6 WO per shift per Posko.**
-
-**FR-WO-03**  
-Satu WO = satu titik aset.
-
-**FR-WO-04**  
-Jenis WO utama MVP adalah pemasangan APKUK.
-
-**FR-WO-05**  
-Aset dengan APKUK aktif tidak boleh mendapatkan WO pemasangan APKUK yang identik.
-
-**FR-WO-06**  
-Aset yang telah memiliki APKUK tetapi masih bermasalah dapat masuk proses evaluasi/tindak lanjut, bukan otomatis pemasangan ulang.
-
-**FR-WO-07**  
-Admin dapat membuat WO manual.
-
-**FR-WO-08**  
-Sistem menyimpan alasan/rekomendasi mengapa aset dipilih sebagai WO.
-
-**FR-WO-09**  
-Status minimum WO:
-
-- BARU
-- DITERIMA
-- DIKERJAKAN
-- SELESAI
-- RESCHEDULED
-- CANCELLED.
-
----
-
-# 6.5 PASILA
-
-**FR-PAS-01**  
-PASILA wajib tersedia pada setiap shift.
-
-**FR-PAS-02**  
-PASILA merupakan patroli sekaligus eksekusi langsung.
-
-**FR-PAS-03**  
-PASILA memiliki Posko, section, shift, dan area/titik prioritas.
-
-**FR-PAS-04**  
-Satu PASILA dapat mempunyai banyak action.
-
-**FR-PAS-05**  
-Setiap action dapat berupa:
-
-- selesai langsung;
-- tidak dapat diselesaikan.
-
-**FR-PAS-06**  
-Action yang selesai langsung harus masuk histori.
-
-**FR-PAS-07**  
-Action yang tidak dapat diselesaikan harus dapat menghasilkan P0.
-
-**FR-PAS-08**  
-Alasan tidak selesai wajib dicatat.
-
-**FR-PAS-09**  
-Jika action berupa vegetasi dan dapat ditangani langsung, action tersebut dicatat sebagai ROW insidental.
-
----
-
-# 6.6 Harsus
-
-**FR-HAR-01**  
-Harsus dapat membuat inspeksi.
-
-**FR-HAR-02**  
-Inspeksi dikaitkan dengan titik aset/section.
-
-**FR-HAR-03**  
-Harsus mencatat:
-
-- temuan;
-- kondisi;
-- dokumentasi;
-- rekomendasi;
-- perlu padam/tanpa padam.
-
-**FR-HAR-04**  
-Temuan yang membutuhkan tindak lanjut dapat membentuk P0.
-
-**FR-HAR-05**  
-P0 ditugaskan kepada Posko berdasarkan section.
-
----
-
-# 6.7 ROW
-
-**FR-ROW-01**  
-ROW dapat melihat daftar pekerjaan vegetasi.
-
-**FR-ROW-02**  
-Jenis tindakan:
-
-- RABAS
-- PANGKAS
-- TEBANG.
-
-**FR-ROW-03**  
-Pekerjaan dikaitkan dengan section/lokasi vegetasi.
-
-**FR-ROW-04**  
-ROW mencatat kondisi sebelum dan sesudah.
-
-**FR-ROW-05**  
-Pekerjaan vegetasi yang dilakukan Posko melalui PASILA harus muncul dalam histori ROW.
-
-**FR-ROW-06**  
-Riwayat penanganan vegetasi digunakan untuk menentukan kebutuhan pekerjaan berikutnya.
-
-**FR-ROW-07**  
-Interval penanganan vegetasi harus dapat dikonfigurasi dan tidak boleh dipaksakan sama untuk seluruh jenis/kondisi vegetasi.
-
----
-
-# 6.8 Special Case
-
-**FR-SC-01**  
-Sistem mendeteksi gangguan berulang.
-
-**FR-SC-02**  
-Rule awal Special Case:
-
-**penyulang mengalami lebih dari 3 trip dalam satu bulan.**
-
-**FR-SC-03**  
-Sistem mengidentifikasi titik-titik yang terlibat dalam kejadian tersebut.
-
-**FR-SC-04**  
-Gangguan berulang pada aset yang sama tidak menghasilkan P0 identik berkali-kali.
-
-**FR-SC-05**  
-Aset yang berulang pada titik sama harus mendapatkan peningkatan prioritas evaluasi.
-
-**FR-SC-06**  
-Beberapa aset berbeda yang terlibat dapat menghasilkan beberapa target tindak lanjut.
-
-**FR-SC-07**  
-Special Case menghasilkan P0.
-
----
-
-# 6.9 Maps
-
-**FR-MAP-01**  
-Maps tersedia pada web dan mobile.
-
-**FR-MAP-02**  
-Maps dapat menampilkan:
-
-- Tiang;
-- Gardu;
-- Keypoint;
-- Vegetasi;
-- titik gangguan;
-- titik pekerjaan.
-
-**FR-MAP-03**  
-Maps memiliki filter:
-
-- penyulang;
-- section;
-- Posko;
-- tipe aset;
-- status pekerjaan.
-
-**FR-MAP-04**  
-Klik/tap titik menampilkan informasi aset.
-
-**FR-MAP-05**  
-Detail dapat menampilkan:
-
-- identitas;
-- kondisi;
-- APKUK;
-- histori gangguan;
-- histori pekerjaan;
-- foto;
-- status pekerjaan aktif.
-
-**FR-MAP-06**  
-Tersedia tombol navigasi menuju koordinat titik menggunakan aplikasi peta.
-
----
-
-# 6.10 Dokumentasi
-
-**FR-DOC-01**  
-Pekerjaan selesai harus memiliki identitas petugas.
-
-**FR-DOC-02**  
-Pekerjaan menyimpan waktu pelaksanaan.
-
-**FR-DOC-03**  
-Pekerjaan menyimpan status.
-
-**FR-DOC-04**  
-Foto before/after diwajibkan untuk jenis pekerjaan yang memang membutuhkan pembuktian kondisi sebelum dan sesudah.
-
-**FR-DOC-05**  
-Dokumentasi dapat dibuat ketika offline.
-
----
-
-# 6.11 Histori
-
-**FR-HIS-01**  
-Sistem mempunyai histori per aset.
-
-**FR-HIS-02**  
-Histori mencakup aktivitas yang relevan:
-
-- gangguan;
-- APKUK;
-- P0;
-- WO;
-- PASILA;
-- inspeksi Harsus;
-- ROW.
-
-**FR-HIS-03**  
-Histori diurutkan berdasarkan waktu.
-
-**FR-HIS-04**  
-Histori dapat digunakan sebagai konteks sebelum melakukan pekerjaan berikutnya.
-
----
-
-# 6.12 Dashboard Admin
-
-**FR-ADM-01**  
-Admin dapat melihat seluruh Posko.
-
-**FR-ADM-02**  
-Admin dapat melihat jumlah/status:
-
-- P0;
-- WO;
-- PASILA;
-- inspeksi Harsus;
-- ROW;
-- Special Case.
-
-**FR-ADM-03**  
-Dashboard dapat difilter berdasarkan:
-
-- Posko;
-- section;
-- penyulang;
-- tanggal/periode;
-- status.
-
-**FR-ADM-04**  
-Admin dapat membuka detail pekerjaan dan histori terkait.
-
----
-
-# 6.13 Offline & Sync
-
-**FR-OFF-01**  
-Android App harus memungkinkan input ketika tidak tersedia internet.
-
-**FR-OFF-02**  
-Data offline disimpan secara persisten pada perangkat.
-
-**FR-OFF-03**  
-Data tidak boleh hilang apabila aplikasi ditutup sebelum sync.
-
-**FR-OFF-04**  
-Ketika perangkat kembali online, data masuk antrean sinkronisasi.
-
-**FR-OFF-05**  
-Setiap record mempunyai status sync:
-
-- LOCAL
-- SYNCING
-- SYNCED
-- FAILED.
-
-**FR-OFF-06**  
-Sync gagal dapat dicoba kembali tanpa membuat duplikasi data.
-
-**FR-OFF-07**  
-User dapat mengetahui apakah pekerjaan sudah tersinkron atau belum.
+**FR-OFF-01** Input field dan foto dapat disimpan offline.  
+**FR-OFF-02** Draft tersimpan persisten setelah app ditutup/HP restart.  
+**FR-OFF-03** Draft dapat diubah sebelum submit.  
+**FR-OFF-04** User dapat Kirim satu draft atau Kirim Semua saat online.  
+**FR-OFF-05** Status lokal minimum: DRAFT, READY_TO_SEND, SENDING, SUBMITTED, FAILED.  
+**FR-OFF-06** Jika bulk submit berisi beberapa record dan satu gagal, record lain tetap boleh berhasil.  
+**FR-OFF-07** Record FAILED tetap di lokal dan dapat retry tanpa duplikasi.  
+**FR-OFF-08** Waktu aktivitas/input berasal dari waktu pencatatan di device (`occurred_at`/`input_at`); server menyimpan waktu penerimaan terpisah (`recorded_at`/`submitted_at`). Untuk status P0/WO, kedua waktu disimpan pada `status_history`; untuk entity lapangan baru keduanya juga tersimpan pada record transaksi terkait.  
+**FR-OFF-09** P0/WO baru yang dibuat saat device offline baru muncul setelah device online dan melakukan refresh/bootstrap.  
+**FR-OFF-10** Cache offline hanya data ringan yang diperlukan form, seperti asset, section, posko, petugas, dan koordinat. Histori lengkap tetap online-primary.  
+**FR-OFF-11** Dua device yang mencoba mengubah pekerjaan server yang sama tidak boleh saling overwrite otomatis; server mengembalikan conflict untuk pemeriksaan manual.
 
 ---
 
 # 7. Sketsa Data Model
 
-Ini adalah **logical data model awal**, bukan schema database final.
-
-## UserAccount
-
-- user_id
-- username
-- password_hash
-- role
-- posko_id nullable
-- status
-
-Role:
-
-- ADMIN
-- POSKO
-- HARSUS
-- ROW
-
----
-
-## Petugas
-
-- petugas_id
-- nama_petugas
-- posko_id / tim
-- status
-
-Digunakan untuk dropdown pelaksana pekerjaan.
-
-Data nama petugas belum tersedia dan akan dilengkapi kemudian.
-
----
-
-## Posko
-
-- posko_id
-- nama_posko
-- status
-
----
-
-## Section
-
-- section_id
-- nama_section
-- penyulang
-- posko_id
-- aset_awal
-- aset_akhir
-- panjang_section
-- status
-
-Relasi:
-
-**Posko 1 → N Section**
-
----
-
-## Asset
-
-- asset_id
-- nama_asset
-- jenis_asset
-- section_id
-- latitude
-- longitude
-- konstruksi
-- status
-- kondisi_terakhir
-- foto_ref
-
-Posko dan penyulang dapat ditentukan melalui section.
-
----
-
-## Gangguan
-
-- gangguan_id
-- asset_id
-- section_id
-- posko_id
-- penyulang
-- tanggal_kejadian
-- penyebab
-- sifat_gangguan
-- trip
-- informasi gangguan lainnya
-
-Sumber detail mengikuti sumber gangguan pusat.
-
----
-
-## APKUK
-
-- apkuk_id
-- asset_id
-- jenis_apkuk
-- jumlah
-- tanggal_pasang
-- posisi
-- status
-- kondisi
-- foto_ref
-
----
-
-## Vegetasi
-
-- vegetasi_id
-- asset_terdekat_id
-- section_id
-- latitude
-- longitude
-- jenis_vegetasi
-- kondisi
-- kategori_pertumbuhan
-- tingkat_risiko
-- tanggal_row_terakhir
-- kondisi_terakhir
-- foto_ref
-
----
-
-## WorkOrder
-
-- wo_id
-- asset_id
-- section_id
-- posko_id
-- tanggal
-- shift
-- sumber
-- jenis_wo
-- priority_score
-- alasan_prioritas
-- status
-- petugas_id
-- waktu_mulai
-- waktu_selesai
-- alasan_reschedule
-
-Sumber:
-
-- AUTO
-- ADMIN
-
----
-
-## P0
-
-- p0_id
-- asset_id
-- section_id
-- posko_id
-- source_type
-- source_id
-- jenis_pekerjaan
-- prioritas
-- kebutuhan_padam
-- kebutuhan_material
-- status
-- petugas_id
-- parent_p0_id
-- alasan_tidak_selesai
-- waktu_dibuat
-- waktu_mulai
-- waktu_selesai
-
-Source:
-
-- ADMIN
-- HARSUS
-- PASILA
-- SPECIAL_CASE
-
----
-
-## PasilaSession
-
-- pasila_id
-- tanggal
-- shift
-- posko_id
-- section_id
-- penyulang_prioritas
-- anchor_asset_id
-- waktu_mulai
-- waktu_selesai
-- status
-
----
-
-## PasilaAction
-
-- action_id
-- pasila_id
-- asset_id
-- jenis_temuan
-- tindakan
-- selesai_langsung
-- kebutuhan_padam
-- kebutuhan_material
-- keterangan
-- create_p0
-- p0_id
-- is_row_incidental
-
-Relasi:
-
-**PASILA 1 → N Action**
-
----
-
-## HarsusInspection
-
-- inspeksi_id
-- asset_id
-- section_id
-- tanggal
-- temuan
-- kondisi
-- tingkat_risiko
-- kebutuhan_padam
-- rekomendasi
-- foto_ref
-- p0_id nullable
-
----
-
-## RowWork
-
-- row_id
-- vegetasi_id
-- section_id
-- tanggal
-- jenis_tindakan
-- sumber
-- posko_id nullable
-- petugas_id
-- status
-- tanggal_row_berikutnya
-
-Sumber:
-
-- ROW_TERJADWAL
-- PASILA_INSIDENTAL
-
----
-
-## SpecialCase
-
-- special_case_id
-- penyulang
-- periode
-- jumlah_trip
-- status
-- created_at
-
----
-
-## Documentation
-
-- documentation_id
-- source_type
-- source_id
-- asset_id
-- photo_type
-- file_ref
-- captured_at
-- latitude
-- longitude
-- petugas_id
-
----
-
-## WorkHistory
-
-Histori dapat dibentuk dari seluruh transaksi pekerjaan dan tidak harus menjadi satu tabel fisik terpisah.
+Model logis utama:
+
+- `user`
+- `posko`
+- `penyulang`
+- `section`
+- `asset`
+- `apkuk`
+- `vegetasi`
+- `petugas`
+- `gangguan_raw` / `gangguan_mv`
+- `p0`
+- `p0_petugas`
+- `p0_reschedule_history`
+- `work_order`
+- `wo_petugas`
+- `pasila_session`
+- `pasila_action`
+- `harsus_inspection`
+- `row_work`
+- `vegetasi_proposal`
+- `special_case`
+- `special_case_asset`
+- `documentation`
+- `status_history`
+- `audit_log`
+- `app_config`
+
+Draft/outbox mobile **bukan** tabel transaksi server; data tersebut berada pada SQLite perangkat sampai submit berhasil.
 
 ---
 
 # 8. Edge Cases dan Failure States
 
-## EC-01 — Input offline, aplikasi ditutup
-
-Input harus tetap tersimpan lokal dan tersedia setelah aplikasi dibuka kembali.
-
----
-
-## EC-02 — Sync terputus di tengah jalan
-
-Data yang sudah terkirim tidak boleh terkirim ulang sebagai record baru.
-
-Sync harus bersifat idempotent.
-
----
-
-## EC-03 — Foto gagal tersinkron
-
-Data pekerjaan tidak boleh hilang.
-
-Status dokumentasi harus ditandai gagal sync dan dapat dicoba kembali.
+- App ditutup saat offline → draft tetap ada.
+- Bulk submit sebagian gagal → hanya item gagal tetap `FAILED`.
+- Foto wajib belum tersedia → submit ditolak di client/server.
+- Upload foto gagal → item belum dianggap complete; retry tersedia.
+- P0 dibuat pada titik tanpa master aset → masuk alur validasi Admin.
+- Dua device submit perubahan pada pekerjaan sama → server mengembalikan conflict, tidak auto-overwrite.
+- P0 belum selesai → lanjut shift berikutnya atau custom reschedule.
+- WO belum selesai karena P0 → WO dapat reschedule.
+- Special Case masalah sama dengan P0 aktif → merge evidence/info, bukan duplikasi P0.
+- Special Case masalah berbeda → P0 baru diperbolehkan.
 
 ---
 
-## EC-04 — P0 dibuat tetapi section tidak memiliki Posko aktif
+# 9. Success Metrics / Definition of Done MVP
 
-P0 tidak boleh hilang.
-
-Pekerjaan masuk queue Admin untuk assignment manual.
-
----
-
-## EC-05 — Aset tidak ditemukan saat Harsus inspeksi
-
-**OPEN QUESTION:** apakah Harsus boleh membuat titik sementara/new finding point atau harus meminta Admin menambahkan aset terlebih dahulu?
-
----
-
-## EC-06 — Temuan PASILA ternyata sudah memiliki P0 aktif
-
-Sistem memberikan warning untuk mencegah pekerjaan duplikat.
+- Keempat role berfungsi sesuai hak akses.
+- P0 berjalan dari assignment sampai selesai/reschedule dengan histori lengkap.
+- Sistem dapat menghasilkan target 6 WO/shift/Posko dan menjelaskan alasan prioritas.
+- PASILA tersedia setiap shift dan mendukung rekomendasi + override.
+- HARSUS dan ROW dapat membuat draft offline termasuk foto/koordinat.
+- Draft tidak hilang setelah app ditutup dan dapat submit satu per satu/bulk.
+- Retry tidak membuat duplikasi.
+- Admin dapat mengelola seluruh master, validasi titik, koreksi, dan audit.
+- Semua pekerjaan submit memiliki dokumentasi minimal sesuai rule.
 
 ---
 
-## EC-07 — WO APKUK dibuat untuk aset yang ternyata sudah memiliki APKUK aktif
-
-Sistem harus membatalkan rekomendasi atau menandainya tidak valid sebelum eksekusi.
-
----
-
-## EC-08 — APKUK terpasang tetapi aset tetap mengalami gangguan
-
-Sistem tidak membuat WO pemasangan APKUK identik.
-
-Aset diarahkan ke evaluasi/tindak lanjut.
-
----
-
-## EC-09 — Posko melakukan ROW insidental
-
-Pekerjaan harus tercatat dalam histori vegetasi agar Tim ROW mengetahui titik tersebut sudah ditangani.
-
----
-
-## EC-10 — PASILA menemukan banyak masalah
-
-Satu sesi tetap dapat menyimpan banyak action tanpa membatasi jumlah berdasarkan jumlah target awal.
-
----
-
-## EC-11 — PASILA tidak dapat menyelesaikan temuan
-
-Temuan harus menghasilkan P0 dengan informasi dari PASILA sebagai referensi.
-
----
-
-## EC-12 — Perangkat kehabisan storage
-
-Sistem memberikan warning sebelum dokumentasi offline gagal disimpan.
-
----
-
-## EC-13 — GPS tidak tersedia
-
-Pekerjaan tetap dapat dilakukan berdasarkan aset/titik yang telah dipilih.
-
-GPS aktual tidak boleh menjadi satu-satunya cara menentukan lokasi.
-
----
-
-## EC-14 — Data offline diedit dari lebih dari satu device
-
-Strategi conflict resolution belum ditentukan.
-
-**OPEN QUESTION.**
-
----
-
-## EC-15 — WO belum selesai ketika shift berakhir
-
-Pekerjaan tidak boleh hilang.
-
-Status menjadi reschedule/unfinished dengan alasan.
-
-Aturan terhadap target 6 WO berikutnya masih perlu ditentukan.
-
----
-
-# 9. Success Metrics
-
-## Definition of Done MVP
-
-Project dianggap siap digunakan apabila:
-
-### Alur Role
-
-- Admin dapat menjalankan seluruh fungsi utama.
-- Posko dapat menerima dan menyelesaikan P0, WO, dan PASILA.
-- Harsus dapat melakukan inspeksi dan menghasilkan P0.
-- ROW dapat menerima dan mencatat pekerjaan vegetasi.
-
-### P0
-
-- P0 dapat dibuat dari seluruh sumber yang ditentukan.
-- Assignment Posko berjalan berdasarkan section.
-- P0 dapat diselesaikan sampai dokumentasi dan histori.
-
-### WO
-
-- Sistem dapat menghasilkan 6 WO/shift/Posko sesuai business rule yang sudah ditentukan.
-- Admin dapat membuat WO manual.
-- Aset ber-APKUK aktif tidak mendapatkan duplikasi WO pemasangan.
-
-### PASILA
-
-- PASILA dapat dijalankan setiap shift.
-- Satu PASILA mendukung banyak action.
-- Action tidak selesai dapat berubah menjadi P0.
-
-### Offline
-
-- Seluruh input utama field dapat disimpan tanpa internet.
-- Data offline tidak hilang setelah aplikasi ditutup.
-- Data dapat tersinkron ketika kembali online.
-- Pengujian sync tidak menghasilkan record duplikat.
-
-### Maps
-
-- Titik pekerjaan dapat ditemukan.
-- Detail aset dapat dibuka.
-- Navigasi ke titik dapat dilakukan.
-
-### Dokumentasi
-
-- Identitas pelaksana tercatat.
-- Waktu tercatat.
-- Status tercatat.
-- Dokumentasi yang diwajibkan tersedia.
-
-### Histori
-
-- Hasil pekerjaan dapat dilihat kembali pada titik terkait.
-- Pekerjaan baru dapat menggunakan histori sebelumnya sebagai konteks.
-
-### Admin Monitoring
-
-- Admin dapat melihat aktivitas seluruh Posko dalam satu sistem.
-
----
-
-## Business Outcome Metrics
-
-Target angka untuk dampak operasional **belum ditetapkan**.
-
-Metrik yang nantinya dapat digunakan:
-
-- penurunan repeat fault;
-- jumlah pekerjaan preventive selesai;
-- jumlah P0 selesai;
-- rasio temuan PASILA yang ditindaklanjuti;
-- rasio temuan Harsus yang ditindaklanjuti;
-- jumlah Special Case yang berhasil diselesaikan;
-- waktu penyelesaian pekerjaan;
-- efektivitas APKUK;
-- efektivitas ROW.
-
-Target numeriknya harus ditetapkan bersama stakeholder dan tidak diasumsikan dalam PRD.
-
----
-
-# 10. Open Questions
-
-## OQ-01 — Formula prioritas WO
-
-Faktor apa saja yang menentukan enam aset terpilih?
-
-Kandidat faktor:
-
-- histori gangguan;
-- frekuensi trip;
-- status APKUK;
-- kondisi aset;
-- Special Case;
-- histori pekerjaan.
-
-Bobot belum ditentukan.
-
----
-
-## OQ-02 — 6 WO ketika terdapat P0 banyak
-
-Apakah target **6 WO/shift/Posko tetap wajib** apabila pada shift tersebut terdapat banyak P0 prioritas?
-
-Atau 6 WO merupakan target normal yang dapat berkurang akibat P0?
-
----
-
-## OQ-03 — Manual WO Admin
-
-Apakah WO manual Admin pada MVP hanya boleh berupa pemasangan APKUK atau dapat berupa pekerjaan preventive lain?
-
----
-
-## OQ-04 — PASILA target selection
-
-Ketika tidak ada kondisi khusus/P0 yang menjadi acuan, apakah area PASILA selalu ditentukan berdasarkan penyulang dengan jumlah trip tertinggi?
-
-Periode perhitungan trip perlu dikunci.
-
----
-
-## OQ-05 — Special Case
-
-Rule awal:
-
-**>3 trip/penyulang/bulan.**
-
-Perlu dikonfirmasi apakah menggunakan:
-
-- bulan kalender;
-- rolling 30 hari;
-- periode lain.
-
----
-
-## OQ-06 — ROW scheduling
-
-Interval ROW dapat berbeda berdasarkan kondisi/vegetasi.
-
-Formula penentuan tanggal pekerjaan ROW berikutnya belum dikunci.
-
----
-
-## OQ-07 — Petugas
-
-Daftar nama petugas belum tersedia.
-
-Perlu ditentukan:
-
-- siapa mengelola master petugas;
-- apakah petugas hanya terikat ke satu Posko/tim;
-- apakah satu pekerjaan bisa memiliki lebih dari satu petugas.
-
----
-
-## OQ-08 — Offline Maps
-
-Input pekerjaan wajib offline.
-
-Namun kebutuhan **peta dasar penuh secara offline** belum ditentukan.
-
-Pilihan:
-
-- hanya detail pekerjaan/data titik yang dicache;
-- peta wilayah juga tersedia offline.
-
----
-
-## OQ-09 — Conflict Resolution
-
-Jika data yang sama diedit dari dua perangkat ketika offline, aturan versi data yang dianggap benar belum ditentukan.
-
----
-
-## OQ-10 — Harsus menemukan titik yang belum terdaftar
-
-Belum ditentukan apakah:
-
-- Harsus boleh membuat titik sementara;
-- Admin harus membuat aset terlebih dahulu;
-- temuan dapat dibuat dengan koordinat tanpa `ID_ASET` lalu divalidasi kemudian.
-
----
-
-## OQ-11 — Batas dokumentasi
-
-Perlu ditentukan pekerjaan mana yang:
-
-- wajib foto before + after;
-- cukup foto hasil;
-- wajib koordinat aktual.
-
----
-
-## OQ-12 — Shift
-
-Sistem menggunakan **3 shift per hari**.
-
-Jam operasional dan aturan pergantian/cutoff shift perlu disimpan sebagai parameter agar dapat diubah tanpa mengubah aplikasi.
-
----
-
-## OQ-13 — Correction workflow
-
-Perlu difinalisasi apakah pekerjaan berstatus SELESAI:
-
-- tidak dapat diedit oleh Posko sama sekali;
-- hanya dapat dikoreksi melalui request ke Admin.
-
-Konsep awal mengarah ke opsi kedua.
-
----
-
-## OQ-14 — Sumber data gangguan
-
-Data histori gangguan berasal dari sumber gangguan pusat.
-
-Metode integrasi ke backend baru perlu ditentukan sesuai akses teknis yang tersedia.
+# 10. Open Questions yang Masih Sah
+
+1. Formula dan model ML final untuk memberi priority score WO.
+2. Formula jadwal ROW berikutnya.
+3. Metode ingest data gangguan produksi (CSV/API/adapter lain sesuai akses nyata).
+4. Retention policy transaksi/foto dan backup production.
+5. Deployment provider production dan detail sizing infrastruktur.
+6. Matriks foto minimal per jenis pekerjaan bila stakeholder ingin aturan lebih spesifik dari “minimal satu foto”.
+7. Taxonomy `issue_type` dan aturan menentukan “masalah sama vs berbeda” untuk Special Case sebelum Phase Special Case production.
+
+Keputusan yang **tidak lagi Open Question**: target WO tetap 6, WO MVP APKUK saja, PASILA target selection, bulan kalender Special Case, jam shift, model akun tim, HARSUS unknown point, conflict manual, full offline basemap tidak wajib, correction dilakukan Admin, dan offline menggunakan draft/manual submit.
 
 ---
 
 # Ringkasan Produk
 
-**Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi ULP Sribhawono adalah platform Android dan Web yang mengelola proses preventive secara end-to-end melalui P0, Work Order, PASILA, inspeksi Harsus, pekerjaan ROW, Special Case, Maps, dokumentasi, histori, monitoring Admin, serta kemampuan kerja offline dan sinkronisasi ketika koneksi tersedia.**
-
-Produk dianggap berhasil ketika keempat role dapat menggunakan seluruh alur utama tersebut secara nyata dari penugasan sampai penyelesaian dan histori tanpa kehilangan data, termasuk pada kondisi lapangan tanpa koneksi internet.
+Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi ULP Sribhawono adalah platform Flutter Android + Laravel Web/API + PostgreSQL yang mengelola P0, WO, PASILA, HARSUS, ROW, Special Case, Maps, dokumentasi, histori, dan monitoring Admin. Aplikasi lapangan mendukung penyimpanan draft serta foto saat offline dan pengiriman manual ketika internet tersedia, tanpa full bidirectional database sync.
