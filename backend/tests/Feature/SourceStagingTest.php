@@ -20,8 +20,7 @@ class SourceStagingTest extends TestCase
         $this->assertTrue(Schema::hasTable('asset_source_rows'));
         $this->assertTrue(Schema::hasColumns('asset_source_rows', [
             'id', 'id_aset_raw', 'nama_aset_raw', 'jenis_aset_raw',
-            'penyulang_raw', 'section_id_raw', 'posko_id_raw',
-            'latitude_raw', 'longitude_raw', 'foto_url_raw', 'status_raw',
+            'penyulang_raw', 'latitude_raw', 'longitude_raw', 'status_raw',
             'source_row_number', 'imported_at', 'created_at', 'updated_at',
         ]));
     }
@@ -33,8 +32,6 @@ class SourceStagingTest extends TestCase
             'nama_aset_raw' => 'Tiang Test',
             'jenis_aset_raw' => 'TIANG',
             'penyulang_raw' => 'JAIPONG',
-            'section_id_raw' => 'SEC-01',
-            'posko_id_raw' => 'POSKO-01',
             'latitude_raw' => '-5.17318',
             'longitude_raw' => '105.84721',
             'status_raw' => 'AKTIF',
@@ -69,48 +66,78 @@ class SourceStagingTest extends TestCase
     {
         $this->assertTrue(Schema::hasTable('vegetasi_source_rows'));
         $this->assertTrue(Schema::hasColumns('vegetasi_source_rows', [
-            'id', 'id_pohon_raw', 'nama_pohon_raw', 'penyulang_raw',
-            'id_aset_raw', 'nama_tiang_raw', 'jenis_pohon_raw',
+            'id', 'no_raw', 'nama_pohon_raw', 'up3_raw', 'ulp_raw',
+            'penyulang_raw', 'id_jtm_raw', 'id_tiang_raw', 'nama_tiang_raw',
+            'jenis_pohon_raw', 'pertumbuhan_pohon_raw', 'jarak_aman_raw',
+            'jarak_bahaya_raw', 'kondisi_raw', 'section_raw', 'eam_raw',
             'latitude_raw', 'longitude_raw', 'jarak_pohon_raw',
-            'kondisi_raw', 'tanggal_survey_raw', 'section_id_raw',
-            'keterangan_m_raw', 'status_raw', 'tanggal_inspeksi_terakhir_raw',
-            'tanggal_row_terakhir_raw', 'jenis_row_terakhir_raw',
-            'kondisi_terakhir_agustus_raw', 'foto_ref_raw', 'keterangan_t_raw',
+            'jarak_pohon_saat_ini_raw', 'izin_padam_raw', 'izin_tebang_bawah_raw',
+            'tanggal_update_raw', 'tanggal_periksa_raw',
+            'tanggal_perkiraan_bahaya_raw', 'user_pembuat_raw',
+            'user_update_raw', 'keterangan_raw', 'id_pohon_raw',
             'source_row_number', 'imported_at', 'created_at', 'updated_at',
         ]));
-    }
-
-    public function test_vegetasi_source_row_handles_duplicate_keterangan_columns(): void
-    {
-        $row = VegetasiSourceRow::create([
-            'id_pohon_raw' => 'P-001',
-            'keterangan_m_raw' => 'Keterangan kolom M',
-            'keterangan_t_raw' => 'Keterangan kolom T',
-            'source_row_number' => 2,
-            'imported_at' => now(),
-        ]);
-
-        $row->refresh();
-
-        $this->assertSame('Keterangan kolom M', $row->keterangan_m_raw);
-        $this->assertSame('Keterangan kolom T', $row->keterangan_t_raw);
     }
 
     public function test_vegetasi_source_row_can_be_created(): void
     {
         VegetasiSourceRow::create([
-            'id_pohon_raw' => 'P-001',
-            'nama_pohon_raw' => 'Mangga',
-            'jenis_pohon_raw' => 'BUAH',
+            'no_raw' => '1',
+            'nama_pohon_raw' => 'Kelapa',
+            'up3_raw' => 'UP3 METRO',
+            'ulp_raw' => 'ULP SRIBHAWONO',
+            'penyulang_raw' => 'JAIPONG',
+            'id_jtm_raw' => 'JTM-01',
+            'id_tiang_raw' => 'T-01',
+            'nama_tiang_raw' => 'Tiang 01',
+            'jenis_pohon_raw' => 'KELAPA',
+            'pertumbuhan_pohon_raw' => 'SEDANG',
+            'jarak_aman_raw' => '2.5',
+            'jarak_bahaya_raw' => '1.0',
+            'kondisi_raw' => 'BAHAYA',
+            'section_raw' => 'SEC-01',
+            'eam_raw' => 'EAM-100',
+            'latitude_raw' => '-5.08388',
+            'longitude_raw' => '105.63628',
             'jarak_pohon_raw' => '0,47',
+            'jarak_pohon_saat_ini_raw' => '0.5',
+            'izin_padam_raw' => 'YA',
+            'izin_tebang_bawah_raw' => 'TIDAK',
+            'tanggal_update_raw' => '2026-09-01',
+            'tanggal_periksa_raw' => '2026-09-01',
+            'tanggal_perkiraan_bahaya_raw' => '2026-10-01',
+            'user_pembuat_raw' => 'SURVEYOR1',
+            'user_update_raw' => 'ADMIN',
+            'keterangan_raw' => 'Dekat kawat TM',
+            'id_pohon_raw' => 'P-001',
             'source_row_number' => 2,
             'imported_at' => now(),
         ]);
 
         $this->assertDatabaseHas('vegetasi_source_rows', [
             'id_pohon_raw' => 'P-001',
+            'penyulang_raw' => 'JAIPONG',
+            'latitude_raw' => '-5.08388',
+            'longitude_raw' => '105.63628',
             'jarak_pohon_raw' => '0,47',
         ]);
+    }
+
+    public function test_vegetasi_source_row_preserves_raw_coordinates_and_distances(): void
+    {
+        $row = VegetasiSourceRow::create([
+            'latitude_raw' => '-5.08388',
+            'longitude_raw' => '105.63628',
+            'jarak_pohon_raw' => '0,47',
+            'source_row_number' => 2,
+            'imported_at' => now(),
+        ]);
+
+        $row->refresh();
+
+        $this->assertSame('-5.08388', $row->latitude_raw);
+        $this->assertSame('105.63628', $row->longitude_raw);
+        $this->assertSame('0,47', $row->jarak_pohon_raw);
     }
 
     // ─── Gangguan Source Rows ──────────────────────────────────────
