@@ -4,6 +4,8 @@ namespace App\Console\Commands;
 
 use App\Models\AssetSourceRow;
 use App\Models\GangguanSourceRow;
+use App\Models\KeypointSourceRow;
+use App\Models\SectionPicSourceRow;
 use App\Models\VegetasiSourceRow;
 use Google\Client;
 use Google\Service\Sheets;
@@ -15,7 +17,7 @@ class ImportSourceSheets extends Command
     protected $signature = 'sources:import
                             {--replace : Hapus data staging lama sebelum import}';
 
-    protected $description = 'Import ASSET_RAW, VEGETASI_RAW, GANGGUAN_RAW dari Google Sheets ke PostgreSQL';
+    protected $description = 'Import ASSET_RAW, VEGETASI_RAW, GANGGUAN_RAW, SECTION_PIC_RAW, KEYPOINT_RAW dari Google Sheets ke PostgreSQL';
 
     /**
      * Jumlah baris per batch insert.
@@ -78,7 +80,7 @@ class ImportSourceSheets extends Command
      * Header divalidasi berdasarkan posisi dan jumlah kolom.
      * DB column mapping menggunakan urutan posisi yang sama dengan header.
      *
-     * @return list<array{sheet: string, model: class-string, column_count: int, headers: list<string>, db_columns: list<string>}>
+     * @return list<array{sheet: string, model: class-string, column_count: int, headers: list<string>, db_columns: list<string>, skip_leading_blanks?: bool}>
      */
     private function sourceDefinitions(): array
     {
@@ -143,6 +145,30 @@ class ImportSourceSheets extends Command
                     'foto_ref_raw', 'sumber_data_raw',
                 ],
             ],
+            [
+                'sheet' => 'SECTION_PIC_RAW',
+                'model' => SectionPicSourceRow::class,
+                'column_count' => 3,
+                'headers' => [
+                    'PENYULANG', 'PEMUTUS', 'POSKO PIC',
+                ],
+                'db_columns' => [
+                    'penyulang_raw', 'pemutus_raw', 'posko_pic_raw',
+                ],
+                // Source file may have leading blank rows before the header row.
+                'skip_leading_blanks' => true,
+            ],
+            [
+                'sheet' => 'KEYPOINT_RAW',
+                'model' => KeypointSourceRow::class,
+                'column_count' => 5,
+                'headers' => [
+                    'PENYULANG', 'JENIS', 'NAMA', 'KOORDINAT', 'NOTE',
+                ],
+                'db_columns' => [
+                    'penyulang_raw', 'jenis_raw', 'nama_raw', 'koordinat_raw', 'note_raw',
+                ],
+            ],
         ];
     }
 
@@ -165,6 +191,7 @@ class ImportSourceSheets extends Command
         $columnCount = $definition['column_count'];
         $expectedHeaders = $definition['headers'];
         $dbColumns = $definition['db_columns'];
+        $skipLeadingBlanks = $definition['skip_leading_blanks'] ?? false;
 
         $this->newLine();
         $this->line(str_repeat('═', 60));
@@ -192,34 +219,31 @@ class ImportSourceSheets extends Command
             return false;
         }
 
-        // ─── Phase 2: Validasi header berdasarkan posisi ───
+        // ─── Phase 2: Validasi header ───
 
-        $header = array_map(
-            fn ($value) => $this->cleanString($value),
-            array_shift($allRows)
-        );
+        $resolved = $this->resolveHeader($allRows, $definition);
 
-        if (count($header) !== $columnCount) {
-            $this->error(
-                "Jumlah kolom tidak sesuai: expected {$columnCount}, actual ".count($header)
-            );
-            $this->line('Header terbaca: '.implode(' | ', $header));
+        if ($resolved['error'] !== null) {
+            $this->error($resolved['error']);
 
-            return false;
-        }
+            if ($resolved['detail'] !== null) {
+                $this->line($resolved['detail']);
+            }
 
-        if ($header !== $expectedHeaders) {
-            $this->error("Header \"{$sheetName}\" tidak sesuai.");
-            $this->line('Expected: '.implode(' | ', $expectedHeaders));
-            $this->line('Actual:   '.implode(' | ', $header));
-
-            for ($i = 0; $i < $columnCount; $i++) {
-                if ($header[$i] !== $expectedHeaders[$i]) {
-                    $this->warn("  Kolom ".($i + 1).": expected \"{$expectedHeaders[$i]}\", actual \"{$header[$i]}\"");
+            if ($resolved['warnings'] !== []) {
+                foreach ($resolved['warnings'] as $warning) {
+                    $this->warn($warning);
                 }
             }
 
             return false;
+        }
+
+        $headerRowIndex = $resolved['header_row_index'];
+        $allRows = $resolved['data_rows'];
+
+        if ($headerRowIndex > 0) {
+            $this->line("Melewati {$headerRowIndex} leading blank row(s).");
         }
 
         // ─── Phase 3: Parse semua baris ke buffer ───
@@ -229,8 +253,9 @@ class ImportSourceSheets extends Command
         $skipped = 0;
 
         foreach ($allRows as $index => $row) {
-            // +2: index mulai 0, baris 1 adalah header.
-            $sourceRowNumber = $index + 2;
+            // headerRowIndex accounts for skipped leading rows.
+            // +2: index mulai 0, +1 untuk header row sendiri, +1 untuk 1-based.
+            $sourceRowNumber = $headerRowIndex + $index + 2;
 
             if ($this->isEmptyRow($row)) {
                 $skipped++;
@@ -304,6 +329,120 @@ class ImportSourceSheets extends Command
 
             return false;
         }
+    }
+
+    /**
+     * Resolve header dari raw rows.
+     *
+     * Aturan:
+     * 1. Jika skip_leading_blanks → hanya melewati baris yang benar-benar kosong.
+     *    Baris non-empty pertama WAJIB sama persis dengan expected header.
+     *    Jika tidak cocok → error (tidak scan/melewati arbitrary non-header rows).
+     * 2. Trailing extra columns: di-trim hanya jika SEMUA extra header columns kosong.
+     *    Jika ada extra column non-empty → error.
+     * 3. Jumlah kolom dan nama kolom harus persis cocok.
+     *
+     * @param  list<list<mixed>>  $allRows  Raw rows dari Google Sheets (header + data)
+     * @param  array  $definition  Source definition
+     * @return array{header_row_index: int, data_rows: list<list<mixed>>, error: ?string, detail: ?string, warnings: list<string>}
+     */
+    protected function resolveHeader(array $allRows, array $definition): array
+    {
+        $columnCount = $definition['column_count'];
+        $expectedHeaders = $definition['headers'];
+        $sheetName = $definition['sheet'];
+        $skipLeadingBlanks = $definition['skip_leading_blanks'] ?? false;
+
+        $headerRowIndex = 0;
+
+        // ─── Step 1: Skip leading blank rows (strict) ───
+
+        if ($skipLeadingBlanks) {
+            while ($allRows !== [] && $this->isEmptyRow($allRows[0])) {
+                array_shift($allRows);
+                $headerRowIndex++;
+            }
+        }
+
+        if ($allRows === []) {
+            return [
+                'header_row_index' => $headerRowIndex,
+                'data_rows' => [],
+                'error' => "Tidak ditemukan header pada sheet \"{$sheetName}\".",
+                'detail' => null,
+                'warnings' => [],
+            ];
+        }
+
+        // ─── Step 2: Extract and clean header ───
+
+        $header = array_map(
+            fn ($value) => $this->cleanString($value),
+            array_shift($allRows)
+        );
+
+        // ─── Step 3: Handle trailing extra columns ───
+        // Hanya trim jika SEMUA extra header columns kosong.
+        // Jika ada extra column non-empty → validation gagal.
+
+        if (count($header) > $columnCount) {
+            $extraColumns = array_slice($header, $columnCount);
+            $nonEmptyExtra = array_filter($extraColumns, fn ($v) => $v !== '');
+
+            if ($nonEmptyExtra !== []) {
+                return [
+                    'header_row_index' => $headerRowIndex,
+                    'data_rows' => $allRows,
+                    'error' => "Jumlah kolom tidak sesuai: expected {$columnCount}, actual ".count($header),
+                    'detail' => 'Header terbaca: '.implode(' | ', $header),
+                    'warnings' => ['Extra kolom non-empty: '.implode(' | ', $nonEmptyExtra)],
+                ];
+            }
+
+            // Semua extra columns kosong → aman untuk di-trim
+            $header = array_slice($header, 0, $columnCount);
+        }
+
+        // ─── Step 4: Validate column count ───
+
+        if (count($header) !== $columnCount) {
+            return [
+                'header_row_index' => $headerRowIndex,
+                'data_rows' => $allRows,
+                'error' => "Jumlah kolom tidak sesuai: expected {$columnCount}, actual ".count($header),
+                'detail' => 'Header terbaca: '.implode(' | ', $header),
+                'warnings' => [],
+            ];
+        }
+
+        // ─── Step 5: Validate header names ───
+
+        if ($header !== $expectedHeaders) {
+            $warnings = [];
+            for ($i = 0; $i < $columnCount; $i++) {
+                if ($header[$i] !== $expectedHeaders[$i]) {
+                    $warnings[] = "  Kolom ".($i + 1).": expected \"{$expectedHeaders[$i]}\", actual \"{$header[$i]}\"";
+                }
+            }
+
+            return [
+                'header_row_index' => $headerRowIndex,
+                'data_rows' => $allRows,
+                'error' => "Header \"{$sheetName}\" tidak sesuai.",
+                'detail' => "Expected: ".implode(' | ', $expectedHeaders)."\nActual:   ".implode(' | ', $header),
+                'warnings' => $warnings,
+            ];
+        }
+
+        // ─── Success ───
+
+        return [
+            'header_row_index' => $headerRowIndex,
+            'data_rows' => $allRows,
+            'error' => null,
+            'detail' => null,
+            'warnings' => [],
+        ];
     }
 
     private function cleanString(mixed $value): string
