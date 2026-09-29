@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\AssetSourceRow;
 use App\Models\GangguanSourceRow;
+use App\Models\KeypointSourceRow;
+use App\Models\SectionPicSourceRow;
 use App\Models\VegetasiSourceRow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Schema;
@@ -177,6 +179,156 @@ class SourceStagingTest extends TestCase
         ]);
     }
 
+    // ─── Section PIC Source Rows ──────────────────────────────────
+
+    public function test_section_pic_source_rows_table_has_expected_columns(): void
+    {
+        $this->assertTrue(Schema::hasTable('section_pic_source_rows'));
+        $this->assertTrue(Schema::hasColumns('section_pic_source_rows', [
+            'id', 'penyulang_raw', 'pemutus_raw', 'posko_pic_raw',
+            'source_row_number', 'imported_at', 'created_at', 'updated_at',
+        ]));
+    }
+
+    public function test_section_pic_source_row_can_be_created(): void
+    {
+        SectionPicSourceRow::create([
+            'penyulang_raw' => 'JAIPONG',
+            'pemutus_raw' => 'REC JABO',
+            'posko_pic_raw' => 'SRIBHAWONO',
+            'source_row_number' => 3,
+            'imported_at' => now(),
+        ]);
+
+        $this->assertDatabaseHas('section_pic_source_rows', [
+            'penyulang_raw' => 'JAIPONG',
+            'pemutus_raw' => 'REC JABO',
+            'posko_pic_raw' => 'SRIBHAWONO',
+        ]);
+    }
+
+    public function test_section_pic_source_row_allows_null_penyulang(): void
+    {
+        // Source menggunakan grouping visual: penyulang ditulis sekali,
+        // baris keypoint berikutnya sengaja kosong. Jangan fill-down.
+        $row = SectionPicSourceRow::create([
+            'penyulang_raw' => null,
+            'pemutus_raw' => 'LBSM KARYA TANI',
+            'posko_pic_raw' => 'SRIBHAWONO',
+            'source_row_number' => 4,
+            'imported_at' => now(),
+        ]);
+
+        $row->refresh();
+
+        $this->assertNull($row->penyulang_raw);
+        $this->assertSame('LBSM KARYA TANI', $row->pemutus_raw);
+        $this->assertSame('SRIBHAWONO', $row->posko_pic_raw);
+    }
+
+    public function test_section_pic_preserves_raw_naming_variants(): void
+    {
+        // Berbagai varian nama harus disimpan apa adanya tanpa canonicalization.
+        $variants = ['REC JABO', 'REC-JABO', 'RECLOSER JABO', 'BRAJADEWA', 'BRAJA DEWA'];
+
+        foreach ($variants as $i => $variant) {
+            SectionPicSourceRow::create([
+                'pemutus_raw' => $variant,
+                'source_row_number' => $i + 2,
+                'imported_at' => now(),
+            ]);
+        }
+
+        foreach ($variants as $variant) {
+            $this->assertDatabaseHas('section_pic_source_rows', [
+                'pemutus_raw' => $variant,
+            ]);
+        }
+    }
+
+    // ─── Keypoint Source Rows ─────────────────────────────────────
+
+    public function test_keypoint_source_rows_table_has_expected_columns(): void
+    {
+        $this->assertTrue(Schema::hasTable('keypoint_source_rows'));
+        $this->assertTrue(Schema::hasColumns('keypoint_source_rows', [
+            'id', 'penyulang_raw', 'jenis_raw', 'nama_raw',
+            'koordinat_raw', 'note_raw',
+            'source_row_number', 'imported_at', 'created_at', 'updated_at',
+        ]));
+    }
+
+    public function test_keypoint_source_row_can_be_created(): void
+    {
+        KeypointSourceRow::create([
+            'penyulang_raw' => 'JAIPONG',
+            'jenis_raw' => 'FCO',
+            'nama_raw' => 'FCO JAIPONG 01',
+            'koordinat_raw' => '-5.21099, 105.46007',
+            'note_raw' => 'Dekat jalan utama',
+            'source_row_number' => 2,
+            'imported_at' => now(),
+        ]);
+
+        $this->assertDatabaseHas('keypoint_source_rows', [
+            'penyulang_raw' => 'JAIPONG',
+            'jenis_raw' => 'FCO',
+            'nama_raw' => 'FCO JAIPONG 01',
+        ]);
+    }
+
+    public function test_keypoint_source_row_preserves_coordinate_string(): void
+    {
+        // Koordinat disimpan sebagai raw string, tidak dipecah menjadi lat/long.
+        $coordString = '-5.21099, 105.46007';
+
+        $row = KeypointSourceRow::create([
+            'koordinat_raw' => $coordString,
+            'source_row_number' => 2,
+            'imported_at' => now(),
+        ]);
+
+        $row->refresh();
+
+        $this->assertSame($coordString, $row->koordinat_raw);
+    }
+
+    public function test_keypoint_source_row_allows_null_note(): void
+    {
+        $row = KeypointSourceRow::create([
+            'penyulang_raw' => 'JAIPONG',
+            'jenis_raw' => 'RECLOSER',
+            'nama_raw' => 'REC JABO',
+            'koordinat_raw' => '-5.21099, 105.46007',
+            'note_raw' => null,
+            'source_row_number' => 2,
+            'imported_at' => now(),
+        ]);
+
+        $row->refresh();
+
+        $this->assertNull($row->note_raw);
+    }
+
+    public function test_keypoint_preserves_raw_jenis_variants(): void
+    {
+        $types = ['FCO', 'LBSM', 'RECLOSER'];
+
+        foreach ($types as $i => $type) {
+            KeypointSourceRow::create([
+                'jenis_raw' => $type,
+                'source_row_number' => $i + 2,
+                'imported_at' => now(),
+            ]);
+        }
+
+        foreach ($types as $type) {
+            $this->assertDatabaseHas('keypoint_source_rows', [
+                'jenis_raw' => $type,
+            ]);
+        }
+    }
+
     // ─── Shared: Nullable / Minimal ───────────────────────────────
 
     public function test_all_staging_rows_accept_minimal_data(): void
@@ -198,6 +350,18 @@ class SourceStagingTest extends TestCase
             'imported_at' => now(),
         ]);
         $this->assertNotNull($gangguan->id);
+
+        $sectionPic = SectionPicSourceRow::create([
+            'source_row_number' => 5,
+            'imported_at' => now(),
+        ]);
+        $this->assertNotNull($sectionPic->id);
+
+        $keypoint = KeypointSourceRow::create([
+            'source_row_number' => 6,
+            'imported_at' => now(),
+        ]);
+        $this->assertNotNull($keypoint->id);
     }
 
     // ─── Command Registration ─────────────────────────────────────

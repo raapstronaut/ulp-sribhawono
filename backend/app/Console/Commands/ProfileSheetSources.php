@@ -11,7 +11,7 @@ class ProfileSheetSources extends Command
     protected $signature = 'sheets:profile-sources
                             {--sheet=* : Profil sheet tertentu saja (default: semua)}';
 
-    protected $description = 'Profiling read-only struktur ASSET_RAW, VEGETASI_RAW, GANGGUAN_RAW dari Google Sheets';
+    protected $description = 'Profiling read-only struktur ASSET_RAW, VEGETASI_RAW, GANGGUAN_RAW, SECTION_PIC_RAW, KEYPOINT_RAW dari Google Sheets';
 
     /**
      * Sheet yang akan diprofil secara default.
@@ -20,6 +20,8 @@ class ProfileSheetSources extends Command
         'ASSET_RAW',
         'VEGETASI_RAW',
         'GANGGUAN_RAW',
+        'SECTION_PIC_RAW',
+        'KEYPOINT_RAW',
     ];
 
     /**
@@ -101,6 +103,25 @@ class ProfileSheetSources extends Command
 
         if ($allRows === []) {
             $this->warn("⚠ Sheet \"{$sheetName}\" kosong (tidak ada data sama sekali).");
+            $this->newLine();
+
+            return true;
+        }
+
+        // Lewati leading blank rows (beberapa source memiliki blank rows
+        // sebelum header, misalnya SECTION_PIC_RAW).
+        $leadingBlanks = 0;
+        while ($allRows !== [] && $this->isEmptyRow($allRows[0])) {
+            array_shift($allRows);
+            $leadingBlanks++;
+        }
+
+        if ($leadingBlanks > 0) {
+            $this->warn("⚠ {$leadingBlanks} leading blank row(s) dilewati sebelum header.");
+        }
+
+        if ($allRows === []) {
+            $this->warn("⚠ Sheet \"{$sheetName}\" hanya berisi baris kosong.");
             $this->newLine();
 
             return true;
