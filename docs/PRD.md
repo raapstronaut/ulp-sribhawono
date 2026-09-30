@@ -2,10 +2,11 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline  
-**Scope:** ULP Sribhawono  
-**Platform:** Android App + Web Admin  
-**Pengguna utama:** ADMIN, POSKO, HARSUS, ROW  
+**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Scope:** ULP Sribhawono (Single-Tenant)
+**Platform:** Android App (Flutter) + Web Admin & Backend API (Laravel + PostgreSQL)
+**Pengguna utama:** ADMIN, POSKO, HARSUS, ROW
 **Fokus:** Pengelolaan pekerjaan preventive jaringan distribusi secara end-to-end
 
 ---
@@ -176,9 +177,13 @@ Perubahan status, reschedule, koreksi Admin, dan pekerjaan selesai tercatat dala
 **FR-AUTH-06** Petugas aktual dipilih dari master Petugas.  
 **FR-AUTH-07** Login baru membutuhkan internet. Session yang sudah tersimpan dapat digunakan untuk membuka mode draft offline selama masih valid menurut aplikasi lokal; validasi server kembali dilakukan saat perangkat online.
 
-## 6.2 Posko, Section, dan Shift
+## 6.2 Posko, Penyulang, Section, dan Shift
 
-Satu Posko dapat memiliki banyak Section. Satu Section memiliki satu Posko penanggung jawab aktif pada satu waktu. Asset diturunkan ke Posko/Penyulang melalui Section.
+### Klarifikasi Topologi & Kepemilikan Wilayah:
+1. **Relasi Many-to-Many Posko ↔ Penyulang:** Satu Penyulang (feeder) dapat melintasi dan ditangani oleh lebih dari satu Posko. Demikian pula satu Posko dapat menangani segmen dari beberapa Penyulang.
+2. **Asset Ownership Bukan Berdasarkan Feeder Saja:** Hubungan Posko-Penyulang tidak menentukan secara otomatis ownership operasional suatu aset fisik. Jangan pernah menyimpulkan Posko penanggung jawab aset hanya dari nama feeder.
+3. **Penetapan Ownership Melalui Section:** Ownership operasional aset fisik nantinya ditetapkan secara definitif melalui **Section tervalidasi**. Satu Section memiliki satu Posko penanggung jawab aktif pada satu waktu, dan aset diasosiasikan ke Posko melalui Section tersebut.
+4. **Section Final Pending:** Master Section final belum dibuat pada implementasi aktif saat ini karena masih menunggu kelengkapan sumber data pemutus/proteksi eksternal yang terfilter (file FCO dan Switching ULP Sribhawono).
 
 Jam operasional baseline:
 - Shift A: **08:00–16:00**
@@ -281,37 +286,19 @@ Web khusus ADMIN. Dashboard dapat menggunakan polling ringan sekitar 15 detik da
 
 ---
 
-# 7. Sketsa Data Model
+# 7. Sketsa Data Model & Status Implementasi
 
-Model logis utama:
+### A. Tabel Nyata yang Sudah Terimplementasi (per 30 September 2026):
+- **Staging / Raw Source Tables:** `apkuk_source_rows`, `asset_source_rows`, `vegetasi_source_rows`, `gangguan_source_rows`, `section_pic_source_rows`, `keypoint_source_rows`.
+- **Core Master Tables:** `poskos` (6 Posko resmi), `penyulangs` (16 canonical feeder), dan pivot Many-to-Many `posko_penyulang` (26 relasi terverifikasi).
+- **Framework Tables:** `users`, `cache`, `jobs`.
 
-- `user`
-- `posko`
-- `penyulang`
-- `section`
-- `asset`
-- `apkuk`
-- `vegetasi`
-- `petugas`
-- `gangguan_raw` / `gangguan_mv`
-- `p0`
-- `p0_petugas`
-- `p0_reschedule_history`
-- `work_order`
-- `wo_petugas`
-- `pasila_session`
-- `pasila_action`
-- `harsus_inspection`
-- `row_work`
-- `vegetasi_proposal`
-- `special_case`
-- `special_case_asset`
-- `documentation`
-- `status_history`
-- `audit_log`
-- `app_config`
+### B. Planned / Domain Schema (Target Implementasi Lanjutan):
+- Master Terencana: `sections` (BLOCKED), `assets` (BLOCKED/PARTIAL), `apkuks`, `vegetasis`, `petugas`.
+- Transaksi Terencana: `p0`, `p0_petugas`, `p0_reschedule_history`, `p0_context_events`, `work_orders`, `wo_petugas`, `wo_reschedule_history`, `pasila_sessions`, `pasila_actions`, `harsus_inspections`, `row_works`, `vegetasi_proposals`, `special_cases`, `documentations`.
+- History, Audit & Config: `status_histories`, `audit_logs`, `app_configs`.
 
-Draft/outbox mobile **bukan** tabel transaksi server; data tersebut berada pada SQLite perangkat sampai submit berhasil.
+Draft/outbox mobile **bukan** tabel transaksi server; data tersebut berada pada SQLite perangkat sampai submit berhasil. Detail skema lengkap terdapat di [DATA_MODEL.md](./DATA_MODEL.md).
 
 ---
 

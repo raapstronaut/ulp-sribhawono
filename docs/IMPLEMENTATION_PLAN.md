@@ -2,15 +2,17 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline  
-**Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md · OFFLINE_SYNC_SPEC.md · API_CONTRACT.md  
+**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md · OFFLINE_SYNC_SPEC.md · API_CONTRACT.md
 **Ruang Lingkup:** Flutter Android Field App · Laravel Backend + Admin Web · PostgreSQL · SQLite Draft/Cache · File Storage · Google Maps
+**Verified Automated Tests:** 73 tests passed, 274 assertions
 
 ---
 
 # 1. Implementation Strategy
 
-Prinsip:
+Prinsip Eksekusi:
 1. Bangun vertical slice sederhana terlebih dahulu.
 2. Laravel menjadi satu server application untuk API + Admin Web.
 3. Hindari PowerSync, Next.js, Supabase-heavy architecture, realtime, dan CDN pada MVP.
@@ -18,45 +20,53 @@ Prinsip:
 5. Server tetap authoritative.
 6. ML tidak boleh menghambat pembangunan core workflow; sediakan adapter/fallback.
 7. Dokumentasi dan migration harus mengikuti keputusan bisnis final.
+8. Kolaborasi bersifat task-based dan fleksibel (lihat [PROJECT_STATUS.md](./PROJECT_STATUS.md)).
 
 Ranking Posko tetap **v2**.
 
 ---
 
-# 2. Dependency Graph
+# 2. Execution Status & Dependency Graph
 
 ```text
-Phase 0 Repo/Foundation
+Phase 0 Repo/Foundation                       [STATUS: DONE] (T01)
    ↓
-Phase 1 Laravel + PostgreSQL + Auth
+Phase 1 Laravel Database, Auth & Security     [STATUS: PARTIAL] (T01, T07)
    ↓
-Phase 2 Master Data
+Phase 2 Master Data & Topology Ingestion      [STATUS: PARTIAL]
+   ├── Staging Layer & Ingestion              [STATUS: DONE] (T02)
+   ├── Source & Topology Audit                [STATUS: DONE] (T03)
+   ├── Core Posko/Penyulang Masters           [STATUS: DONE] (T04)
+   ├── Grand Design Web + Mobile              [STATUS: AVAILABLE] (T05)
+   ├── Keypoint Canonical/Candidate Layer     [STATUS: AVAILABLE] (T06)
+   ├── Section Master Final                   [STATUS: BLOCKED - Waiting FCO/Switching] (T09)
+   └── Operational Asset Master               [STATUS: BLOCKED/PARTIAL] (T10)
    ↓
-Phase 3 Flutter + SQLite Draft Foundation
+Phase 3 Flutter + SQLite Draft Foundation     [STATUS: PENDING] (T19)
    ↓
-Phase 4 Photo pipeline
+Phase 4 Photo Pipeline                        [STATUS: PENDING] (T12)
    ↓
-Phase 5 P0 vertical slice
+Phase 5 P0 Vertical Slice                     [STATUS: PENDING] (T11)
    ↓
-Phase 6 WO
+Phase 6 Work Order (WO APKUK)                 [STATUS: PENDING] (T13)
    ↓
-Phase 7 PASILA
+Phase 7 PASILA Engine                         [STATUS: PENDING] (T14)
    ↓
-Phase 8 HARSUS
+Phase 8 HARSUS Inspection                     [STATUS: PENDING] (T15)
    ↓
-Phase 9 ROW
+Phase 9 ROW Work & Proposals                  [STATUS: PENDING] (T16)
    ↓
-Phase 10 Maps/History
+Phase 10 Maps & History                       [STATUS: PENDING] (T17)
    ↓
-Phase 11 Special Case
+Phase 11 Special Case                         [STATUS: PENDING] (T18)
    ↓
-Phase 12 Offline Draft/Submission Hardening
+Phase 12 Offline Draft Hardening              [STATUS: PENDING] (T19)
    ↓
-Phase 13 Admin Operational Dashboard
+Phase 13 Admin Operational Dashboard          [STATUS: PENDING] (T20)
    ↓
-Phase 14 Integration/Security/Test
+Phase 14 Integration, Security & Testing      [STATUS: PENDING] (T21)
    ↓
-Phase 15 Deployment Readiness
+Phase 15 Deployment Readiness                 [STATUS: PENDING] (T22)
 ```
 
 ---
@@ -89,12 +99,9 @@ Owner permits project data in private repository; credentials/secrets remain pro
 
 ```text
 ulp-sribhawono/
-├── mobile/                 # Flutter
-├── backend/                # Laravel API + Admin Web
-├── docs/
-├── scripts/
-├── data/
-│   └── synthetic/
+├── mobile/                 # Flutter Android starter app
+├── backend/                # Laravel 13.33.0 API + Admin Web
+├── docs/                   # Active documentation & specs
 ├── .gitignore
 └── README.md
 ```
@@ -106,45 +113,36 @@ No Next.js app, no PowerSync config, no Supabase Functions folder.
 # 5. Phase-by-Phase Implementation Plan
 
 ## Phase 0 — Repository & Development Foundation
+**Status:** `DONE` (Verified) | **Task ID:** `T01`
 
 ### Objective
 Membuat fondasi project tanpa business feature besar.
 
-### Scope
-- init private Git repository;
-- folder `mobile`, `backend`, `docs`;
-- Laravel project bootstrap;
-- Flutter project bootstrap;
-- PostgreSQL dev connection;
-- `.env.example` + `.gitignore`;
-- formatting/lint/test baseline;
-- README setup/run instructions;
-- copy 7 locked documents as source-of-truth docs.
-
-### Acceptance Criteria
-- Laravel dapat run lokal;
-- Flutter dapat build/run starter screen;
-- PostgreSQL connection tervalidasi;
-- tidak ada secret committed;
-- CI sederhana opsional jika waktu memungkinkan.
-
-### Exit Gate
-Fondasi runnable sebelum migration bisnis dibuat.
+### Scope & Verified Delivery:
+- [x] init private Git repository;
+- [x] folder `mobile`, `backend`, `docs`;
+- [x] Laravel 13.33.0 project bootstrap;
+- [x] Flutter Android project bootstrap;
+- [x] PostgreSQL dev connection verified;
+- [x] `.env.example` + `.gitignore` (secrets protected);
+- [x] formatting/lint/test baseline;
+- [x] README setup/run instructions;
+- [x] copy locked documents as source-of-truth docs.
 
 ---
 
 ## Phase 1 — Laravel Database, Auth & Security Foundation
+**Status:** `PARTIAL` | **Task IDs:** `T01` (DONE), `T07` (AVAILABLE), `T08` (AVAILABLE)
 
 ### Objective
 Membuat schema core, user/team accounts, login, authorization, audit foundation.
 
-### Scope
-- migrations master dasar;
-- `users` role ADMIN/POSKO/HARSUS/ROW;
-- Laravel Auth/Sanctum baseline;
-- Policies/middleware;
-- audit log foundation;
-- app config shift.
+### Current Implementation State:
+- [x] Database foundation, cache, and jobs migrations implemented.
+- [ ] User role model (ADMIN, POSKO, HARSUS, ROW) & Sanctum token API (Task `T07` — AVAILABLE).
+- [ ] Policies & middleware authorization.
+- [ ] Audit log service foundation.
+- [ ] App config shift parameters.
 
 ### Acceptance Criteria
 - login Flutter online berhasil;
@@ -154,25 +152,24 @@ Membuat schema core, user/team accounts, login, authorization, audit foundation.
 
 ---
 
-## Phase 2 — Master Data & Initial Import Foundation
+## Phase 2 — Master Data, Source Staging & Topology Preparation
+**Status:** `PARTIAL` | **Task IDs:** `T02` (DONE), `T03` (DONE), `T04` (DONE), `T05` (AVAILABLE), `T06` (AVAILABLE), `T09` (BLOCKED), `T10` (BLOCKED/PARTIAL)
 
-### Scope
-- Posko
-- Penyulang
-- Section
-- Asset
-- APKUK
-- Vegetasi
-- Petugas
-- admin CRUD semua master
-- import/profiling source
-
-### Exit Gate
-Master minimal cukup untuk menjalankan P0/WO/HARSUS/ROW test.
+### Scope & Delivery State:
+- [x] **Source Staging Tables (T02 - DONE):** Migration 6 tabel staging (`apkuk_source_rows`, `asset_source_rows`, `vegetasi_source_rows`, `gangguan_source_rows`, `section_pic_source_rows`, `keypoint_source_rows`).
+- [x] **Source Ingestion Pipeline (T02 - DONE):** Google Sheets API integration, artisan commands `apkuk:import-sheet` (dengan opsi `--replace`), `sources:import-sheets`, `sources:profile-sheets`.
+- [x] **Source & Topology Auditing (T03 - DONE):** Commands `sources:audit-staging`, `topology:audit` (in-memory fill-down parsing, safe string normalization, coordinate parsing, proximity detection).
+- [x] **Core Topology Masters (T04 - DONE):** Master `poskos` (6 Posko resmi), `penyulangs` (16 canonical feeder), Many-to-Many pivot `posko_penyulang` (26 verified relations), command `topology:sync-core-masters`, alias mapping `TANGGAMUS` $\rightarrow$ `TANGGAMUS 2`.
+- [x] **Automated Tests (DONE):** 73 tests passed, 274 assertions.
+- [ ] **Grand Design UI (T05 - AVAILABLE):** Perancangan visual web & mobile lengkap.
+- [ ] **Keypoint Canonical Layer (T06 - AVAILABLE):** Candidate model & canonicalization untuk 129 keypoint.
+- [ ] **Section Master Final (T09 - BLOCKED):** Menunggu file eksternal FCO & Switching ULP Sribhawono yang sudah difilter.
+- [ ] **Operational Asset Master (T10 - BLOCKED/PARTIAL):** 17,059 aset valid ada di staging; penetapan Posko penanggung jawab definitif per aset menunggu Section final.
 
 ---
 
 ## Phase 3 — Flutter + SQLite Draft/Cache Foundation
+**Status:** `PENDING` | **Task ID:** `T19`
 
 ### Objective
 Membuat app shell, local persistence, cache ringan, dan Submission Center.
@@ -197,6 +194,7 @@ Membuat app shell, local persistence, cache ringan, dan Submission Center.
 ---
 
 ## Phase 4 — Documentation Photo Pipeline
+**Status:** `PENDING` | **Task ID:** `T12`
 
 ### Scope
 - camera/photo picker;
@@ -217,6 +215,7 @@ Membuat app shell, local persistence, cache ringan, dan Submission Center.
 ---
 
 ## Phase 5 — P0 End-to-End Vertical Slice
+**Status:** `PENDING` | **Task ID:** `T11`
 
 ### Scope
 - Admin create P0 untuk asset yang sudah tervalidasi;
@@ -240,7 +239,8 @@ Membuat app shell, local persistence, cache ringan, dan Submission Center.
 
 ---
 
-## Phase 6 — Work Order Preventif
+## Phase 6 — Work Order Preventif (WO APKUK)
+**Status:** `PENDING` | **Task ID:** `T13`
 
 ### Scope
 - jenis MVP hanya PEMASANGAN_APKUK;
@@ -264,7 +264,8 @@ Implementasikan scoring interface/adapter. Fallback development dapat rule-based
 
 ---
 
-## Phase 7 — PASILA
+## Phase 7 — PASILA Engine
+**Status:** `PENDING` | **Task ID:** `T14`
 
 ### Scope
 - recommendation endpoint;
@@ -283,7 +284,8 @@ Implementasikan scoring interface/adapter. Fallback development dapat rule-based
 
 ---
 
-## Phase 8 — HARSUS
+## Phase 8 — HARSUS Inspection
+**Status:** `PENDING` | **Task ID:** `T15`
 
 ### Scope
 - inspection existing asset;
@@ -301,6 +303,7 @@ Implementasikan scoring interface/adapter. Fallback development dapat rule-based
 ---
 
 ## Phase 9 — ROW / Vegetasi
+**Status:** `PENDING` | **Task ID:** `T16`
 
 ### Scope
 - RABAS/PANGKAS/TEBANG;
@@ -314,6 +317,7 @@ Tidak ada field teks wajib kondisi sebelum/sesudah.
 ---
 
 ## Phase 10 — Maps & Asset History View
+**Status:** `PENDING` | **Task ID:** `T17`
 
 ### Scope
 - online Google Maps;
@@ -327,6 +331,7 @@ Full offline basemap out-of-scope MVP.
 ---
 
 ## Phase 11 — Special Case Engine
+**Status:** `PENDING` | **Task ID:** `T18`
 
 ### Rule
 `>3 trip / penyulang / calendar month`.
@@ -347,6 +352,7 @@ Full offline basemap out-of-scope MVP.
 ---
 
 ## Phase 12 — Offline Draft & Submission Hardening
+**Status:** `PENDING` | **Task ID:** `T19`
 
 ### Scope
 - bulk partial success;
@@ -364,6 +370,7 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 ---
 
 ## Phase 13 — Laravel Admin Operational Dashboard
+**Status:** `PENDING` | **Task ID:** `T20`
 
 ### Scope
 - dashboard KPI;
@@ -382,6 +389,7 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 ---
 
 ## Phase 14 — Integration, Testing & Security Hardening
+**Status:** `PENDING` | **Task ID:** `T21`
 
 ### Scope
 - API authorization matrix tests;
@@ -396,6 +404,7 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 ---
 
 ## Phase 15 — Deployment Readiness & Production Gate
+**Status:** `PENDING` | **Task ID:** `T22`
 
 ### Scope
 - production env config;

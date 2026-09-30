@@ -2,10 +2,16 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline  
-**Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md · OFFLINE_SYNC_SPEC.md  
-**Lingkup Arsitektur:** Flutter Android App · Laravel Web/API · PostgreSQL · SQLite local draft/cache · Laravel Filesystem/S3 · Google Maps  
+**Status:** Final / Locked Baseline — Target Contract Specification (Refreshed per 30 September 2026)
+**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md · OFFLINE_SYNC_SPEC.md
+**Lingkup Arsitektur:** Flutter Android App · Laravel Web/API · PostgreSQL · SQLite local draft/cache · Laravel Filesystem/S3 · Google Maps
 **Lingkup Operasional:** ULP Sribhawono (Single-Tenant)
+
+> [!IMPORTANT]
+> **SPECIFICATION / PLANNED CONTRACT:**
+> Seluruh endpoint REST API di bawah ini merupakan **TARGET CONTRACT SPECIFICATION** yang dirancang sebagai batas kontrak komunikasi antara Flutter Android dan Laravel Backend. Sebagian besar endpoint (P0, WO, PASILA, HARSUS, ROW, Special Case, Master API) **BELUM DIIMPLEMENTASIKAN** di codebase (status: `PLANNED` / `PENDING`).
+> Pipeline import data sumber dan sinkronisasi topologi saat ini berjalan melalui internal Laravel Artisan CLI commands, bukan melalui endpoint publik.
 
 ---
 
@@ -22,7 +28,7 @@
 
 ---
 
-# 2. API Surface Overview
+# 2. API Surface Overview (Target Specification)
 
 Base proposal: `/api/v1`.
 

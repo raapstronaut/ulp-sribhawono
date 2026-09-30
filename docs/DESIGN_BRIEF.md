@@ -2,12 +2,17 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline  
-**Platform:** Flutter Android App + Laravel Web Admin  
-**Primary field users:** POSKO, HARSUS, ROW  
-**Primary desktop user:** ADMIN  
-**Design priority:** Field operation first, monitoring second  
+**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Platform:** Flutter Android App + Laravel Web Admin
+**Primary field users:** POSKO, HARSUS, ROW
+**Primary desktop user:** ADMIN
+**Design priority:** Field operation first, monitoring second
 **Connectivity assumption:** Online-primary untuk membaca data terbaru; input lapangan dapat disimpan sebagai draft offline dan dikirim manual saat online.
+
+> [!NOTE]
+> **STATUS GRAND DESIGN (T05 - AVAILABLE):**
+> Dokumen ini menetapkan prinsip desain, screen inventory, dan target user flow. Perancangan visual detail / Grand Design menyeluruh untuk Web Admin dan Flutter Mobile belum selesai dan menjadi task aktif berikutnya (**T05 Grand Design Web + Mobile**). Screen inventory dan flow di bawah adalah target desain resmi yang harus diacu saat pembuatan mockup/desain final.
 
 ---
 

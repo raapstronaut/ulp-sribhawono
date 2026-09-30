@@ -2,6 +2,11 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
+> [!NOTE]
+> **HISTORICAL BASELINE DOCUMENT**
+> Dokumen ini adalah catatan historis konsistensi audit baseline tanggal 27 September 2026 yang memvalidasi keselarasan tujuh dokumen sebelum implementasi dimulai. Dokumen ini dipertahankan sebagai historical record.
+> Untuk status implementasi aktual, status topologi, database terkini, dan handoff kolaborasi per 30 September 2026, lihat [PROJECT_STATUS.md](./PROJECT_STATUS.md).
+
 **Tanggal audit:** 27 September 2026  
 **Hasil:** PASS — 7 dokumen dapat digunakan sebagai **Final / Locked Baseline** untuk memulai Phase 0.
 

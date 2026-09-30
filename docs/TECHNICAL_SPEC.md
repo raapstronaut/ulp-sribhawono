@@ -2,9 +2,10 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline  
-**Source of Truth:** PRD.md · DESIGN_BRIEF.md · DATA_MODEL.md · API_CONTRACT.md · OFFLINE_SYNC_SPEC.md  
-**Scope:** ULP Sribhawono (single-tenant)  
+**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Source of Truth:** PRD.md · DESIGN_BRIEF.md · DATA_MODEL.md · API_CONTRACT.md · OFFLINE_SYNC_SPEC.md
+**Scope:** ULP Sribhawono (single-tenant)
 **Platforms:** Flutter Android field app · Laravel Admin Web/API
 
 ---
@@ -48,17 +49,31 @@ Photo Storage: Laravel Filesystem → local disk (development) / Amazon S3 (prod
 Maps: Google Maps
 ```
 
+### Data Ingestion & Master Staging Pipeline:
+```text
+Google Spreadsheet / Source Files
+               ↓
+    Laravel Import Commands (Artisan CLI)
+               ↓
+    Raw / Staging PostgreSQL Tables (All String)
+               ↓
+    Audit / Validation / Canonicalization Engine
+               ↓
+    Canonical Operational Masters (poskos, penyulangs, posko_penyulang)
+```
+
 Key decisions:
 1. Single-tenant ULP Sribhawono.
 2. Flutter tetap digunakan untuk Android field app.
 3. Laravel menjadi **backend API + Web Admin**.
 4. PostgreSQL tetap primary server database.
 5. SQLite hanya untuk cache/draft/outbox mobile; **bukan full replica database server**.
-6. Tidak menggunakan PowerSync pada baseline baru.
-7. Tidak menggunakan Next.js, Supabase Auth, Supabase Edge Functions, atau Supabase Realtime pada baseline baru.
-8. Admin Web online-primary.
-9. Offline mobile hanya menjamin input/draft/foto lokal; data server baru hanya terlihat setelah device online.
-10. Dashboard Admin memakai polling ringan sekitar 15 detik + manual refresh.
+6. Data Ingestion & Sync Topologi diimplementasikan sebagai internal Laravel Artisan CLI commands, bukan public API.
+7. Tidak menggunakan PowerSync pada baseline baru.
+8. Tidak menggunakan Next.js, Supabase Auth, Supabase Edge Functions, atau Supabase Realtime pada baseline baru.
+9. Admin Web online-primary.
+10. Offline mobile hanya menjamin input/draft/foto lokal; data server baru hanya terlihat setelah device online.
+11. Dashboard Admin memakai polling ringan sekitar 15 detik + manual refresh.
 
 ---
 
@@ -177,14 +192,14 @@ Dashboard melakukan polling ringan sekitar 15 detik. Hindari WebSocket/realtime 
 
 Laravel adalah server application utama.
 
-Layer yang disarankan:
-- Routes
+Layer arsitektur:
+- Routes (API v1 & Web Admin)
 - Controllers
 - Form Requests / validation
 - Policies / authorization
 - Services / use cases
-- Eloquent models/repositories seperlunya
-- Jobs / Scheduler
+- Eloquent models/repositories
+- Console Commands & Scheduler (Data ingestion, auditing, sync)
 - Audit service
 
 Domain services minimum:
@@ -197,6 +212,15 @@ Domain services minimum:
 - `SubmissionService`
 - `PhotoService`
 - `AuditService`
+
+### Internal Console Commands (Implemented per 30 September 2026):
+Pipeline import dan sinkronisasi topologi diimplementasikan sebagai artisan console commands internal (**BUKAN PUBLIC API**):
+1. `apkuk:import-sheet` (dengan opsi `--replace`) — Ingest data Sheet1 APKUK ke `apkuk_source_rows` via Google Sheets API.
+2. `sources:import-sheets` — Ingest multi-source sheets (ASSET_RAW, VEGETASI_RAW, GANGGUAN_RAW, SECTION_PIC_RAW, KEYPOINT_RAW) ke staging tables.
+3. `sources:profile-sheets` — Profiling kolom dan struktur header spreadsheet sumber.
+4. `sources:audit-staging` — Audit read-only kualitas data staging dan cross-reference vegetasi $\rightarrow$ aset.
+5. `topology:audit` — Audit topologi read-only (fill-down in-memory, name & type normalization, coordinate parsing, feeder coverage, review items).
+6. `topology:sync-core-masters` — Sinkronisasi update-safe core master `poskos`, `penyulangs`, dan pivot Many-to-Many `posko_penyulang` dari staging `section_pic_source_rows`.
 
 ---
 

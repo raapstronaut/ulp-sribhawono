@@ -2,10 +2,15 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline  
-**Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md  
-**Platform Target:** Flutter Android + SQLite local draft/cache + Laravel API + PostgreSQL  
+**Status:** Final / Locked Baseline — Future Mobile Behavior Specification (Refreshed per 30 September 2026)
+**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md
+**Platform Target:** Flutter Android + SQLite local draft/cache + Laravel API + PostgreSQL
 **Catatan:** Dokumen ini menggantikan desain full offline synchronization/PowerSync sebelumnya.
+
+> [!NOTE]
+> **STATUS IMPLEMENTASI (T19 - PENDING):**
+> Dokumen ini merupakan **spesifikasi perilaku mobile offline masa depan**. Implementasi database lokal SQLite (`sqflite`), manajemen antrean draft, dan outbox pengiriman pada project Flutter Android saat ini **BELUM DIMULAI** (berstatus `PENDING` di Task Pool). Seluruh prinsip arsitektur (draft mode, server authoritative, manual submit, optimistic locking, dan idempotency) telah terkunci dan menjadi panduan saat implementasi Task T19 dikerjakan.
 
 ---
 

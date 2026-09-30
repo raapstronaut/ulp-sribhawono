@@ -2,213 +2,260 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline  
-**Source of Truth:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md  
-**Scope:** ULP Sribhawono (Single-Tenant)  
-**Target RDBMS:** PostgreSQL
+**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Source of Truth:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md
+**Scope:** ULP Sribhawono (Single-Tenant)
+**Target RDBMS:** PostgreSQL (Server Authoritative) · SQLite (Mobile Local Draft/Cache)
 
 ---
 
 # 1. Data Model Principles
 
-1. **UUID + Business Key** — seluruh entitas server memakai UUID sebagai PK; kode PLN tetap disimpan sebagai unique/searchable business key.
-2. **Hierarki Wilayah** — Penyulang ← Section → Posko; Asset → Section. Posko/Penyulang asset diturunkan melalui Section.
-3. **Single-Tenant** — tidak ada `ulp_id` di seluruh tabel inti.
-4. **Master vs Transaction** — master: Posko, Penyulang, Section, Asset, APKUK, Vegetasi, Petugas, User. Transaction: P0, WO, PASILA, HARSUS, ROW, Special Case, Documentation.
-5. **Offline Draft tidak menjadi server transaction** — SQLite mobile menyimpan draft/cache/outbox secara lokal sampai submit berhasil. Server schema tidak perlu mereplikasi seluruh local draft model.
-6. **Photo metadata only** — PostgreSQL tidak menyimpan binary foto.
-7. **Team account vs petugas** — akun mewakili tim/unit; petugas aktual melalui junction table.
-8. **No hard delete untuk transaksi** — histori dan audit dipertahankan.
-9. **Server-authoritative validation** — Laravel memvalidasi role, state transition, version, business rules, dan idempotency.
-10. **Configuration** — shift dan parameter operasional yang dapat berubah disimpan di `app_config`, tetapi default shift final saat ini A 08–16, B 16–00, C 00–08.
+1. **UUID + Business Key** — seluruh entitas master dan transaksi server memakai UUID sebagai Primary Key; kode PLN tetap disimpan sebagai unique/searchable business key.
+2. **Hierarki Topologi & Ownership Wilayah:**
+   - **Many-to-Many Posko ↔ Penyulang:** Satu penyulang (feeder) dapat melintasi beberapa Posko, dan satu Posko dapat menangani segmen dari beberapa penyulang (dihubungkan via pivot `posko_penyulang`).
+   - **Section sebagai Penentu Ownership Aset:** Relasi Posko-Penyulang **TIDAK** otomatis menentukan Posko pemilik suatu aset. Ownership operasional aset fisik ditetapkan melalui **Section tervalidasi**.
+   - **Section Final Pending:** Master `sections` final belum dibuat (status `BLOCKED`) karena menunggu kepastian data pemutus/proteksi eksternal yang terfilter (file FCO dan Switching ULP Sribhawono).
+3. **Pemisahan Layer Data Nyata:**
+   ```text
+   RAW / SOURCE (Google Sheets / Snapshot Files)
+          ↓
+   STAGING (All String Tables: *_source_rows)
+          ↓
+   CANONICAL MASTERS (poskos, penyulangs, posko_penyulang)
+          ↓
+   OPERATIONAL TRANSACTIONS & AUDIT (Planned)
+   ```
+4. **Single-Tenant** — tidak ada kolom `ulp_id` di seluruh tabel inti; sistem dikhususkan untuk ULP Sribhawono.
+5. **Offline Draft Bukan Tabel Transaksi Server** — SQLite mobile menyimpan draft/cache/outbox secara lokal sampai disubmit manual oleh user saat online. Skema database server tidak mereplikasi draft lokal.
+6. **Photo Metadata Only** — PostgreSQL hanya menyimpan URL/path, jenis foto, geotag, dan hash metadata; binary file disimpan di Laravel Filesystem/S3.
+7. **Team Account vs Petugas Lapangan** — tabel `users` mewakili akun login tim/unit kerja (role ADMIN, POSKO, HARSUS, ROW). Personil fisik pelaksana dicatat melalui relasi ke master `petugas`.
+8. **No Hard Delete untuk Transaksi** — riwayat transaksi, perubahan status, dan audit log bersifat append-only.
+9. **Server-Authoritative Validation** — Laravel memvalidasi role, transisi state mesin domain, optimistic locking version, dan idempotency key.
 
 ---
 
-# 2. Entity Categories
+# 2. Entity Categories & Status Implementasi
 
-## A. Master / Reference
-- `posko`
-- `penyulang`
-- `section`
-- `asset`
-- `apkuk`
-- `vegetasi`
-- `petugas`
-- `users`
-
-## B. External / Raw
-- `gangguan_raw`
-- `gangguan_mv`
-
-## C. Transactions
-- `p0`
-- `p0_petugas`
-- `p0_reschedule_history`
-- `p0_context_event`
-- `work_order`
-- `wo_petugas`
-- `wo_reschedule_history`
-- `pasila_session`
-- `pasila_action`
-- `pasila_action_petugas`
-- `harsus_inspection`
-- `row_work`
-- `row_work_petugas`
-- `vegetasi_proposal`
-- `special_case`
-- `special_case_asset`
-- `documentation`
-
-## D. History / Audit
-- `status_history`
-- `audit_log`
-- `asset_history_view`
-
-## E. Configuration
-- `app_config`
+| Kategori | Tabel / Entitas | Status Implementasi |
+|---|---|---|
+| **Core Topology Masters** | `poskos`, `penyulangs`, `posko_penyulang` | `IMPLEMENTED` (6 Posko, 16 Penyulang, 26 Relasi) |
+| **Staging / Raw Sources** | `apkuk_source_rows`, `asset_source_rows`, `vegetasi_source_rows`, `gangguan_source_rows`, `section_pic_source_rows`, `keypoint_source_rows` | `IMPLEMENTED` (Semua string, import & audit teruji) |
+| **Framework Tables** | `users`, `cache`, `jobs` | `IMPLEMENTED` (Framework baseline) |
+| **Planned Reference Masters** | `sections`, `assets`, `apkuks`, `vegetasis`, `petugas` | `BLOCKED / PARTIAL / PLANNED` |
+| **Planned Transactions** | `p0`, `p0_petugas`, `p0_reschedule_history`, `p0_context_events`, `work_orders`, `wo_petugas`, `wo_reschedule_history`, `pasila_sessions`, `pasila_actions`, `harsus_inspections`, `row_works`, `vegetasi_proposals`, `special_cases`, `documentations` | `PLANNED` (Target specification) |
+| **History & Config** | `status_histories`, `audit_logs`, `app_configs` | `PLANNED` (Target specification) |
 
 ---
 
 # 3. Entity Inventory
 
-| Entity | Purpose | Created By | Notes |
-|---|---|---|---|
-| posko | master wilayah | Admin/import | 1 akun POSKO terikat satu Posko |
-| penyulang | master feeder | Admin/import | Special Case dihitung per penyulang |
-| section | segmentasi wilayah | Admin/import | satu section satu Posko aktif |
-| asset | tiang/gardu/keypoint | Admin/import/validation | koordinat boleh belum lengkap saat import |
-| apkuk | inventaris APKUK | Admin/import | status aktif mencegah duplicate WO |
-| vegetasi | master titik vegetasi tervalidasi | Admin/import | usulan baru masuk `vegetasi_proposal` |
-| petugas | orang aktual pelaksana | Admin/import | dipilih pada pekerjaan |
-| users | akun login tim/unit | Admin | role hanya ADMIN/POSKO/HARSUS/ROW |
-| gangguan_raw | staging source | Admin/import job | struktur source dipertahankan |
-| gangguan_mv | view analitik | system | WO/Special Case |
-| p0 | pekerjaan prioritas | Admin/HARSUS/PASILA/System | hanya dibuat/ditugaskan setelah asset+wilayah tervalidasi |
-| p0_reschedule_history | histori lanjut shift/reschedule | POSKO/Admin/System | append-only |
-| p0_context_event | context tambahan P0 aktif | System/Admin | untuk Special Case/temuan tambahan tanpa duplicate P0 |
-| work_order | WO APKUK | System/Admin | target 6/shift/Posko |
-| wo_reschedule_history | histori jadwal ulang WO | POSKO/System | carry-over mengisi kuota shift target |
-| pasila_session | patroli per shift | POSKO | target rekomendasi + override |
-| pasila_action | action PASILA | POSKO | dapat eskalasi P0 |
-| harsus_inspection | temuan HARSUS | HARSUS | asset nullable jika unknown point |
-| row_work | pekerjaan vegetasi | ROW/POSKO | foto+catatan |
-| vegetasi_proposal | usulan titik vegetasi | ROW | Admin validate/reject |
-| special_case | >3 trip/penyulang/bulan kalender | System | monthly period |
-| documentation | metadata foto | Mobile/Web | BEFORE/AFTER/TEMUAN/SURVEY |
-| status_history | histori status | System | append-only |
-| audit_log | koreksi/master/config | System | append-only |
-| app_config | konfigurasi | Admin | JSON/value config |
+| Entity / Table | Layer | Purpose | Created By | Status |
+|---|---|---|---|---|
+| `poskos` | Core Master | 6 Posko resmi ULP Sribhawono | CLI Sync | `IMPLEMENTED` |
+| `penyulangs` | Core Master | 16 Canonical feeder | CLI Sync | `IMPLEMENTED` |
+| `posko_penyulang` | Core Pivot | Relasi Many-to-Many Posko ↔ Penyulang | CLI Sync | `IMPLEMENTED` |
+| `apkuk_source_rows` | Staging | Data mentah Sheet1 APKUK (2,864 rows) | CLI Import | `IMPLEMENTED` |
+| `asset_source_rows` | Staging | Data mentah ASSET_RAW (17,059 valid rows) | CLI Import | `IMPLEMENTED` |
+| `vegetasi_source_rows` | Staging | Data mentah VEGETASI_RAW (16,983 rows) | CLI Import | `IMPLEMENTED` |
+| `gangguan_source_rows` | Staging | Data mentah GANGGUAN_RAW (443 rows) | CLI Import | `IMPLEMENTED` |
+| `section_pic_source_rows` | Staging | Data mentah SECTION_PIC_RAW (69 rows) | CLI Import | `IMPLEMENTED` |
+| `keypoint_source_rows` | Staging | Data mentah KEYPOINT_RAW (129 rows) | CLI Import | `IMPLEMENTED` |
+| `sections` | Domain Master | Batas segmen jaringan & Posko penanggung jawab | Admin/Sync | `BLOCKED` (Waiting FCO/Switching Sribhawono) |
+| `assets` | Domain Master | Master operasional tiang/gardu/keypoint | Admin/Sync | `BLOCKED/PARTIAL` (Depends on Section) |
+| `apkuks` | Domain Master | Inventaris status APKUK aktif pada aset | System/WO | `PLANNED` |
+| `vegetasis` | Domain Master | Master pohon/titik vegetasi tervalidasi | Admin/Sync | `PLANNED` |
+| `petugas` | Domain Master | Personil fisik pelaksana pekerjaan | Admin | `PLANNED` |
+| `users` | Auth Master | Akun login tim (ADMIN/POSKO/HARSUS/ROW) | Admin/Seeder | `PARTIAL` |
+| `p0` | Transaction | Pekerjaan prioritas tertinggi | Admin/HARSUS/PASILA/System | `PLANNED` |
+| `p0_petugas` | Junction | Petugas pelaksana P0 | POSKO | `PLANNED` |
+| `p0_reschedule_history` | History | Riwayat lanjut shift / reschedule P0 | POSKO/Admin | `PLANNED` |
+| `p0_context_events` | Context | Event/evidence tambahan pada P0 aktif | System/Admin | `PLANNED` |
+| `work_orders` | Transaction | WO pemasangan APKUK (target 6/shift) | System/Admin | `PLANNED` |
+| `wo_petugas` | Junction | Petugas pelaksana WO | POSKO | `PLANNED` |
+| `wo_reschedule_history` | History | Riwayat reschedule WO | POSKO/System | `PLANNED` |
+| `pasila_sessions` | Transaction | Sesi patroli PASILA per shift | POSKO | `PLANNED` |
+| `pasila_actions` | Transaction | Tindakan patroli PASILA | POSKO | `PLANNED` |
+| `harsus_inspections` | Transaction | Temuan inspeksi HARSUS | HARSUS | `PLANNED` |
+| `row_works` | Transaction | Pekerjaan rabas/pangkas/tebang | ROW/POSKO | `PLANNED` |
+| `vegetasi_proposals` | Transaction | Usulan titik vegetasi baru | ROW | `PLANNED` |
+| `special_cases` | Transaction | Indikasi >3 trip/penyulang/bulan kalender | System | `PLANNED` |
+| `documentations` | Media | Metadata foto BEFORE/AFTER/TEMUAN/SURVEY | Mobile/Web | `PLANNED` |
+| `status_histories` | History | Audit transisi status transaksi | System | `PLANNED` |
+| `audit_logs` | History | Audit log koreksi admin & konfigurasi | System | `PLANNED` |
+| `app_configs` | Config | Parameter operasional & shift | Admin | `PLANNED` |
 
 ---
 
 # 4. Detailed Entity Definitions
 
-## 4.1 Master / Reference
+## 4.1 Implemented Core Topology Masters (Database Nyata)
 
-### 4.1.1 `posko`
-- `id UUID PK`
-- `posko_code TEXT UNIQUE NOT NULL`
-- `nama_posko TEXT NOT NULL`
+### 4.1.1 `poskos`
+Tabel master 6 Posko resmi ULP Sribhawono:
+```sql
+CREATE TABLE poskos (
+    id UUID PRIMARY KEY,
+    kode_posko VARCHAR(255) UNIQUE NOT NULL,
+    nama_posko VARCHAR(255) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL
+);
+CREATE INDEX poskos_is_active_index ON poskos (is_active);
+```
+
+### 4.1.2 `penyulangs`
+Tabel master 16 Canonical Feeder resmi:
+```sql
+CREATE TABLE penyulangs (
+    id UUID PRIMARY KEY,
+    kode_penyulang VARCHAR(255) UNIQUE NOT NULL,
+    nama_penyulang VARCHAR(255) NOT NULL,
+    gardu_induk VARCHAR(255) NULL,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL
+);
+CREATE INDEX penyulangs_is_active_index ON penyulangs (is_active);
+```
+
+### 4.1.3 `posko_penyulang`
+Tabel pivot relasi Many-to-Many antara Posko dan Penyulang:
+```sql
+CREATE TABLE posko_penyulang (
+    posko_id UUID NOT NULL REFERENCES poskos(id) ON DELETE CASCADE,
+    penyulang_id UUID NOT NULL REFERENCES penyulangs(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    PRIMARY KEY (posko_id, penyulang_id)
+);
+CREATE INDEX posko_penyulang_posko_id_index ON posko_penyulang (posko_id);
+CREATE INDEX posko_penyulang_penyulang_id_index ON posko_penyulang (penyulang_id);
+```
+
+---
+
+## 4.2 Implemented Staging / Raw Source Tables (Database Nyata)
+
+Seluruh kolom data sumber disimpan mentah sebagai tipe string untuk memastikan tidak terjadi distorsi/kehilangan informasi sebelum canonicalization:
+
+### 4.2.1 `apkuk_source_rows`
+Staging data Sheet1 APKUK (2,864 baris):
+- `id` (BIGINT PK AUTO_INCREMENT)
+- `source_id` (VARCHAR NULL), `tanggal` (DATE NULL), `petugas_raw` (VARCHAR NULL)
+- `penyulang_raw` (VARCHAR NULL), `section_raw` (VARCHAR NULL), `asset_code_raw` (VARCHAR NULL)
+- `naik_dari_raw` (VARCHAR NULL), `terpasang_bh` (SMALLINT NULL), `kurang_bh` (SMALLINT NULL)
+- `status_raw` (VARCHAR NULL), `koordinat_raw` (VARCHAR NULL)
+- `latitude` (DECIMAL(10,7) NULL), `longitude` (DECIMAL(10,7) NULL)
+- `foto_raw` (TEXT NULL), `source_row_number` (INT NULL), `imported_at` (TIMESTAMP NULL)
+- `created_at`, `updated_at`
+
+### 4.2.2 `asset_source_rows`
+Staging data ASSET_RAW (17,059 valid aset):
+- `id` (BIGINT PK AUTO_INCREMENT)
+- `id_aset_raw` (VARCHAR NULL), `nama_aset_raw` (VARCHAR NULL), `jenis_aset_raw` (VARCHAR NULL)
+- `penyulang_raw` (VARCHAR NULL), `latitude_raw` (VARCHAR NULL), `longitude_raw` (VARCHAR NULL)
+- `status_raw` (VARCHAR NULL), `source_row_number` (INT NULL), `imported_at` (TIMESTAMP NULL)
+- `created_at`, `updated_at`
+
+### 4.2.3 `vegetasi_source_rows`
+Staging data VEGETASI_RAW (16,983 baris pohon):
+- `id` (BIGINT PK AUTO_INCREMENT)
+- `no_raw`, `nama_pohon_raw`, `up3_raw`, `ulp_raw`, `penyulang_raw`, `id_jtm_raw`, `id_tiang_raw`, `nama_tiang_raw`, `jenis_pohon_raw`, `pertumbuhan_pohon_raw`, `jarak_aman_raw`, `jarak_bahaya_raw`, `kondisi_raw`, `section_raw`, `eam_raw`, `latitude_raw`, `longitude_raw`, `jarak_pohon_raw`, `jarak_pohon_saat_ini_raw`, `izin_padam_raw`, `izin_tebang_bawah_raw`, `tanggal_update_raw`, `tanggal_periksa_raw`, `tanggal_perkiraan_bahaya_raw`, `user_pembuat_raw`, `user_update_raw`, `keterangan_raw`, `id_pohon_raw` (semua VARCHAR/TEXT NULL)
+- `source_row_number` (INT NULL), `imported_at` (TIMESTAMP NULL), `created_at`, `updated_at`
+
+### 4.2.4 `gangguan_source_rows`
+Staging data GANGGUAN_RAW (443 baris gangguan):
+- `id` (BIGINT PK AUTO_INCREMENT)
+- `id_gangguan_raw`, `penyulang_raw`, `peralatan_raw`, `ulp_raw`, `tanggal_kejadian_raw`, `kode_gangguan_raw`, `uraian_penyebab_raw`, `penyebab_raw`, `lepas_raw`, `masuk_raw`, `beban_amp_raw`, `rele_kerja_raw`, `arus_gangguan_amp_raw`, `lama_padam_menit_raw`, `ens_kwh_raw`, `sifat_gangguan_raw`, `id_aset_raw`, `section_id_raw`, `posko_id_raw`, `latitude_raw`, `longitude_raw`, `jenis_hewan_raw`, `foto_ref_raw`, `sumber_data_raw` (semua VARCHAR/TEXT NULL)
+- `source_row_number` (INT NULL), `imported_at` (TIMESTAMP NULL), `created_at`, `updated_at`
+
+### 4.2.5 `section_pic_source_rows`
+Staging data SECTION_PIC_RAW (69 baris pemutus/feeder):
+- `id` (BIGINT PK AUTO_INCREMENT)
+- `penyulang_raw` (VARCHAR NULL — nullable karena visual merge di spreadsheet)
+- `pemutus_raw` (VARCHAR NULL)
+- `posko_pic_raw` (VARCHAR NULL)
+- `source_row_number` (INT NULL), `imported_at` (TIMESTAMP NULL), `created_at`, `updated_at`
+
+### 4.2.6 `keypoint_source_rows`
+Staging data KEYPOINT_RAW (129 baris keypoint):
+- `id` (BIGINT PK AUTO_INCREMENT)
+- `penyulang_raw` (VARCHAR NULL), `jenis_raw` (VARCHAR NULL), `nama_raw` (VARCHAR NULL), `koordinat_raw` (VARCHAR NULL), `note_raw` (TEXT NULL)
+- `source_row_number` (INT NULL), `imported_at` (TIMESTAMP NULL), `created_at`, `updated_at`
+
+---
+
+## 4.3 Planned Domain Masters & Reference Schema (Target Lanjutan)
+
+### 4.3.1 `sections` (Status: BLOCKED)
+> Menunggu ketersediaan data pemutus FCO dan Switching ULP Sribhawono yang sudah terfilter.
+- `id UUID PRIMARY KEY`
+- `kode_section VARCHAR UNIQUE NOT NULL`
+- `nama_section VARCHAR NOT NULL`
+- `penyulang_id UUID REFERENCES penyulangs(id) NOT NULL`
+- `posko_id UUID REFERENCES poskos(id) NOT NULL`
 - `is_active BOOLEAN NOT NULL DEFAULT true`
 - timestamps
 
-### 4.1.2 `penyulang`
-- `id UUID PK`
-- `kode_penyulang TEXT UNIQUE NOT NULL`
-- `nama_penyulang TEXT NOT NULL`
-- `gardu_induk TEXT NULL`
-- `is_active BOOLEAN NOT NULL DEFAULT true`
-- timestamps
-
-### 4.1.3 `section`
-- `id UUID PK`
-- `section_code TEXT UNIQUE NOT NULL`
-- `nama_section TEXT NOT NULL`
-- `penyulang_id UUID FK NOT NULL`
-- `posko_id UUID FK NOT NULL`
-- `is_active BOOLEAN NOT NULL DEFAULT true`
-- timestamps
-
-### 4.1.4 `asset`
-- `id UUID PK`
-- `asset_code TEXT UNIQUE NOT NULL`
-- `section_id UUID FK NOT NULL`
-- `asset_type TEXT CHECK IN (TIANG,GARDU,KEYPOINT)`
-- `nama_aset TEXT NOT NULL`
+### 4.3.2 `assets` (Status: BLOCKED / PARTIAL)
+> Master operasional aset fisik. Mapping ke Posko diturunkan melalui Section.
+- `id UUID PRIMARY KEY`
+- `kode_aset VARCHAR UNIQUE NOT NULL`
+- `section_id UUID REFERENCES sections(id) NOT NULL`
+- `jenis_aset VARCHAR CHECK (jenis_aset IN ('TIANG','GARDU','KEYPOINT','PEMUTUS'))`
+- `nama_aset VARCHAR NOT NULL`
 - `latitude DOUBLE PRECISION NULL`
 - `longitude DOUBLE PRECISION NULL`
-- `status TEXT`
-- `is_active BOOLEAN`
+- `status VARCHAR`
+- `is_active BOOLEAN NOT NULL DEFAULT true`
 - timestamps
 
-Koordinat boleh NULL saat import awal, tetapi WO/Maps memerlukan koordinat valid bila workflow membutuhkannya.
-
-### 4.1.5 `apkuk`
-- `id UUID PK`
-- `apkuk_code TEXT UNIQUE`
-- `asset_id UUID FK NOT NULL`
-- `tgl_pasang DATE/TIMESTAMPTZ`
-- `status TEXT` (`AKTIF`, `NON_AKTIF`, dll sesuai data resmi)
+### 4.3.3 `apkuks` (Status: PLANNED)
+- `id UUID PRIMARY KEY`
+- `kode_apkuk VARCHAR UNIQUE`
+- `asset_id UUID REFERENCES assets(id) NOT NULL`
+- `tgl_pasang TIMESTAMPTZ NULL`
+- `status VARCHAR NOT NULL DEFAULT 'AKTIF'` (`AKTIF`, `NON_AKTIF`, `RUSAK`)
 - timestamps
 
-### 4.1.6 `vegetasi`
-- `id UUID PK`
-- `vegetasi_code TEXT UNIQUE`
-- `section_id UUID FK NOT NULL`
-- `asset_terdekat_id UUID FK NULL`
-- `latitude`, `longitude`
-- `jenis_pohon`, `jarak`, `tinggi`, `diameter`, `laju_pertumbuhan` nullable sesuai source
-- `status`
-- `last_row_at`, `next_row_date` nullable
+### 4.3.4 `vegetasis` (Status: PLANNED)
+- `id UUID PRIMARY KEY`
+- `kode_vegetasi VARCHAR UNIQUE`
+- `section_id UUID REFERENCES sections(id) NOT NULL`
+- `asset_terdekat_id UUID REFERENCES assets(id) NULL`
+- `latitude DOUBLE PRECISION NULL`, `longitude DOUBLE PRECISION NULL`
+- `jenis_pohon VARCHAR`, `jarak_aman DOUBLE PRECISION`, `kondisi VARCHAR`
+- `last_row_at TIMESTAMPTZ NULL`, `next_row_date DATE NULL`
+- `status VARCHAR NOT NULL DEFAULT 'TERDAFTAR'`
 - timestamps
 
-### 4.1.7 `petugas`
-- `id UUID PK`
-- `petugas_code TEXT UNIQUE NULL`
-- `nama_petugas TEXT NOT NULL`
-- `team_type TEXT NULL`
-- `posko_id UUID NULL`
-- `is_active BOOLEAN`
+### 4.3.5 `petugas` (Status: PLANNED)
+- `id UUID PRIMARY KEY`
+- `kode_petugas VARCHAR UNIQUE NULL`
+- `nama_petugas VARCHAR NOT NULL`
+- `posko_id UUID REFERENCES poskos(id) NULL`
+- `is_active BOOLEAN NOT NULL DEFAULT true`
 - timestamps
 
-### 4.1.8 `users`
-- `id UUID PK`
-- `username TEXT UNIQUE NOT NULL`
-- `email TEXT UNIQUE NULL`
-- `password_hash TEXT NOT NULL`
-- `role TEXT CHECK IN ('ADMIN','POSKO','HARSUS','ROW')`
-- `posko_id UUID NULL` — wajib untuk role POSKO
-- `display_name TEXT`
-- `is_active BOOLEAN`
+### 4.3.6 `users` (Status: PARTIAL)
+- `id UUID PRIMARY KEY`
+- `username VARCHAR UNIQUE NOT NULL`
+- `email VARCHAR UNIQUE NULL`
+- `password VARCHAR NOT NULL`
+- `role VARCHAR CHECK (role IN ('ADMIN','POSKO','HARSUS','ROW'))`
+- `posko_id UUID REFERENCES poskos(id) NULL` — wajib untuk role POSKO
+- `nama_lengkap VARCHAR NULL`
+- `is_active BOOLEAN NOT NULL DEFAULT true`
 - timestamps
-
-Akun mewakili tim/unit. Jumlah akun mengikuti kebutuhan tim operasional.
 
 ---
 
-## 4.2 External / Raw
+## 4.4 Planned Operational Transaction Entities (Target Lanjutan)
 
-### 4.2.1 `gangguan_raw`
-Staging data gangguan pusat. Kolom sumber dipertahankan sesuai file source final. Jangan memodifikasi nama/meaning source tanpa profiling.
-
-### 4.2.2 `gangguan_mv`
-View/materialized view analitik yang minimal mengekspose:
-- `id_gangguan`
-- tanggal/waktu
-- penyulang
-- asset mapping bila ditemukan
-- section/posko derived
-- jenis gangguan
-- flag trip
-- fields analitik yang diperlukan scoring
-
-Rule sementara `is_trip` mengikuti mapping source yang sudah disepakati pada tahap profiling; formula produksi harus divalidasi pada source nyata.
-
----
-
-## 4.3 Operational Transaction Entities
-
-### 4.3.1 `p0`
+### 4.4.1 `p0`
 
 | Field | Type | Nullable | Notes |
 |---|---|---:|---|
@@ -239,12 +286,12 @@ Rule sementara `is_trip` mengikuti mapping source yang sudah disepakati pada tah
 
 **P0 menyimpan snapshot kebutuhan eksekusi.** Untuk source HARSUS/PASILA nilai dicopy ketika P0 dibuat; untuk source ADMIN diisi Admin; untuk Special Case harus tersedia/ditinjau sebelum P0 ditugaskan. Unknown point tetap berada pada source record sampai Admin memetakan/membuat asset + Section/Posko, baru P0 executable dibuat.
 
-### 4.3.2 `p0_petugas`
+### 4.4.2 `p0_petugas`
 - `p0_id`
 - `petugas_id`
 - composite unique
 
-### 4.3.3 `p0_reschedule_history`
+### 4.4.3 `p0_reschedule_history`
 - `id UUID PK`
 - `p0_id UUID FK NOT NULL`
 - `reschedule_type TEXT CHECK IN ('NEXT_SHIFT','CUSTOM')`
@@ -260,7 +307,7 @@ Rule sementara `is_trip` mengikuti mapping source yang sudah disepakati pada tah
 
 NEXT_SHIFT menggunakan `NOT_REQUIRED` dan langsung mengubah P0 menjadi `RESCHEDULED`. CUSTOM menggunakan PENDING → APPROVED/REJECTED; selama PENDING status P0 tetap `DIKERJAKAN`, setelah APPROVED menjadi `RESCHEDULED`, dan setelah REJECTED tetap `DIKERJAKAN`. Saat pekerjaan dimulai kembali pada target shift, status kembali `DIKERJAKAN`.
 
-### 4.3.4 `p0_context_event`
+### 4.4.4 `p0_context_event`
 Untuk menambahkan context/evidence baru ke P0 aktif tanpa membuat P0 duplikat.
 - `id UUID PK`
 - `p0_id UUID FK`
@@ -272,7 +319,7 @@ Untuk menambahkan context/evidence baru ke P0 aktif tanpa membuat P0 duplikat.
 
 Dipakai antara lain ketika Special Case menemukan **masalah yang sama** pada aset yang sudah memiliki P0 aktif.
 
-### 4.3.5 `work_order`
+### 4.4.5 `work_order`
 - `id UUID PK`
 - `display_code TEXT UNIQUE`
 - `tanggal DATE`
@@ -293,11 +340,11 @@ Dipakai antara lain ketika Special Case menemukan **masalah yang sama** pada ase
 
 **WO completion side effect:** transaksi completion `PEMASANGAN_APKUK` wajib membuat atau memperbarui `apkuk` menjadi `AKTIF` pada `asset_id` terkait, dengan `tgl_pasang = completed_at`; `apkuk_code` boleh diisi bila tersedia. Operasi ini harus berada dalam logical transaction yang sama dengan completion agar generator WO berikutnya tidak memilih aset yang sudah terpasang.
 
-### 4.3.6 `wo_petugas`
+### 4.4.6 `wo_petugas`
 - `wo_id`
 - `petugas_id`
 
-### 4.3.6a `wo_reschedule_history`
+### 4.4.7 `wo_reschedule_history`
 - `id UUID PK`
 - `wo_id UUID FK NOT NULL`
 - `from_date DATE NOT NULL`
@@ -311,7 +358,7 @@ Dipakai antara lain ketika Special Case menemukan **masalah yang sama** pada ase
 
 Carry-over WO mengisi kuota shift target lebih dulu. Generator hanya membuat `6 - jumlah_carry_over_aktif` WO baru per Posko/shift (minimum 0).
 
-### 4.3.7 `pasila_session`
+### 4.4.8 `pasila_session`
 - `id UUID PK`
 - `tanggal DATE`
 - `shift A/B/C`
@@ -330,7 +377,7 @@ Carry-over WO mengisi kuota shift target lebih dulu. Generator hanya membuat `6 
 
 Jika `is_override=true`, `override_reason` wajib. Tambahkan unique constraint `(posko_id, tanggal, shift)` agar hanya ada satu sesi PASILA per Posko/shift.
 
-### 4.3.8 `pasila_action`
+### 4.4.9 `pasila_action`
 - `id UUID PK`
 - `session_id UUID FK`
 - `asset_id UUID NULL`
@@ -350,11 +397,11 @@ Jika `is_override=true`, `override_reason` wajib. Tambahkan unique constraint `(
 
 Jika status TIDAK_DAPAT_DIEKSEKUSI, alasan wajib dan kebutuhan padam/material wajib terisi. Jika `asset_id` belum tervalidasi, action tetap tersimpan sebagai temuan tetapi eskalasi P0 menunggu Admin mapping asset terlebih dahulu. Saat P0 dibuat, kebutuhan eksekusi dicopy sebagai snapshot.
 
-### 4.3.9 `pasila_action_petugas`
+### 4.4.10 `pasila_action_petugas`
 - `action_id`
 - `petugas_id`
 
-### 4.3.10 `harsus_inspection`
+### 4.4.11 `harsus_inspection`
 - `id UUID PK`
 - `asset_id UUID NULL`
 - `section_id UUID NULL`
@@ -374,7 +421,7 @@ Jika status TIDAK_DAPAT_DIEKSEKUSI, alasan wajib dan kebutuhan padam/material wa
 
 Jika `asset_id` null, koordinat wajib dan status default `PENDING_ASSET_VALIDATION`. P0 executable belum dibuat/ditugaskan sampai Admin memetakan atau membuat asset + Section/Posko. Setelah validasi, P0 dapat dibuat dengan snapshot `kebutuhan_padam` dan `kebutuhan_material` dari inspeksi.
 
-### 4.3.11 `row_work`
+### 4.4.12 `row_work`
 - `id UUID PK`
 - `vegetasi_id UUID FK`
 - `section_id UUID FK`
@@ -389,11 +436,11 @@ Jika `asset_id` null, koordinat wajib dan status default `PENDING_ASSET_VALIDATI
 
 Tidak ada field teks kondisi sebelum/sesudah wajib.
 
-### 4.3.12 `row_work_petugas`
+### 4.4.13 `row_work_petugas`
 - `row_work_id`
 - `petugas_id`
 
-### 4.3.13 `vegetasi_proposal`
+### 4.4.14 `vegetasi_proposal`
 - `id UUID PK`
 - `submitted_by UUID FK users`
 - `section_id UUID NULL`
@@ -409,7 +456,7 @@ Tidak ada field teks kondisi sebelum/sesudah wajib.
 - `submitted_at TIMESTAMPTZ NOT NULL`
 - timestamps
 
-### 4.3.14 `special_case`
+### 4.4.15 `special_case`
 - `id UUID PK`
 - `penyulang_id UUID FK`
 - `periode_bulan DATE NOT NULL` — simpan first-day of calendar month
@@ -420,7 +467,7 @@ Tidak ada field teks kondisi sebelum/sesudah wajib.
 
 Rule trigger: jumlah trip **>3** pada bulan kalender.
 
-### 4.3.15 `special_case_asset`
+### 4.4.16 `special_case_asset`
 - `special_case_id`
 - `asset_id`
 - `issue_type`
@@ -429,7 +476,7 @@ Rule trigger: jumlah trip **>3** pada bulan kalender.
 
 Decision rule: **masalah sama** + P0 aktif → `MERGED_TO_ACTIVE_P0` dan append `p0_context_event`; **masalah berbeda** → `NEW_P0` diperbolehkan setelah kebutuhan eksekusi tervalidasi. Taxonomy/comparator `issue_type` final adalah gate sebelum implementasi Special Case production.
 
-### 4.3.16 `documentation`
+### 4.4.17 `documentation`
 - `id UUID PK`
 - `entity_type TEXT`
 - `entity_id UUID`
@@ -446,7 +493,7 @@ Semua pekerjaan yang disubmit wajib minimal satu foto sesuai rule per entity.
 
 ---
 
-## 4.4 History / Audit
+## 4.5 History / Audit
 
 ### `status_history`
 Append-only status timeline dengan field minimum:
@@ -481,7 +528,7 @@ Koreksi setelah submit dilakukan langsung oleh ADMIN sesuai permission dan selal
 
 ---
 
-## 4.5 Configuration
+## 4.6 Configuration
 
 ### `app_config`
 Key/value JSON atau typed config untuk parameter yang dapat berubah.
@@ -502,17 +549,17 @@ Default awal:
 
 # 5. Relationships
 
-- Posko 1:N Section
-- Penyulang 1:N Section
-- Section 1:N Asset
-- Asset 1:N APKUK/history/work
-- P0 N:M Petugas
-- WO N:M Petugas
-- PASILA Session 1:N Action
-- PASILA Action N:M Petugas
-- ROW Work N:M Petugas
-- Special Case N:M Asset
-- Entity 1:N Documentation
+- **Posko N:M Penyulang** (melalui tabel pivot `posko_penyulang` — 26 relasi terverifikasi pada 6 Posko & 16 Penyulang)
+- **Section N:1 Penyulang & Section N:1 Posko** (satu Section berinduk pada 1 Penyulang dan 1 Posko penanggung jawab aktif)
+- **Asset N:1 Section** (ownership operasional aset diturunkan melalui Section tervalidasi)
+- **Asset 1:N APKUK / History / Work**
+- **P0 N:M Petugas**
+- **WO N:M Petugas**
+- **PASILA Session 1:N Action**
+- **PASILA Action N:M Petugas**
+- **ROW Work N:M Petugas**
+- **Special Case N:M Asset**
+- **Entity 1:N Documentation**
 
 Unknown-point HARSUS/PASILA dapat memiliki relasi asset kosong sampai Admin validation. P0 executable selalu memiliki asset, Section, dan Posko tervalidasi.
 
