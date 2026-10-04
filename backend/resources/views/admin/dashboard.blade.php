@@ -466,22 +466,6 @@
 </script>
 
 <script>
-    // Live Clock and Auto-reload
-    function updateClock() {
-        const now = new Date();
-        const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' };
-        const dateStr = now.toLocaleDateString('id-ID', options);
-        
-        let hours = now.getHours().toString().padStart(2, '0');
-        let minutes = now.getMinutes().toString().padStart(2, '0');
-        const timeStr = `${hours}:${minutes} WIB`;
-        
-        const el = document.getElementById('clock-display');
-        if(el) el.innerHTML = `<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ${dateStr} • ${timeStr}`;
-    }
-
-    setInterval(updateClock, 60000); // update clock visually every minute
-
     // Polling dashboard
     setInterval(function() {
         // Lightweight polling

@@ -33,7 +33,7 @@
             <!-- Main Nav -->
             <ul class="space-y-1">
                 <li>
-                    <a href="#" class="flex items-center gap-3 px-3 py-2 bg-blue-600 text-white rounded-md font-medium text-sm">
+                    <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 px-3 py-2 {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }} rounded-md font-medium text-sm transition-colors">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
                         Dashboard
                     </a>
@@ -44,7 +44,11 @@
             <div>
                 <h2 class="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2 px-3">Pekerjaan</h2>
                 <ul class="space-y-1">
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><span class="w-4 text-center font-bold text-xs text-red-500">P0</span> P0</a></li>
+                    <li>
+                        <a href="{{ route('admin.p0.index') }}" class="flex items-center gap-3 px-3 py-2 {{ request()->routeIs('admin.p0.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }} rounded-md font-medium text-sm transition-colors">
+                            <span class="w-4 text-center font-bold text-xs {{ request()->routeIs('admin.p0.*') ? 'text-white' : 'text-red-500' }}">P0</span> P0
+                        </a>
+                    </li>
                     <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> Work Order</a></li>
                     <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> PASILA</a></li>
                     <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Inspeksi</a></li>
@@ -132,9 +136,22 @@
     </main>
     
     <script>
-        // Initial clock setup
+        function updateClock() {
+            const now = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' };
+            const dateStr = now.toLocaleDateString('id-ID', options);
+            
+            let hours = now.getHours().toString().padStart(2, '0');
+            let minutes = now.getMinutes().toString().padStart(2, '0');
+            const timeStr = `${hours}:${minutes} WIB`;
+            
+            const el = document.getElementById('clock-display');
+            if(el) el.innerHTML = `<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ${dateStr} • ${timeStr}`;
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            if(typeof updateClock === 'function') updateClock();
+            updateClock();
+            setInterval(updateClock, 60000);
         });
     </script>
     @yield('scripts')
