@@ -2,7 +2,7 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Status:** Business Flow v2 Baseline (Updated per 4 Oktober 2026)
 **Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 **Source of Truth:** PRD.md · DESIGN_BRIEF.md · DATA_MODEL.md · API_CONTRACT.md · OFFLINE_SYNC_SPEC.md
 **Scope:** ULP Sribhawono (single-tenant)
@@ -14,7 +14,7 @@
 
 ```text
 FIELD USERS
-POSKO / HARSUS / ROW
+POSKO / HARSUS / INSPEKSI / ROW
         │
         ▼
 Flutter Android App
@@ -89,7 +89,7 @@ Key decisions:
 | Auth | Laravel Auth + token API (Sanctum sebagai baseline) | Satu boundary auth untuk Web Admin dan Flutter. |
 | Photo | Laravel Filesystem | Development dapat lokal; production dapat berpindah ke S3 tanpa mengubah domain logic. |
 | Maps | Google Maps | Marker, detail titik, dan navigasi. |
-| Jobs | Laravel Scheduler + Queue | Generate WO, Special Case, dan background processing. |
+| Jobs | Laravel Scheduler + Queue | Generate WO, Special Case detection, dan background processing. |
 | Monitoring | Logging Laravel; Sentry opsional | Sentry tidak menjadi blocker MVP. |
 | Source control | Private Git repository | Source code/version control. Secret tidak boleh masuk repo. |
 
@@ -143,16 +143,19 @@ BLoC/Cubit dapat digunakan, tetapi jangan membuat abstraction berlebihan sebelum
 
 ## 3.4 Navigation
 
-POSKO: Home · Pekerjaan · PASILA · Maps · Draft  
-HARSUS: Home · Inspeksi · Maps · Riwayat · Draft  
+POSKO: Home · Pekerjaan (WO) · PASILA · Maps · Draft
+HARSUS: Home · P0 List · Maps · Riwayat · Draft
+INSPEKSI: Home · Inspeksi · Vegetasi Proposal · Maps · Riwayat · Draft
 ROW: Home · Pekerjaan · Maps · Riwayat · Draft
 
 ## 3.5 Shift Detection
 
-Final default:
+Final default (berlaku untuk POSKO):
 - Shift A: 08:00–16:00
 - Shift B: 16:00–00:00
 - Shift C: 00:00–08:00
+
+HARSUS **TIDAK** berbasis shift. P0 tidak menggunakan shift assignment untuk HARSUS.
 
 Simpan konfigurasi shift di `app_config` agar dapat diubah Admin bila stakeholder mengubah kebijakan.
 
@@ -168,7 +171,7 @@ Halaman minimum:
 - `/p0`
 - `/wo`
 - `/pasila`
-- `/harsus`
+- `/inspeksi`
 - `/row`
 - `/special-cases`
 - `/maps`
@@ -206,7 +209,7 @@ Domain services minimum:
 - `P0Service`
 - `WorkOrderService`
 - `PasilaService`
-- `HarsusService`
+- `InspeksiService`
 - `RowService`
 - `SpecialCaseService`
 - `SubmissionService`
@@ -218,7 +221,7 @@ Pipeline import dan sinkronisasi topologi diimplementasikan sebagai artisan cons
 1. `apkuk:import-sheet` (dengan opsi `--replace`) — Ingest data Sheet1 APKUK ke `apkuk_source_rows` via Google Sheets API.
 2. `sources:import-sheets` — Ingest multi-source sheets (ASSET_RAW, VEGETASI_RAW, GANGGUAN_RAW, SECTION_PIC_RAW, KEYPOINT_RAW) ke staging tables.
 3. `sources:profile-sheets` — Profiling kolom dan struktur header spreadsheet sumber.
-4. `sources:audit-staging` — Audit read-only kualitas data staging dan cross-reference vegetasi $\rightarrow$ aset.
+4. `sources:audit-staging` — Audit read-only kualitas data staging dan cross-reference vegetasi → aset.
 5. `topology:audit` — Audit topologi read-only (fill-down in-memory, name & type normalization, coordinate parsing, feeder coverage, review items).
 6. `topology:sync-core-masters` — Sinkronisasi update-safe core master `poskos`, `penyulangs`, dan pivot Many-to-Many `posko_penyulang` dari staging `section_pic_source_rows`.
 
@@ -233,7 +236,7 @@ Prinsip persistence:
 - Business key PLN dipertahankan.
 - no hard delete untuk transaksi operasional.
 - status history dan audit log append-oriented.
-- P0 executable selalu memiliki asset + Section + Posko tervalidasi. Unknown point tetap pada source HARSUS/PASILA sampai Admin validation selesai.
+- P0 executable selalu memiliki asset + Section + Posko tervalidasi. `posko_id` pada P0 adalah lokasi/wilayah operasional, bukan executor. Unknown point tetap pada source INSPEKSI/PASILA sampai Admin validation selesai.
 - draft mobile **tidak** menjadi tabel server sampai submit.
 
 ---
@@ -246,13 +249,18 @@ Flutter login melalui Laravel API ketika online. Laravel mengembalikan token API
 
 ## 7.2 Roles
 
-Business roles hanya:
+Business roles:
 - ADMIN
 - POSKO
 - HARSUS
+- INSPEKSI
 - ROW
 
 Akun dapat mewakili tim/unit, bukan orang individual. Petugas aktual dipilih dari master `petugas`.
+
+POSKO: terhubung ke satu Posko.
+HARSUS: tidak terikat satu Posko (seluruh ULP).
+INSPEKSI: tidak terikat satu Posko (seluruh ULP).
 
 ## 7.3 Offline Session
 
@@ -263,16 +271,19 @@ Jika token/session lokal sudah ada, aplikasi boleh membuka mode draft offline. B
 # 8. Role Permissions
 
 ### ADMIN
-Full monitoring, master CRUD, manual P0/WO, validation, reschedule approval, corrections, audit.
+Full monitoring, master CRUD, manual P0/WO, validation/approval, reschedule approval, corrections, audit, Special Case review/P0 creation.
 
 ### POSKO
-Read pekerjaan Posko sendiri, execute P0/WO/PASILA, pilih petugas, create draft, submit result.
+Read pekerjaan WO/PASILA Posko sendiri, execute WO/PASILA, pilih petugas, create draft, submit result. **TIDAK** mengeksekusi P0. Incidental vegetation only through PASILA.
 
 ### HARSUS
-Create inspection/finding, propose unknown point, documentation, request P0 through business flow.
+View P0 across whole ULP, accept/start/reschedule-request/complete P0. **TIDAK** melakukan WO, PASILA, inspeksi, atau ROW.
+
+### INSPEKSI
+Inspections across whole ULP, unknown asset/location findings, P0 proposals through findings (Admin validates), new vegetation proposals (Admin validates). **TIDAK** mengeksekusi P0, WO, PASILA, atau ROW.
 
 ### ROW
-Execute vegetation work, propose vegetation point, documentation.
+Execute vegetation work only (RABAS/PANGKAS/TEBANG). **TIDAK** membuat proposal vegetasi baru. **TIDAK** mengeksekusi P0/WO/PASILA/inspeksi.
 
 Authorization final tetap enforced server-side melalui Laravel Policy/Service validation; client-side hiding bukan security boundary.
 
@@ -292,11 +303,12 @@ Authorization final tetap enforced server-side melalui Laravel Policy/Service va
 
 ## 9.2 Available Offline
 
-- Draft P0 response yang sudah dibuka/tersedia lokal.
-- Draft WO response yang sudah dibuka/tersedia lokal.
-- PASILA draft/action.
-- HARSUS draft.
-- ROW draft.
+- Draft WO response yang sudah dibuka/tersedia lokal (POSKO).
+- PASILA draft/action (POSKO).
+- P0 cached/available untuk completion/reschedule (HARSUS).
+- Inspection draft (INSPEKSI).
+- Vegetation proposal draft (INSPEKSI).
+- ROW work draft.
 - Foto lokal.
 - Cache ringan asset/section/posko/petugas/koordinat yang sudah didownload.
 
@@ -440,14 +452,19 @@ Laravel Scheduler/Queue menangani:
 
 Rule awal: `trip_count > 3` per penyulang per **calendar month**.
 
+Special Case **TIDAK** otomatis membuat P0.
+
 Processing:
 1. Agregasi gangguan bulan berjalan.
-2. Create/update Special Case.
+2. Create/update Special Case sebagai indikasi/rekomendasi.
 3. Identifikasi aset kandidat.
-4. Untuk aset dengan P0 aktif:
+4. Sistem membuat notifikasi/rekomendasi untuk Admin.
+5. Admin membuka Special Case, mereview, dan dapat mengedit informasi P0 yang direkomendasikan.
+6. Admin memutuskan apakah membuat P0. Jika ya, HARSUS mengeksekusi.
+7. Untuk aset dengan P0 aktif:
    - masalah sama → append context/evidence ke P0 aktif;
-   - masalah berbeda → P0 baru diperbolehkan.
-5. Special Case juga dapat meningkatkan priority feature untuk WO ranking.
+   - masalah berbeda → Admin dapat membuat P0 baru.
+8. Special Case juga dapat meningkatkan priority factor untuk WO ranking.
 
 ---
 
@@ -468,7 +485,7 @@ Ranking:
 
 Target: Top 6 per shift per Posko.
 
-Jika P0 menghabiskan waktu, WO yang belum dikerjakan dapat di-reschedule. Carry-over mengisi kuota shift target terlebih dahulu: `new_wo_count = max(0, 6 - active_carry_over_count)`. Saat WO `PEMASANGAN_APKUK` selesai, completion handler create/update APKUK `AKTIF` pada asset dalam logical transaction yang sama agar aset tidak dipilih lagi.
+WO yang belum dikerjakan dapat di-reschedule. Carry-over mengisi kuota shift target terlebih dahulu: `new_wo_count = max(0, 6 - active_carry_over_count)`. Saat WO `PEMASANGAN_APKUK` selesai, completion handler create/update APKUK `AKTIF` pada asset dalam logical transaction yang sama agar aset tidak dipilih lagi.
 
 ## 20.1 PASILA Runtime Architecture
 
@@ -476,8 +493,9 @@ Jika P0 menghabiskan waktu, WO yang belum dikerjakan dapat di-reschedule. Carry-
 - Laravel memberikan rekomendasi Section/aset beserta `recommendation_reason` berdasarkan prioritas gangguan/trip.
 - POSKO dapat memakai rekomendasi atau override ke lokasi lain; override wajib `override_reason`.
 - Satu session dapat memiliki banyak action.
-- Action `TIDAK_DAPAT_DIEKSEKUSI` wajib alasan + kebutuhan padam + kebutuhan material; bila dieskalasi menjadi P0, kebutuhan tersebut dicopy sebagai snapshot P0.
+- Action `TIDAK_DAPAT_DIEKSEKUSI` wajib alasan + kebutuhan padam + kebutuhan material; bila dieskalasi menjadi P0, ini adalah **proposal/request yang memerlukan Admin approval**. Kebutuhan tersebut dicopy sebagai snapshot P0 hanya setelah Admin menyetujui. Escalation **TIDAK** langsung membuat P0 executable.
 - Action pada unknown point tidak membuat P0 executable sampai Admin mapping asset + Section/Posko selesai.
+- P0 yang disetujui dari escalation PASILA ditugaskan ke HARSUS.
 
 ---
 
@@ -486,29 +504,29 @@ Jika P0 menghabiskan waktu, WO yang belum dikerjakan dapat di-reschedule. Carry-
 Normal lifecycle:
 BARU → DITERIMA → DIKERJAKAN → SELESAI.
 
+HARSUS adalah executor P0. HARSUS **TIDAK** berbasis shift.
+
+**REMOVED:** NEXT_SHIFT / "Lanjut Shift Berikutnya" untuk P0 (karena HARSUS tidak shift-based).
+**REMOVED:** `scheduled_shift` requirement pada P0.
+
 Jika belum selesai:
 
-### NEXT_SHIFT
-- alasan wajib;
-- target shift otomatis berikutnya;
-- tidak butuh Admin approval;
-- P0 langsung `RESCHEDULED`;
-- saat pekerjaan dilanjutkan pada target shift → `DIKERJAKAN`;
-- ID P0 sama.
-
-### CUSTOM_RESCHEDULE
-- tanggal + shift + alasan wajib;
+### RESCHEDULE (Date-based)
+- target tanggal + alasan wajib;
 - selama request `PENDING`, P0 tetap `DIKERJAKAN`;
 - Admin APPROVE/REJECT;
-- APPROVED → P0 `RESCHEDULED` ke target tersebut;
+- APPROVED → P0 `RESCHEDULED` ke target tanggal;
 - REJECTED → P0 tetap `DIKERJAKAN`;
-- saat pekerjaan dilanjutkan pada target shift → `DIKERJAKAN`;
+- saat pekerjaan dilanjutkan → `DIKERJAKAN`;
 - ID P0 sama.
 
 Semua perubahan dicatat pada `p0_reschedule_history` dan `status_history`.
 
 ### P0 execution readiness
-P0 yang dikirim ke POSKO wajib sudah memiliki asset + Section + Posko tervalidasi serta snapshot `kebutuhan_padam` dan `kebutuhan_material`. Unknown point tetap berada pada source HARSUS/PASILA sampai Admin mapping selesai. Untuk source HARSUS/PASILA snapshot dicopy; P0 manual diisi Admin; Special Case yang belum punya kebutuhan eksekusi harus menunggu review sebelum assignment.
+P0 yang dikirim ke HARSUS wajib sudah memiliki asset + Section + Posko tervalidasi serta snapshot `kebutuhan_padam` dan `kebutuhan_material`. `posko_id` pada P0 adalah lokasi/wilayah operasional aset, bukan executor. Unknown point tetap berada pada source INSPEKSI/PASILA sampai Admin mapping selesai. Untuk source INSPEKSI/PASILA snapshot dicopy; P0 manual diisi Admin; Special Case yang belum punya kebutuhan eksekusi harus menunggu review sebelum P0 dibuat.
+
+### P0 Petugas Rule
+Petugas aktual dipilih oleh HARSUS saat completion/submission P0, **BUKAN** saat menerima, accept, atau memulai P0. Completion ditolak jika data completion wajib (termasuk Petugas) tidak lengkap.
 
 ---
 
@@ -580,7 +598,7 @@ Sentry dapat ditambahkan bila waktu/akses memungkinkan, tetapi bukan blocker Pha
 
 Master awal: Posko, Penyulang, Section, Asset, APKUK, Vegetasi, Petugas bila tersedia. Data gangguan dipertahankan raw/staging sesuai source lalu dibentuk view/derived dataset untuk analitik.
 
-Data transaksi P0/WO/PASILA/HARSUS/ROW adalah transaksi baru sistem, bukan wajib historical import kecuali stakeholder menyediakan kebutuhan tambahan.
+Data transaksi P0/WO/PASILA/Inspeksi/ROW adalah transaksi baru sistem, bukan wajib historical import kecuali stakeholder menyediakan kebutuhan tambahan.
 
 ---
 
@@ -625,7 +643,7 @@ Tidak ada folder Next.js, Supabase Functions, atau PowerSync config pada baselin
 - Integration method data gangguan production.
 - Taxonomy `issue_type`/comparator masalah sama-vs-berbeda sebelum implementasi Special Case production.
 
-Yang sudah dikunci tidak boleh dimunculkan lagi sebagai OQ: shift, PowerSync, Next.js, PASILA recommendation behavior, Special Case month window, HARSUS unknown point, role model, WO target 6, WO APKUK-only MVP, correction by Admin.
+Yang sudah dikunci tidak boleh dimunculkan lagi sebagai OQ: shift, PowerSync, Next.js, PASILA recommendation behavior, Special Case month window, inspection (now by INSPEKSI), role model (5 roles), WO target 6, WO APKUK-only MVP, correction by Admin, HARSUS = Pemeliharaan Khusus, HARSUS executes P0, INSPEKSI performs inspections, ROW execute-only.
 
 ---
 
@@ -644,8 +662,9 @@ Owner memutuskan repository private dapat berisi data project bila diperlukan. N
 - P0 — Penugasan Khusus
 - PASILA — Patroli Eksekusi Langsung
 - APKUK — kepanjangan resmi belum dikunci di dokumen ini
-- HARSUS — Tim inspeksi Harsus; kepanjangan resmi belum dikunci
+- HARSUS — Pemeliharaan Khusus
 - ROW — istilah operasional ROW; kepanjangan resmi belum dikunci
+- INSPEKSI — Role inspeksi aset/jaringan
 - Draft — input lokal yang belum menjadi data resmi server
 - Submission — pengiriman draft ke Laravel ketika online
 
@@ -657,9 +676,9 @@ Owner memutuskan repository private dapat berisi data project bila diperlukan. N
 
 `Form → SQLite Draft → local photo → READY_TO_SEND → HTTPS Laravel → validation → file storage + PostgreSQL → SUBMITTED`
 
-## B.2 P0 Completion
+## B.2 P0 Completion (HARSUS)
 
-`Laravel P0 → Flutter online fetch → execute/draft → submit → Laravel validation/OCC → status/history/audit`
+`Laravel P0 → Flutter online fetch (HARSUS) → execute/draft → select Petugas at completion → submit → Laravel validation/OCC → PostgreSQL/history → SUBMITTED`
 
 ## B.3 WO Generation
 
@@ -667,4 +686,4 @@ Owner memutuskan repository private dapat berisi data project bila diperlukan. N
 
 ## B.4 Special Case
 
-`Gangguan raw → monthly aggregation → Special Case → asset candidate → same issue merge / different issue new P0`
+`Gangguan raw → monthly aggregation → Special Case recommendation → Admin notification → Admin review/edit → Admin decision: create P0 or not → if P0 created, HARSUS executes`

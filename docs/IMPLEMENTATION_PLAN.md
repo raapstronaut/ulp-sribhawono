@@ -2,7 +2,7 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Status:** Business Flow v2 Baseline (Updated per 4 Oktober 2026)
 **Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 **Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md · OFFLINE_SYNC_SPEC.md · API_CONTRACT.md
 **Ruang Lingkup:** Flutter Android Field App · Laravel Backend + Admin Web · PostgreSQL · SQLite Draft/Cache · File Storage · Google Maps
@@ -37,7 +37,7 @@ Phase 2 Master Data & Topology Ingestion      [STATUS: PARTIAL]
    ├── Staging Layer & Ingestion              [STATUS: DONE] (T02)
    ├── Source & Topology Audit                [STATUS: DONE] (T03)
    ├── Core Posko/Penyulang Masters           [STATUS: DONE] (T04)
-   ├── Grand Design Web + Mobile              [STATUS: AVAILABLE] (T05)
+   ├── Grand Design Web + Mobile              [STATUS: AVAILABLE — Requires v2 Revision] (T05)
    ├── Keypoint Canonical/Candidate Layer     [STATUS: AVAILABLE] (T06)
    ├── Section Master Final                   [STATUS: BLOCKED - Waiting FCO/Switching] (T09)
    └── Operational Asset Master               [STATUS: BLOCKED/PARTIAL] (T10)
@@ -46,15 +46,15 @@ Phase 3 Flutter + SQLite Draft Foundation     [STATUS: PENDING] (T19)
    ↓
 Phase 4 Photo Pipeline                        [STATUS: PENDING] (T12)
    ↓
-Phase 5 P0 Vertical Slice                     [STATUS: PENDING] (T11)
+Phase 5 P0 Vertical Slice (HARSUS)            [STATUS: PENDING] (T11)
    ↓
-Phase 6 Work Order (WO APKUK)                 [STATUS: PENDING] (T13)
+Phase 6 Work Order (WO APKUK — POSKO)         [STATUS: PENDING] (T13)
    ↓
-Phase 7 PASILA Engine                         [STATUS: PENDING] (T14)
+Phase 7 PASILA Engine (POSKO)                  [STATUS: PENDING] (T14)
    ↓
-Phase 8 HARSUS Inspection                     [STATUS: PENDING] (T15)
+Phase 8 INSPEKSI Findings & Escalation        [STATUS: PENDING] (T15)
    ↓
-Phase 9 ROW Work & Proposals                  [STATUS: PENDING] (T16)
+Phase 9 ROW Work (Execute Only)               [STATUS: PENDING] (T16)
    ↓
 Phase 10 Maps & History                       [STATUS: PENDING] (T17)
    ↓
@@ -139,7 +139,7 @@ Membuat schema core, user/team accounts, login, authorization, audit foundation.
 
 ### Current Implementation State:
 - [x] Database foundation, cache, and jobs migrations implemented.
-- [ ] User role model (ADMIN, POSKO, HARSUS, ROW) & Sanctum token API (Task `T07` — AVAILABLE).
+- [ ] User role model (ADMIN, POSKO, HARSUS, INSPEKSI, ROW) & Sanctum token API (Task `T07` — AVAILABLE).
 - [ ] Policies & middleware authorization.
 - [ ] Audit log service foundation.
 - [ ] App config shift parameters.
@@ -148,20 +148,21 @@ Membuat schema core, user/team accounts, login, authorization, audit foundation.
 - login Flutter online berhasil;
 - Admin Web login berhasil;
 - non-ADMIN tidak dapat akses Admin Web;
-- POSKO scoped ke Posko sendiri.
+- POSKO scoped ke Posko sendiri;
+- HARSUS dan INSPEKSI tidak scoped ke satu Posko.
 
 ---
 
 ## Phase 2 — Master Data, Source Staging & Topology Preparation
-**Status:** `PARTIAL` | **Task IDs:** `T02` (DONE), `T03` (DONE), `T04` (DONE), `T05` (AVAILABLE), `T06` (AVAILABLE), `T09` (BLOCKED), `T10` (BLOCKED/PARTIAL)
+**Status:** `PARTIAL` | **Task IDs:** `T02` (DONE), `T03` (DONE), `T04` (DONE), `T05` (AVAILABLE — Requires v2 Revision), `T06` (AVAILABLE), `T09` (BLOCKED), `T10` (BLOCKED/PARTIAL)
 
 ### Scope & Delivery State:
 - [x] **Source Staging Tables (T02 - DONE):** Migration 6 tabel staging (`apkuk_source_rows`, `asset_source_rows`, `vegetasi_source_rows`, `gangguan_source_rows`, `section_pic_source_rows`, `keypoint_source_rows`).
 - [x] **Source Ingestion Pipeline (T02 - DONE):** Google Sheets API integration, artisan commands `apkuk:import-sheet` (dengan opsi `--replace`), `sources:import-sheets`, `sources:profile-sheets`.
 - [x] **Source & Topology Auditing (T03 - DONE):** Commands `sources:audit-staging`, `topology:audit` (in-memory fill-down parsing, safe string normalization, coordinate parsing, proximity detection).
-- [x] **Core Topology Masters (T04 - DONE):** Master `poskos` (6 Posko resmi), `penyulangs` (16 canonical feeder), Many-to-Many pivot `posko_penyulang` (26 verified relations), command `topology:sync-core-masters`, alias mapping `TANGGAMUS` $\rightarrow$ `TANGGAMUS 2`.
+- [x] **Core Topology Masters (T04 - DONE):** Master `poskos` (6 Posko resmi), `penyulangs` (16 canonical feeder), Many-to-Many pivot `posko_penyulang` (26 verified relations), command `topology:sync-core-masters`, alias mapping `TANGGAMUS` → `TANGGAMUS 2`.
 - [x] **Automated Tests (DONE):** 73 tests passed, 274 assertions.
-- [ ] **Grand Design UI (T05 - AVAILABLE):** Perancangan visual web & mobile lengkap.
+- [ ] **Grand Design UI (T05 - AVAILABLE — Requires v2 Revision):** Perancangan visual web & mobile lengkap. **Must be revised for Business Flow v2 before marking DONE.** Grand Design Web created previously is draft/reference only and must NOT be marked final until revised.
 - [ ] **Keypoint Canonical Layer (T06 - AVAILABLE):** Candidate model & canonicalization untuk 129 keypoint.
 - [ ] **Section Master Final (T09 - BLOCKED):** Menunggu file eksternal FCO & Switching ULP Sribhawono yang sudah difilter.
 - [ ] **Operational Asset Master (T10 - BLOCKED/PARTIAL):** 17,059 aset valid ada di staging; penetapan Posko penanggung jawab definitif per aset menunggu Section final.
@@ -183,7 +184,8 @@ Membuat app shell, local persistence, cache ringan, dan Submission Center.
 - statuses DRAFT/READY/SENDING/SUBMITTED/FAILED;
 - connectivity banner;
 - Kirim/Kirim Semua skeleton;
-- idempotency key generation.
+- idempotency key generation;
+- role-based navigation (POSKO/HARSUS/INSPEKSI/ROW).
 
 ### Acceptance Criteria
 - draft bertahan setelah kill/restart;
@@ -219,21 +221,27 @@ Membuat app shell, local persistence, cache ringan, dan Submission Center.
 
 ### Scope
 - Admin create P0 untuk asset yang sudah tervalidasi;
-- unknown point HARSUS/PASILA masuk validation queue dahulu, bukan langsung sebagai P0 executable;
+- unknown point INSPEKSI/PASILA masuk validation queue dahulu, bukan langsung sebagai P0 executable;
 - snapshot kebutuhan padam/material pada P0;
-- POSKO fetch/accept/start;
+- **HARSUS** fetch/accept/start (not POSKO);
+- HARSUS is **NOT** shift-based — P0 does not use Shift A/B/C;
 - offline result draft + photo;
 - complete submission via canonical P0 endpoint;
-- NEXT_SHIFT;
-- CUSTOM_RESCHEDULE request + Admin approve/reject;
+- **Petugas selected at completion**, not at accept/start;
+- date-based reschedule request + Admin approve/reject;
 - OCC conflict;
 - detailed status/reschedule history (`occurred_at` vs `recorded_at`).
 
+**REMOVED:** NEXT_SHIFT / "Lanjut Shift Berikutnya" (HARSUS not shift-based).
+
 ### Acceptance Criteria
 - P0 ID tetap sama saat reschedule;
-- NEXT_SHIFT tidak perlu Admin approval;
-- custom reschedule PENDING tidak mengubah status dari DIKERJAKAN; approved → RESCHEDULED, rejected → tetap DIKERJAKAN;
-- P0 yang muncul ke POSKO selalu memiliki asset/Section/Posko + snapshot kebutuhan eksekusi;
+- reschedule uses target DATE + reason (no shift);
+- reschedule PENDING tidak mengubah status dari DIKERJAKAN; approved → RESCHEDULED, rejected → tetap DIKERJAKAN;
+- P0 yang muncul ke HARSUS selalu memiliki asset/Section/Posko + snapshot kebutuhan eksekusi;
+- `posko_id` on P0 is location/territory, not executor;
+- POSKO does NOT receive P0 in work feed;
+- Petugas mandatory at completion, not at accept/start;
 - two-device stale update menghasilkan conflict;
 - input time dan submit time tersimpan terpisah.
 
@@ -248,8 +256,8 @@ Membuat app shell, local persistence, cache ringan, dan Submission Center.
 - target 6/shift/Posko;
 - `priority_score` + `alasan_prioritas`;
 - manual WO Admin;
-- execution mobile;
-- reschedule bila tidak sempat akibat prioritas P0;
+- execution mobile (POSKO);
+- reschedule bila tidak sempat;
 - carry-over memakai kuota shift target terlebih dahulu (total tetap 6);
 - WO completion create/update APKUK aktif pada asset.
 
@@ -273,32 +281,41 @@ Implementasikan scoring interface/adapter. Fallback development dapat rule-based
 - override target dengan alasan;
 - multi-action;
 - gagal eksekusi: alasan + padam + material;
-- escalation P0;
+- escalation P0 as **proposal requiring Admin approval** — does NOT directly create P0;
+- Admin approval/rejection of escalation;
+- approved P0 goes to HARSUS;
 - unknown-point action → Admin location validation sebelum P0 executable;
 - ROW incidental.
 
 ### Acceptance Criteria
 - PASILA tersedia tiap shift;
 - recommendation dapat dipakai atau dioverride;
-- override tanpa reason ditolak.
+- override tanpa reason ditolak;
+- escalation creates proposal, not executable P0.
 
 ---
 
-## Phase 8 — HARSUS Inspection
+## Phase 8 — INSPEKSI Findings & Asset/Vegetation Escalation
 **Status:** `PENDING` | **Task ID:** `T15`
 
+**RENAMED:** from "HARSUS Inspection" to "INSPEKSI Findings & Asset/Vegetation Escalation".
+
 ### Scope
-- inspection existing asset;
+- inspection existing asset (by INSPEKSI, not HARSUS);
 - unknown point coordinate+photo;
 - condition enum;
 - kebutuhan padam;
 - kebutuhan material;
-- perlu P0;
-- Admin validation/mapping asset.
+- perlu P0 → Admin validation/approval;
+- Admin validation/mapping asset;
+- new vegetation proposal (by INSPEKSI, not ROW);
+- Admin vegetation validation.
 
 ### Acceptance Criteria
 - unknown point dapat dibuat offline sebagai draft dan disubmit;
-- Admin dapat validate/create/map asset.
+- Admin dapat validate/create/map asset;
+- INSPEKSI P0 proposal requires Admin approval before P0 creation;
+- vegetation proposals from INSPEKSI require Admin validation.
 
 ---
 
@@ -309,8 +326,8 @@ Implementasikan scoring interface/adapter. Fallback development dapat rule-based
 - RABAS/PANGKAS/TEBANG;
 - photo+catatan;
 - ROW incidental history;
-- vegetation proposal coordinate+photo;
-- Admin approve/reject proposal.
+- **REMOVED:** vegetation proposal creation (now from INSPEKSI in T15);
+- Admin approve/reject proposal (handled in T15/T20).
 
 Tidak ada field teks wajib kondisi sebelum/sesudah.
 
@@ -324,7 +341,8 @@ Tidak ada field teks wajib kondisi sebelum/sesudah.
 - markers asset/vegetasi/pekerjaan;
 - asset detail/history online;
 - navigation intent;
-- cached coordinates optional offline.
+- cached coordinates optional offline;
+- role access updates for 5 roles.
 
 Full offline basemap out-of-scope MVP.
 
@@ -338,16 +356,22 @@ Full offline basemap out-of-scope MVP.
 
 ### Scope
 - monthly aggregation;
-- create/update Special Case;
+- create/update Special Case as **indication/recommendation** for Admin;
 - identify candidate assets;
+- **NO automatic P0 creation**;
+- Admin notification/recommendation;
+- Admin can review, edit recommendation, and decide whether to create P0;
+- if created, HARSUS executes;
 - same issue + active P0 → append context/evidence;
-- different issue → allow new P0;
-- unknown/unready context harus divalidasi hingga kebutuhan eksekusi tersedia sebelum P0 baru ditugaskan;
+- different issue → Admin can create new P0;
+- unknown/unready context harus divalidasi hingga kebutuhan eksekusi tersedia sebelum P0 baru dibuat;
 - expose factor to WO prioritization.
 
 ### Acceptance Criteria
+- Special Case does NOT auto-create P0;
+- Admin explicitly decides P0 creation;
 - no identical duplicate P0 for same issue;
-- different issue can create separate P0.
+- different issue can create separate P0 via Admin decision.
 
 ---
 
@@ -363,6 +387,7 @@ Full offline basemap out-of-scope MVP.
 - two-device conflict;
 - input time vs submit time;
 - cleanup policy local submitted draft;
+- updated queues for 5 roles.
 
 ### Acceptance Criteria
 Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
@@ -374,11 +399,17 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 
 ### Scope
 - dashboard KPI;
-- P0/WO/PASILA/HARSUS/ROW/Special Case monitor;
+- P0 Monitor (HARSUS-executed P0);
+- WO Monitor;
+- PASILA Monitor;
+- INSPEKSI Monitor (replacing old HARSUS inspection monitor);
+- ROW Monitor (execution monitoring);
+- Asset/Location Validation + Vegetation Proposal Validation (under INSPEKSI/Review & Validation);
+- Special Case screen: notification/recommendation → Admin review/edit → create P0;
 - reschedule approval;
-- validation queues;
 - correction UI + reason + audit;
 - all master CRUD;
+- User & Hak Akses (5 roles);
 - app config;
 - polling sekitar 15 detik + manual refresh.
 
@@ -392,7 +423,7 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 **Status:** `PENDING` | **Task ID:** `T21`
 
 ### Scope
-- API authorization matrix tests;
+- API authorization matrix tests (5 roles);
 - input validation;
 - idempotency/concurrency;
 - file upload abuse tests;
@@ -422,11 +453,11 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 # 6. Milestones
 
 1. Foundation runnable.
-2. Auth + master ready.
-3. Mobile draft queue ready.
-4. P0 vertical slice complete.
+2. Auth + master ready (5 roles).
+3. Mobile draft queue ready (4 field roles).
+4. P0 vertical slice complete (HARSUS executor).
 5. Photo pipeline complete.
-6. WO/PASILA/HARSUS/ROW complete.
+6. WO/PASILA/INSPEKSI/ROW complete.
 7. Maps + Special Case complete.
 8. Offline hardening complete.
 9. Admin monitoring complete.
@@ -436,14 +467,14 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 
 # 7. Global Test Matrix
 
-- role/authorization
+- role/authorization (5 roles)
 - master data integrity
-- P0 lifecycle/reschedule
+- P0 lifecycle/reschedule (HARSUS, date-based, no shift)
 - WO eligibility/target
-- PASILA recommendation/override
-- HARSUS unknown point
-- ROW proposal
-- Special Case duplicate rule
+- PASILA recommendation/override + escalation as proposal
+- INSPEKSI inspection + unknown point + vegetation proposal
+- ROW execute-only
+- Special Case Admin recommendation (not auto-P0)
 - draft persistence
 - bulk partial success
 - idempotency
@@ -456,7 +487,7 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 
 # 8. Global Definition of Done
 
-- Core role flows pass.
+- Core role flows pass (5 roles).
 - No secret in repository.
 - Server validates all critical rules.
 - Draft offline does not lose data.
@@ -476,7 +507,7 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 - ROW next-date formula.
 
 ## Before Phase 11 Special Case production logic
-- taxonomy `issue_type` dan comparator konsisten untuk menentukan “masalah sama” vs “masalah berbeda”.
+- taxonomy `issue_type` dan comparator konsisten untuk menentukan "masalah sama" vs "masalah berbeda".
 
 ## Before Production
 - deployment provider;
@@ -485,10 +516,10 @@ Pass all acceptance scenarios from OFFLINE_SYNC_SPEC.
 - production gangguan ingest method;
 - final photo compression/limits.
 
-No gate remains for shift hours, PowerSync, Next.js, full offline sync, PASILA target behavior, Special Case period, HARSUS unknown asset, account model, WO type/target.
+No gate remains for shift hours, PowerSync, Next.js, full offline sync, PASILA target behavior, Special Case period, inspection by INSPEKSI, account model, WO type/target, HARSUS = Pemeliharaan Khusus, HARSUS P0 executor, ROW execute-only, vegetation proposals by INSPEKSI, P0 not shift-based.
 
 ---
 
 # 10. Final Execution Sequence
 
-Phase 0 may start only from the **seven locked baseline documents** in this package. Previous Supabase/PowerSync drafts are historical only and must not be used as implementation source-of-truth.
+Phase 0 may start only from the **eight locked baseline documents** in this package. Previous Supabase/PowerSync drafts and Business Flow v1 docs are historical only and must not be used as implementation source-of-truth.

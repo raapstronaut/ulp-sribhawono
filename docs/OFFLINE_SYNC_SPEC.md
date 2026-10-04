@@ -2,7 +2,7 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline — Future Mobile Behavior Specification (Refreshed per 30 September 2026)
+**Status:** Business Flow v2 Baseline (Updated per 4 Oktober 2026)
 **Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 **Dokumen Acuan:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md · DATA_MODEL.md
 **Platform Target:** Flutter Android + SQLite local draft/cache + Laravel API + PostgreSQL
@@ -33,10 +33,12 @@
 |---|---:|---|
 | Membuka draft lokal | ✅ | selalu |
 | Mengedit draft | ✅ | sebelum submit |
-| Isi hasil P0/WO yang sudah tersedia lokal | ✅ | disimpan draft |
-| Buat PASILA action draft | ✅ | menggunakan cache ringan |
-| Buat HARSUS inspection baru | ✅ | termasuk unknown point |
-| Buat ROW work/proposal | ✅ | termasuk foto/koordinat |
+| Isi hasil WO yang sudah tersedia lokal (POSKO) | ✅ | disimpan draft |
+| Buat PASILA action draft (POSKO) | ✅ | menggunakan cache ringan |
+| P0 completion/reschedule draft (HARSUS) | ✅ | cached P0 work |
+| Buat inspection baru (INSPEKSI) | ✅ | termasuk unknown point |
+| Buat vegetation proposal (INSPEKSI) | ✅ | draft proposal |
+| Buat ROW work (ROW) | ✅ | termasuk foto/koordinat |
 | Ambil foto | ✅ | local file |
 | Pilih asset/section/petugas | ✅ terbatas | hanya cache yang sudah diunduh |
 | Kirim data | ❌ | perlu internet |
@@ -98,7 +100,7 @@ SENDING
 
 # 5. Record Creation Offline Flow
 
-Contoh HARSUS:
+Contoh INSPEKSI:
 1. User buka New Inspection.
 2. Pilih asset dari cache atau pilih unknown point.
 3. Isi temuan.
@@ -115,9 +117,9 @@ Contoh HARSUS:
 
 # 6. Existing Server Record Update Offline Flow
 
-Contoh P0 sudah pernah di-fetch saat online:
+Contoh P0 sudah pernah di-fetch oleh HARSUS saat online:
 1. Simpan `server_entity_id` + `server_version` ke local context.
-2. Saat offline, user isi hasil/perubahan sebagai draft.
+2. Saat offline, HARSUS isi hasil/perubahan sebagai draft.
 3. Submit membawa `expected_version`.
 4. Laravel menerima hanya jika version masih cocok.
 5. Jika server sudah berubah, return `409 CONFLICT`.
@@ -144,7 +146,7 @@ Draft lokal boleh bebas diedit sebelum submit, tetapi Laravel tetap memeriksa tr
 
 Contoh:
 - P0 BARU tidak boleh langsung SELESAI bila flow mewajibkan ACCEPT/START terlebih dahulu.
-- P0 NEXT_SHIFT/CUSTOM_RESCHEDULE divalidasi server.
+- P0 reschedule request divalidasi server (target tanggal + alasan, Admin approval).
 - Completed record tidak bisa diedit user lapangan setelah server menerima completion.
 
 ---
@@ -181,7 +183,7 @@ atau PASILA:
 Session
   └── Action
        └── Photos
-       └── optional P0 escalation
+       └── optional P0 escalation proposal
 ```
 
 Setiap item queue dikirim ke **endpoint domain canonical** sebagai satu logical multipart submission (payload + foto). Parent/entity dibuat atau diperbarui terlebih dahulu, lalu metadata dokumentasi ditautkan oleh Laravel sebelum success dikembalikan. Tidak ada endpoint bulk server generik. Tombol `Kirim Semua` hanya mengulang proses per item; dependency internal sebuah item ditangani server.
@@ -266,13 +268,28 @@ Action:
 # 17. Role-Based Local Scope
 
 ## POSKO
-Cache wilayah Posko sendiri + pekerjaan yang sudah diterima/fetched.
+Cache wilayah Posko sendiri + pekerjaan WO/PASILA yang sudah diterima/fetched.
+- WO draft/submission.
+- PASILA draft/submission.
+- **NOT** P0 (POSKO does not execute P0).
 
 ## HARSUS
-Cache reference minimum untuk inspeksi; unknown point tetap dapat dibuat via coordinate.
+- Cached/available P0 work across whole ULP.
+- P0 completion/reschedule submission.
+- Petugas selected at completion.
+- **NOT** inspection (inspection is done by INSPEKSI).
+
+## INSPEKSI
+- Inspection draft/submission.
+- Unknown point finding draft.
+- Vegetation proposal draft.
+- Photos.
+- Send when online.
 
 ## ROW
-Cache reference minimum untuk pekerjaan vegetasi; proposal baru dapat dibuat offline.
+Cache reference minimum untuk pekerjaan vegetasi.
+- ROW work draft (RABAS/PANGKAS/TEBANG).
+- **NOT** new vegetation proposal (proposals are from INSPEKSI).
 
 ADMIN tidak memiliki offline Web requirement.
 
@@ -283,7 +300,7 @@ ADMIN tidak memiliki offline Web requirement.
 Saat online:
 1. Validate session.
 2. Fetch shift/config.
-3. Fetch latest work feed.
+3. Fetch latest work feed (role-appropriate).
 4. Refresh reference cache ringan.
 5. Jangan overwrite local draft.
 6. Tampilkan conflict jika context server draft sudah berubah.
@@ -335,9 +352,9 @@ Server audit mengikuti Technical/API spec.
 5. Foto offline tetap terkait ke draft setelah restart.
 6. Submit tanpa foto wajib → ditolak.
 7. Input jam 14:10, submit jam 18:45 → server menyimpan `occurred_at/input_at=14:10` dan `recorded_at/submitted_at=18:45`; status P0/WO menyimpan pasangan waktu tersebut di `status_history`.
-8. Admin create P0 saat device offline → P0 baru baru terlihat setelah refresh online.
+8. Admin create P0 saat device offline → P0 baru baru terlihat setelah refresh online (oleh HARSUS, bukan POSKO).
 9. Account disabled saat offline → draft lokal tetap ada, submit ditolak ketika reconnect.
-10. Unknown HARSUS point offline → coordinate+photo tersimpan dan dapat submit untuk Admin validation; P0 executable baru dibuat setelah asset + Section/Posko tervalidasi dan kebutuhan eksekusi dicopy sebagai snapshot.
+10. Unknown INSPEKSI point offline → coordinate+photo tersimpan dan dapat submit untuk Admin validation; P0 executable baru dibuat setelah asset + Section/Posko tervalidasi, Admin approves, dan kebutuhan eksekusi dicopy sebagai snapshot. P0 ditugaskan ke HARSUS.
 
 ---
 

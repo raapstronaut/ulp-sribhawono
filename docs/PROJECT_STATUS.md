@@ -1,8 +1,9 @@
 # PROJECT STATUS & COLLABORATION HANDOFF
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Last Updated:** 30 September 2026  
+**Last Updated:** 4 Oktober 2026
 **Document Status:** Living Master Status & Team Entry Point  
+**Business Flow Version:** v2 (Final Stakeholder Clarification)
 **Current Execution State:** Phase 0 DONE, Phase 1 PARTIAL, Phase 2 PARTIAL (Core Topology Masters DONE, Section Final BLOCKED)  
 **Verified Automated Test Suite:** 73 tests passed, 274 assertions
 
@@ -20,7 +21,7 @@ Dokumen ini adalah **ENTRY POINT PERTAMA DAN UTAMA** bagi setiap developer baru,
 
 # 2. Project Summary
 
-Project ini adalah sistem pengelolaan pekerjaan preventive jaringan distribusi tegangan menengah (20 kV) pada unit kerja **ULP Sribhawono** (single-tenant). Sistem dirancang untuk mengintegrasikan seluruh siklus operasional lapangan dari identifikasi temuan/kondisi → penentuan prioritas → penugasan shift → eksekusi lapangan → dokumentasi foto → histori aset → monitoring dan validasi Admin.
+Project ini adalah sistem pengelolaan pekerjaan preventive jaringan distribusi tegangan menengah (20 kV) pada unit kerja **ULP Sribhawono** (single-tenant). Sistem dirancang untuk mengintegrasikan seluruh siklus operasional lapangan dari identifikasi temuan/kondisi → penentuan prioritas → penugasan → eksekusi lapangan → dokumentasi foto → histori aset → monitoring dan validasi Admin.
 
 Aplikasi dirancang tangguh untuk kondisi lapangan dengan konektivitas seluler fluktuatif di wilayah Lampung Timur, menggunakan pendekatan *offline draft mode* (bukan *full database replication*).
 
@@ -32,7 +33,7 @@ Arsitektur sistem telah dikunci (*locked baseline*) per 27 September 2026 dan **
 
 | Layer | Teknologi Terkunci | Peran & Batasan |
 |---|---|---|
-| **Aplikasi Lapangan** | **Flutter (Android)** | Aplikasi mobile untuk POSKO, HARSUS, dan ROW. Mode draft lokal, kamera terintegrasi, GPS, Google Maps online-primary. |
+| **Aplikasi Lapangan** | **Flutter (Android)** | Aplikasi mobile untuk POSKO, HARSUS, INSPEKSI, dan ROW. Mode draft lokal, kamera terintegrasi, GPS, Google Maps online-primary. |
 | **Backend & Web Admin** | **Laravel (PHP 8.2+)** | REST API untuk Flutter + Web Admin terpadu untuk ADMIN. Menangani autentikasi, business validation, scheduler, audit trail, dan ingestion pipeline. |
 | **Server Database** | **PostgreSQL** | Primary relational database server authoritative. |
 | **Mobile Local Storage** | **SQLite** | Cache data ringan, antrean draft lokal (*local draft*), dan outbox pengiriman. **Bukan replika full database server**. |
@@ -51,36 +52,58 @@ Arsitektur sistem telah dikunci (*locked baseline*) per 27 September 2026 dan **
 
 Seluruh business rule berikut bersifat mutlak dan tidak boleh diubah:
 
-1. **Prioritas Operasional POSKO:**
-   $$\mathbf{P0 \rightarrow WO \rightarrow PASILA}$$
-   P0 selalu didahulukan di atas semua jenis pekerjaan lainnya.
-2. **Target Work Order (WO):**
-   Target operasional adalah **6 WO per shift per Posko**. Pada MVP, seluruh WO berfokus pada **PEMASANGAN_APKUK**. Carry-over WO dari shift sebelumnya mengisi kuota terlebih dahulu (total target tetap 6/shift/Posko, bukan 6 baru ditambah carry-over).
-3. **PASILA (Patroli Eksekusi Langsung) Wajib Per Shift:**
-   Setiap shift POSKO wajib menjalankan 1 sesi PASILA. Sistem memberikan rekomendasi target berbasis prioritas trip/gangguan; POSKO boleh melakukan override dengan alasan wajib.
-4. **Role Pengguna (4 Role):**
-   Hanya ada 4 role: `ADMIN`, `POSKO`, `HARSUS`, dan `ROW`. Akun mewakili tim/unit kerja, sedangkan personil pelaksana aktual dipilih dari master `Petugas`.
-5. **Shift Operasional (3 Shift):**
-   - **Shift A:** 08:00 – 16:00 WIB
-   - **Shift B:** 16:00 – 00:00 WIB
-   - **Shift C:** 00:00 – 08:00 WIB
-6. **Alur P0 Reschedule:**
-   P0 yang belum selesai memilih:
-   - `LANJUT_SHIFT_BERIKUTNYA` (otomatis shift berikutnya, alasan wajib, tanpa approval Admin).
-   - `CUSTOM_RESCHEDULE` (pilih tanggal + shift, alasan wajib, status tetap `DIKERJAKAN` hingga disetujui/ditolak Admin).
-   P0 tetap menggunakan ID record yang sama (tidak membuat child P0).
-7. **Special Case Threshold:**
-   Kondisi **>3 trip pada satu penyulang dalam satu bulan kalender**. Jika menyangkut masalah sama pada aset dengan P0 aktif, satukan konteks/evidence ke P0 aktif (tidak menduplikasi P0). Jika masalah berbeda, dapat diterbitkan P0 baru.
-8. **Dokumentasi Wajib:**
-   Setiap pekerjaan yang disubmit wajib memiliki minimal 1 foto dokumentasi (`BEFORE`, `AFTER`, `TEMUAN`, atau `SURVEY`).
-9. **Koreksi Data Pasca-Submit:**
-   Petugas lapangan tidak dapat mengedit data yang sudah masuk server. Koreksi dilakukan oleh Admin Web dengan pencatatan audit log otomatis.
+1. **Role Pengguna (5 Role):**
+   Hanya ada 5 role: `ADMIN`, `POSKO`, `HARSUS`, `INSPEKSI`, dan `ROW`. Akun mewakili tim/unit kerja, sedangkan personil pelaksana aktual dipilih dari master `Petugas`. Account ≠ Petugas.
+
+2. **HARSUS = Pemeliharaan Khusus:**
+   HARSUS mengeksekusi **seluruh P0 yang sudah executable**. HARSUS **TIDAK** melakukan inspeksi aset. HARSUS **TIDAK** berbasis shift dan **TIDAK** terikat satu Posko. P0 tidak menggunakan Shift A/B/C untuk eksekusi HARSUS.
+
+3. **INSPEKSI = Inspeksi Aset & Jaringan:**
+   INSPEKSI melakukan inspeksi kondisi aset/jaringan, mencatat temuan, mengusulkan P0 (yang memerlukan validasi Admin), dan mengusulkan vegetasi baru (yang memerlukan validasi Admin). INSPEKSI tidak terikat satu Posko.
+
+4. **POSKO Work = WO + PASILA (Bukan P0):**
+   POSKO mengeksekusi Work Order (WO) dan PASILA. POSKO **TIDAK** mengeksekusi P0 dan **TIDAK** menerima P0 dalam work feed. POSKO masih dapat melakukan tindakan vegetasi insidental melalui PASILA.
+
+5. **ROW = Eksekusi Vegetasi Saja:**
+   ROW mengeksekusi RABAS/PANGKAS/TEBANG. ROW **TIDAK** lagi membuat proposal vegetasi baru (proposal berasal dari INSPEKSI).
+
+6. **P0 Executor = HARSUS:**
+   P0 selalu dieksekusi oleh HARSUS. Sumber P0: ADMIN (manual), INSPEKSI (finding + Admin approval), PASILA (escalation + Admin approval), SPECIAL_CASE (rekomendasi + Admin decision). `posko_id` pada P0 = lokasi/wilayah operasional aset, bukan executor.
+
+7. **P0 Petugas di Completion:**
+   Petugas aktual dipilih oleh HARSUS saat completion/submission P0, **BUKAN** saat menerima atau memulai P0.
+
+8. **P0 Reschedule Date-Based:**
+   P0 yang belum selesai: HARSUS mengajukan reschedule dengan target tanggal + alasan wajib → Admin approve/reject. **TIDAK** ada "Lanjut Shift Berikutnya" untuk P0. P0 tetap menggunakan ID record yang sama.
+
+9. **Special Case = Rekomendasi, Bukan Auto-P0:**
+   Kondisi **>3 trip pada satu penyulang dalam satu bulan kalender**. Special Case **TIDAK** otomatis membuat P0. Sistem membuat rekomendasi → Admin mereview/mengedit → Admin memutuskan apakah membuat P0. Jika masalah sama pada aset dengan P0 aktif, satukan konteks ke P0 aktif. Jika masalah berbeda, Admin dapat membuat P0 baru.
+
+10. **PASILA Escalation = Proposal:**
+    Jika action PASILA tidak dapat dieksekusi langsung, POSKO dapat mengusulkan escalation ke P0. Escalation adalah **proposal yang memerlukan persetujuan Admin**. Escalation **TIDAK** langsung membuat P0 executable. P0 yang disetujui ditugaskan ke HARSUS.
+
+11. **Target Work Order (WO):**
+    Target operasional adalah **6 WO per shift per Posko**. Pada MVP, seluruh WO berfokus pada **PEMASANGAN_APKUK**. Carry-over WO dari shift sebelumnya mengisi kuota terlebih dahulu (total target tetap 6/shift/Posko).
+
+12. **PASILA (Patroli Eksekusi Langsung) Wajib Per Shift:**
+    Setiap shift POSKO wajib menjalankan 1 sesi PASILA. Sistem memberikan rekomendasi target berbasis prioritas trip/gangguan; POSKO boleh melakukan override dengan alasan wajib.
+
+13. **Shift Operasional (3 Shift) — Berlaku untuk POSKO:**
+    - **Shift A:** 08:00 – 16:00 WIB
+    - **Shift B:** 16:00 – 00:00 WIB
+    - **Shift C:** 00:00 – 08:00 WIB
+
+14. **Dokumentasi Wajib:**
+    Setiap pekerjaan yang disubmit wajib memiliki minimal 1 foto dokumentasi (`BEFORE`, `AFTER`, `TEMUAN`, atau `SURVEY`).
+
+15. **Koreksi Data Pasca-Submit:**
+    Petugas lapangan tidak dapat mengedit data yang sudah masuk server. Koreksi dilakukan oleh Admin Web dengan pencatatan audit log otomatis.
 
 ---
 
 # 5. Current Implementation State
 
-Status implementasi per 30 September 2026:
+Status implementasi per 30 September 2026 (kode aktual tidak berubah oleh rebaseline dokumentasi Business Flow v2):
 
 | Komponen / Layer | Status | Keterangan Implementasi Aktual |
 |---|---|---|
@@ -91,11 +114,11 @@ Status implementasi per 30 September 2026:
 | **Core Topology Masters** | `IMPLEMENTED` | Master `poskos`, `penyulangs`, dan pivot Many-to-Many `posko_penyulang` sinkron dan teruji. |
 | **Topology Audit Engine** | `IMPLEMENTED` | Command `topology:audit` memvalidasi fill-down in-memory, name matching, coordinate parsing, dan review anomalies. |
 | **Automated Testing Suite** | `IMPLEMENTED` | **73 tests passed, 274 assertions** pada test suite aktif. |
-| **Auth & RBAC Foundation** | `PARTIAL` | Migration `users` default ada; skema role PLN/Sanctum belum difinalkan. |
-| **Grand Design UI (Web & Mobile)** | `PARTIAL` | Design brief & screen inventory tersedia; visual grand design menjadi task aktif berikutnya. |
+| **Auth & RBAC Foundation** | `PARTIAL` | Migration `users` default ada; skema role 5-role (ADMIN/POSKO/HARSUS/INSPEKSI/ROW) dan Sanctum belum difinalkan. |
+| **Grand Design UI (Web & Mobile)** | `PARTIAL` | Design brief & screen inventory tersedia; visual grand design menjadi task aktif berikutnya. **Requires v2 revision.** |
 | **Section Master Final** | `BLOCKED` | Menunggu file sumber FCO dan Switching ULP Sribhawono yang sudah terfilter. |
 | **Operational Asset Master** | `BLOCKED/PARTIAL` | 17,059 aset valid ada di staging; mapping final ke Section & Posko menunggu Section final. |
-| **Domain Transactions (P0, WO, PASILA, HARSUS, ROW)** | `PENDING` | Spesifikasi API dan Data Model siap; endpoint/controller/service belum dibuat. |
+| **Domain Transactions (P0, WO, PASILA, INSPEKSI, ROW)** | `PENDING` | Spesifikasi API dan Data Model siap (v2); endpoint/controller/service belum dibuat. |
 | **Mobile SQLite Draft & Outbox** | `PENDING` | Spesifikasi sinkronisasi draft siap; implementasi database lokal SQLite di Flutter belum dimulai. |
 | **Admin Web Dashboard** | `PENDING` | Halaman Web Admin monitoring belum diimplementasikan. |
 
@@ -177,7 +200,7 @@ Pekerjaan yang telah diselesaikan dan terverifikasi secara penuh:
 - [x] **T01 Foundation:** Setup Git, Laravel 13.33.0, PostgreSQL Dev, Flutter Project, `.env` structure.
 - [x] **T02 Source Staging & Import:** Migration 6 tabel staging, Google Sheets API client, commands `apkuk:import-sheet` (dengan opsi `--replace`), `sources:import-sheets`, `sources:profile-sheets`.
 - [x] **T03 Source / Topology Audit:** Command `sources:audit-staging`, command `topology:audit` (fill-down parsing, safe string normalization, coordinate extraction, proximity detection).
-- [x] **T04 Core Posko/Penyulang Masters:** Migration `poskos`, `penyulangs`, `posko_penyulang`, command `topology:sync-core-masters`, alias mapping `TANGGAMUS` $\rightarrow$ `TANGGAMUS 2`, safe pivot sync.
+- [x] **T04 Core Posko/Penyulang Masters:** Migration `poskos`, `penyulangs`, `posko_penyulang`, command `topology:sync-core-masters`, alias mapping `TANGGAMUS` → `TANGGAMUS 2`, safe pivot sync.
 - [x] **Automated Test Suite:** 73 automated tests passed, 274 assertions mencakup validasi staging, header resolution, audit logic, dan core topology sync.
 
 ---
@@ -185,8 +208,8 @@ Pekerjaan yang telah diselesaikan dan terverifikasi secara penuh:
 # 9. Partial Work
 
 Pekerjaan yang sedang berjalan atau sebagian telah memiliki fondasi:
-- 🟡 **Auth & Role Foundation:** Migration tabel `users` dasar Laravel ada, tetapi registrasi 4 role, Sanctum token issue, dan permission policy belum dibuat.
-- 🟡 **Grand Design UI (Web & Mobile):** Screen inventory dan user flows sudah disepakati di Design Brief, tetapi perancangan visual antarmuka menyeluruh belum difinalkan.
+- 🟡 **Auth & Role Foundation:** Migration tabel `users` dasar Laravel ada, tetapi registrasi 5 role (ADMIN/POSKO/HARSUS/INSPEKSI/ROW), Sanctum token issue, dan permission policy belum dibuat.
+- 🟡 **Grand Design UI (Web & Mobile):** Screen inventory dan user flows sudah disepakati di Design Brief (updated for Business Flow v2), tetapi perancangan visual antarmuka menyeluruh belum difinalkan. **Requires revision for v2.**
 - 🟡 **Keypoint Layer Preparation:** Data mentah keypoint (129 rows) dan matching logic sudah diaudit, siap dijadikan model/candidate layer.
 
 ---
@@ -200,9 +223,9 @@ Kolaborasi bersifat task-based dan fleksibel. Developer atau AI assistant dapat 
 [T02 DONE] Source Staging & Import
 [T03 DONE] Source / Topology Audit
 [T04 DONE] Core Posko/Penyulang Masters
-    ├── [T05 AVAILABLE] Grand Design Web + Mobile
+    ├── [T05 AVAILABLE] Grand Design Web + Mobile — Requires Business Flow v2 revision
     ├── [T06 AVAILABLE] Keypoint Canonical / Candidate Layer
-    ├── [T07 AVAILABLE] Auth, Roles & Security Foundation
+    ├── [T07 AVAILABLE] Auth, Roles & Security Foundation (5 roles)
     │       └── [T08 AVAILABLE/DEP] Petugas & User Master (depends on T07)
     ├── [T09 BLOCKED] Final Section (waiting FCO/Switching Sribhawono)
     └── [T10 BLOCKED/PARTIAL] Operational Asset Master (depends on T09)
@@ -210,24 +233,24 @@ Kolaborasi bersifat task-based dan fleksibel. Developer atau AI assistant dapat 
 
 | Task ID | Nama Task | Status | Prasyarat / Dependensi |
 |---|---|---|---|
-| **T05** | **Grand Design Web + Mobile** | `AVAILABLE` | Memahami Design Brief & Screen Inventory |
+| **T05** | **Grand Design Web + Mobile** | `AVAILABLE` | Memahami Design Brief (v2) & Screen Inventory; requires Business Flow v2 revision |
 | **T06** | **Keypoint Canonical/Candidate Layer** | `AVAILABLE` | T04, Data `keypoint_source_rows` |
-| **T07** | **Auth, Role & Security Foundation** | `AVAILABLE` | T01, T04 |
-| **T08** | **Petugas & User Master** | `AVAILABLE` | T07 |
+| **T07** | **Auth, Role & Security Foundation** | `AVAILABLE` | T01, T04. Now 5 roles: ADMIN/POSKO/HARSUS/INSPEKSI/ROW |
+| **T08** | **Petugas & User Master** | `AVAILABLE` | T07. Supports 5-role account model. POSKO scoped to one Posko. HARSUS and INSPEKSI not Posko-scoped. |
 | **T09** | **Final Section Master** | `BLOCKED` | Menunggu sumber eksternal FCO/Switching terfilter |
 | **T10** | **Operational Asset Master** | `BLOCKED/PARTIAL` | T09 (Section final) |
-| **T11** | **P0 Vertical Slice (API + Mobile)** | `PENDING` | T07, T08, T10 |
-| **T12** | **Photo Storage & Ingestion Pipeline** | `PENDING` | T01, T11 |
-| **T13** | **Work Order (WO APKUK) Engine** | `PENDING` | T10, T11 |
-| **T14** | **PASILA Engine & Recommendations** | `PENDING` | T10, T11 |
-| **T15** | **HARSUS Inspection & Asset Escalation** | `PENDING` | T10, T11 |
-| **T16** | **ROW Work & Vegetation Proposals** | `PENDING` | T10, T11 |
-| **T17** | **Maps Integration & Asset History** | `PENDING` | T10, T11 |
-| **T18** | **Special Case Detection Engine** | `PENDING` | T11, T13 |
-| **T19** | **Offline Draft Hardening & Outbox** | `PENDING` | T11, T12 |
-| **T20** | **Admin Operational Dashboard** | `PENDING` | T07, T11 s/d T18 |
-| **T21** | **End-to-End Integration & Security Audit** | `PENDING` | T19, T20 |
-| **T22** | **Production Deployment Readiness** | `PENDING` | T21 |
+| **T11** | **P0 Vertical Slice (API + Mobile)** | `PENDING` | T07, T08, T10. Executor: HARSUS. No shift. Date-based reschedule. Petugas at completion. |
+| **T12** | **Photo Storage & Ingestion Pipeline** | `PENDING` | T01, T11. Updated ownership for inspections (INSPEKSI). |
+| **T13** | **Work Order (WO APKUK) Engine** | `PENDING` | T10, T11. Executor: POSKO. |
+| **T14** | **PASILA Engine & Recommendations** | `PENDING` | T10, T11. Executor: POSKO. Escalation = proposal requiring Admin approval → P0 to HARSUS. |
+| **T15** | **INSPEKSI Findings & Asset/Vegetation Escalation** | `PENDING` | T10, T11. Inspection by INSPEKSI (not HARSUS). Includes vegetation proposals. |
+| **T16** | **ROW Work (Execute Only)** | `PENDING` | T10, T11. RABAS/PANGKAS/TEBANG only. No vegetation proposal. |
+| **T17** | **Maps Integration & Asset History** | `PENDING` | T10, T11. Role access updates for 5 roles. |
+| **T18** | **Special Case Detection Engine** | `PENDING` | T11, T13. Detection + Admin recommendation → Admin decision → P0 to HARSUS. No auto-P0. |
+| **T19** | **Offline Draft Hardening & Outbox** | `PENDING` | T11, T12. Updated queues for 5 roles. |
+| **T20** | **Admin Operational Dashboard** | `PENDING` | T07, T11 s/d T18. Updated monitors/approval flows for Business Flow v2. |
+| **T21** | **End-to-End Integration & Security Audit** | `PENDING` | T19, T20. |
+| **T22** | **Production Deployment Readiness** | `PENDING` | T21. |
 
 ---
 
@@ -264,7 +287,7 @@ Hasil audit topologi read-only mengidentifikasi anomali yang **TIDAK BOLEH DI-AU
 Kolaborasi dalam project ini mengedepankan fleksibilitas tim:
 - **Task-Based, Bukan Kepemilikan Kaku:** Tidak ada pembagian permanen seperti "Developer A hanya Backend" atau "Developer B hanya Mobile". Setiap developer/AI dapat mengambil task terbuka di Task Pool sesuai kesepakatan.
 - **Dependency Awareness:** Hormati dependensi antar task. Jangan mengerjakan fitur transaksi sebelum layer auth/master dasar siap.
-- **Specification Integrity:** Setiap implementasi harus mematuhi dokumen spesifikasi terkait (`TECHNICAL_SPEC.md`, `DATA_MODEL.md`, `API_CONTRACT.md`, `OFFLINE_SYNC_SPEC.md`).
+- **Specification Integrity:** Setiap implementasi harus mematuhi dokumen spesifikasi terkait (`TECHNICAL_SPEC.md`, `DATA_MODEL.md`, `API_CONTRACT.md`, `OFFLINE_SYNC_SPEC.md`) yang sudah diperbarui untuk Business Flow v2.
 
 ---
 
@@ -292,6 +315,7 @@ Bagi AI Assistant yang berpartisipasi dalam project ini, patuhi aturan mutlak be
 7. **Inspeksi migration dan model aktual** di `backend/database/migrations` dan `backend/app/Models` sebelum mengusulkan perubahan skema.
 8. **Periksa `git status`** sebelum dan sesudah melakukan pengeditan.
 9. **DILARANG menjalankan migrate/import/commit/push** kecuali ada permintaan eksplisit dari pengguna.
+10. **Hormati Business Flow v2:** HARSUS = Pemeliharaan Khusus (executor P0), INSPEKSI = inspeksi aset (role baru), POSKO = WO + PASILA (bukan P0), ROW = eksekusi vegetasi saja, Special Case = rekomendasi Admin (bukan auto-P0).
 
 ---
 
@@ -307,4 +331,4 @@ Bagi developer atau AI yang baru bergabung, ikuti urutan membaca dokumen berikut
 6. [DESIGN_BRIEF.md](./DESIGN_BRIEF.md) *(Prinsip desain, screen inventory, user flow)*
 7. [API_CONTRACT.md](./API_CONTRACT.md) *(Spesifikasi kontrak REST API target)*
 8. [OFFLINE_SYNC_SPEC.md](./OFFLINE_SYNC_SPEC.md) *(Spesifikasi offline draft mode & outbox)*
-9. [FINAL_AUDIT_REPORT.md](./FINAL_AUDIT_REPORT.md) *(Historical baseline audit 27 Sept 2026)*
+9. [FINAL_AUDIT_REPORT.md](./FINAL_AUDIT_REPORT.md) *(Historical baseline audit 27 Sept 2026 — DO NOT EDIT)*

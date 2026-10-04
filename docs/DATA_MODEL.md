@@ -2,7 +2,7 @@
 
 ## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
 
-**Status:** Final / Locked Baseline (Refreshed per 30 September 2026)
+**Status:** Business Flow v2 Baseline (Updated per 4 Oktober 2026)
 **Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
 **Source of Truth:** PRD.md · DESIGN_BRIEF.md · TECHNICAL_SPEC.md
 **Scope:** ULP Sribhawono (Single-Tenant)
@@ -30,7 +30,7 @@
 4. **Single-Tenant** — tidak ada kolom `ulp_id` di seluruh tabel inti; sistem dikhususkan untuk ULP Sribhawono.
 5. **Offline Draft Bukan Tabel Transaksi Server** — SQLite mobile menyimpan draft/cache/outbox secara lokal sampai disubmit manual oleh user saat online. Skema database server tidak mereplikasi draft lokal.
 6. **Photo Metadata Only** — PostgreSQL hanya menyimpan URL/path, jenis foto, geotag, dan hash metadata; binary file disimpan di Laravel Filesystem/S3.
-7. **Team Account vs Petugas Lapangan** — tabel `users` mewakili akun login tim/unit kerja (role ADMIN, POSKO, HARSUS, ROW). Personil fisik pelaksana dicatat melalui relasi ke master `petugas`.
+7. **Team Account vs Petugas Lapangan** — tabel `users` mewakili akun login tim/unit kerja (role ADMIN, POSKO, HARSUS, INSPEKSI, ROW). Personil fisik pelaksana dicatat melalui relasi ke master `petugas`.
 8. **No Hard Delete untuk Transaksi** — riwayat transaksi, perubahan status, dan audit log bersifat append-only.
 9. **Server-Authoritative Validation** — Laravel memvalidasi role, transisi state mesin domain, optimistic locking version, dan idempotency key.
 
@@ -44,7 +44,7 @@
 | **Staging / Raw Sources** | `apkuk_source_rows`, `asset_source_rows`, `vegetasi_source_rows`, `gangguan_source_rows`, `section_pic_source_rows`, `keypoint_source_rows` | `IMPLEMENTED` (Semua string, import & audit teruji) |
 | **Framework Tables** | `users`, `cache`, `jobs` | `IMPLEMENTED` (Framework baseline) |
 | **Planned Reference Masters** | `sections`, `assets`, `apkuks`, `vegetasis`, `petugas` | `BLOCKED / PARTIAL / PLANNED` |
-| **Planned Transactions** | `p0`, `p0_petugas`, `p0_reschedule_history`, `p0_context_events`, `work_orders`, `wo_petugas`, `wo_reschedule_history`, `pasila_sessions`, `pasila_actions`, `harsus_inspections`, `row_works`, `vegetasi_proposals`, `special_cases`, `documentations` | `PLANNED` (Target specification) |
+| **Planned Transactions** | `p0`, `p0_petugas`, `p0_reschedule_history`, `p0_context_events`, `work_orders`, `wo_petugas`, `wo_reschedule_history`, `pasila_sessions`, `pasila_actions`, `inspections`, `row_works`, `vegetasi_proposals`, `special_cases`, `documentations` | `PLANNED` (Target specification) |
 | **History & Config** | `status_histories`, `audit_logs`, `app_configs` | `PLANNED` (Target specification) |
 
 ---
@@ -67,20 +67,20 @@
 | `apkuks` | Domain Master | Inventaris status APKUK aktif pada aset | System/WO | `PLANNED` |
 | `vegetasis` | Domain Master | Master pohon/titik vegetasi tervalidasi | Admin/Sync | `PLANNED` |
 | `petugas` | Domain Master | Personil fisik pelaksana pekerjaan | Admin | `PLANNED` |
-| `users` | Auth Master | Akun login tim (ADMIN/POSKO/HARSUS/ROW) | Admin/Seeder | `PARTIAL` |
-| `p0` | Transaction | Pekerjaan prioritas tertinggi | Admin/HARSUS/PASILA/System | `PLANNED` |
-| `p0_petugas` | Junction | Petugas pelaksana P0 | POSKO | `PLANNED` |
-| `p0_reschedule_history` | History | Riwayat lanjut shift / reschedule P0 | POSKO/Admin | `PLANNED` |
+| `users` | Auth Master | Akun login tim (ADMIN/POSKO/HARSUS/INSPEKSI/ROW) | Admin/Seeder | `PARTIAL` |
+| `p0` | Transaction | Pekerjaan prioritas tertinggi — executor: HARSUS | Admin (source context: ADMIN/INSPEKSI/PASILA/SPECIAL_CASE) | `PLANNED` |
+| `p0_petugas` | Junction | Petugas pelaksana P0 (selected at completion) | HARSUS | `PLANNED` |
+| `p0_reschedule_history` | History | Riwayat reschedule P0 (date-based) | HARSUS/Admin | `PLANNED` |
 | `p0_context_events` | Context | Event/evidence tambahan pada P0 aktif | System/Admin | `PLANNED` |
 | `work_orders` | Transaction | WO pemasangan APKUK (target 6/shift) | System/Admin | `PLANNED` |
 | `wo_petugas` | Junction | Petugas pelaksana WO | POSKO | `PLANNED` |
 | `wo_reschedule_history` | History | Riwayat reschedule WO | POSKO/System | `PLANNED` |
 | `pasila_sessions` | Transaction | Sesi patroli PASILA per shift | POSKO | `PLANNED` |
 | `pasila_actions` | Transaction | Tindakan patroli PASILA | POSKO | `PLANNED` |
-| `harsus_inspections` | Transaction | Temuan inspeksi HARSUS | HARSUS | `PLANNED` |
-| `row_works` | Transaction | Pekerjaan rabas/pangkas/tebang | ROW/POSKO | `PLANNED` |
-| `vegetasi_proposals` | Transaction | Usulan titik vegetasi baru | ROW | `PLANNED` |
-| `special_cases` | Transaction | Indikasi >3 trip/penyulang/bulan kalender | System | `PLANNED` |
+| `inspections` | Transaction | Temuan inspeksi kondisi aset/jaringan | INSPEKSI | `PLANNED` |
+| `row_works` | Transaction | Pekerjaan rabas/pangkas/tebang | ROW/POSKO(insidental) | `PLANNED` |
+| `vegetasi_proposals` | Transaction | Usulan titik vegetasi baru | INSPEKSI | `PLANNED` |
+| `special_cases` | Transaction | Indikasi >3 trip/penyulang/bulan kalender (recommendation) | System | `PLANNED` |
 | `documentations` | Media | Metadata foto BEFORE/AFTER/TEMUAN/SURVEY | Mobile/Web | `PLANNED` |
 | `status_histories` | History | Audit transisi status transaksi | System | `PLANNED` |
 | `audit_logs` | History | Audit log koreksi admin & konfigurasi | System | `PLANNED` |
@@ -245,11 +245,16 @@ Staging data KEYPOINT_RAW (129 baris keypoint):
 - `username VARCHAR UNIQUE NOT NULL`
 - `email VARCHAR UNIQUE NULL`
 - `password VARCHAR NOT NULL`
-- `role VARCHAR CHECK (role IN ('ADMIN','POSKO','HARSUS','ROW'))`
+- `role VARCHAR CHECK (role IN ('ADMIN','POSKO','HARSUS','INSPEKSI','ROW'))`
 - `posko_id UUID REFERENCES poskos(id) NULL` — wajib untuk role POSKO
 - `nama_lengkap VARCHAR NULL`
 - `is_active BOOLEAN NOT NULL DEFAULT true`
 - timestamps
+
+Notes:
+- POSKO accounts require/link one Posko.
+- HARSUS accounts: no required Posko scope (operates across whole ULP).
+- INSPEKSI accounts: no required Posko scope (operates across whole ULP).
 
 ---
 
@@ -261,11 +266,11 @@ Staging data KEYPOINT_RAW (129 baris keypoint):
 |---|---|---:|---|
 | id | UUID PK | NO | server UUID |
 | display_code | TEXT UNIQUE | NO | kode manusiawi |
-| source_type | TEXT | NO | ADMIN/HARSUS/PASILA/SPECIAL_CASE |
+| source_type | TEXT | NO | ADMIN/INSPEKSI/PASILA/SPECIAL_CASE |
 | source_id | UUID | YES | referensi sumber |
 | asset_id | UUID FK | **NO** | P0 executable selalu pada asset tervalidasi |
 | section_id | UUID FK | NO | hasil mapping asset/wilayah |
-| posko_id | UUID FK | NO | penerima P0 |
+| posko_id | UUID FK | NO | **lokasi/wilayah operasional aset** (bukan executor) |
 | latitude | FLOAT8 | YES | snapshot lokasi opsional |
 | longitude | FLOAT8 | YES | snapshot lokasi opsional |
 | lokasi_text | TEXT | YES | deskripsi lokasi |
@@ -275,37 +280,46 @@ Staging data KEYPOINT_RAW (129 baris keypoint):
 | kebutuhan_material | TEXT | NO | isi `TIDAK_ADA` jika tidak membutuhkan material |
 | status | TEXT | NO | BARU/DITERIMA/DIKERJAKAN/RESCHEDULED/SELESAI/CANCELLED |
 | scheduled_date | DATE | YES | target tanggal |
-| scheduled_shift | TEXT | YES | A/B/C |
 | version | INTEGER | NO | OCC |
 | created_at | TIMESTAMPTZ | NO | server create |
 | updated_at | TIMESTAMPTZ | NO | server update |
 | completed_at | TIMESTAMPTZ | YES | waktu selesai aktual (`occurred_at`) |
 | completed_submitted_at | TIMESTAMPTZ | YES | waktu completion diterima server |
 
+**IMPORTANT:** `posko_id` pada P0 merepresentasikan **lokasi/wilayah operasional aset**, BUKAN berarti POSKO yang mengeksekusi P0. Executor P0 = HARSUS.
+
+**REMOVED:** `scheduled_shift` — HARSUS tidak berbasis shift. P0 tidak menggunakan Shift A/B/C.
+
 **Tidak menyimpan `parent_p0_id` untuk reschedule.** Reschedule tetap record P0 yang sama.
 
-**P0 menyimpan snapshot kebutuhan eksekusi.** Untuk source HARSUS/PASILA nilai dicopy ketika P0 dibuat; untuk source ADMIN diisi Admin; untuk Special Case harus tersedia/ditinjau sebelum P0 ditugaskan. Unknown point tetap berada pada source record sampai Admin memetakan/membuat asset + Section/Posko, baru P0 executable dibuat.
+**P0 menyimpan snapshot kebutuhan eksekusi.** Untuk source INSPEKSI/PASILA nilai dicopy ketika P0 dibuat; untuk source ADMIN diisi Admin; untuk Special Case harus tersedia/ditinjau oleh Admin sebelum P0 dibuat. Unknown point tetap berada pada source record sampai Admin memetakan/membuat asset + Section/Posko, baru P0 executable dibuat.
+
+**P0 Petugas Rule:** Petugas aktual dipilih oleh HARSUS saat completion/submission P0, BUKAN saat menerima atau memulai P0.
 
 ### 4.4.2 `p0_petugas`
 - `p0_id`
 - `petugas_id`
 - composite unique
+- Recorded at completion by HARSUS.
 
 ### 4.4.3 `p0_reschedule_history`
 - `id UUID PK`
 - `p0_id UUID FK NOT NULL`
-- `reschedule_type TEXT CHECK IN ('NEXT_SHIFT','CUSTOM')`
-- `from_date`, `from_shift`
-- `target_date`, `target_shift`
+- `reschedule_type TEXT CHECK IN ('CUSTOM')` — only CUSTOM (date-based) reschedule
+- `from_date`
+- `target_date`
 - `reason TEXT NOT NULL`
 - `requested_by UUID FK users`
-- `approval_status TEXT CHECK IN ('NOT_REQUIRED','PENDING','APPROVED','REJECTED')`
+- `approval_status TEXT CHECK IN ('PENDING','APPROVED','REJECTED')`
 - `approved_by UUID NULL`
 - `approved_at TIMESTAMPTZ NULL`
 - `rejection_reason TEXT NULL`
 - timestamps
 
-NEXT_SHIFT menggunakan `NOT_REQUIRED` dan langsung mengubah P0 menjadi `RESCHEDULED`. CUSTOM menggunakan PENDING → APPROVED/REJECTED; selama PENDING status P0 tetap `DIKERJAKAN`, setelah APPROVED menjadi `RESCHEDULED`, dan setelah REJECTED tetap `DIKERJAKAN`. Saat pekerjaan dimulai kembali pada target shift, status kembali `DIKERJAKAN`.
+**REMOVED:** `NEXT_SHIFT` reschedule type (HARSUS not shift-based).
+**REMOVED:** `from_shift`, `target_shift` columns.
+
+CUSTOM: PENDING → APPROVED/REJECTED; selama PENDING status P0 tetap `DIKERJAKAN`, setelah APPROVED menjadi `RESCHEDULED`, dan setelah REJECTED tetap `DIKERJAKAN`. Saat pekerjaan dilanjutkan, status kembali `DIKERJAKAN`.
 
 ### 4.4.4 `p0_context_event`
 Untuk menambahkan context/evidence baru ke P0 aktif tanpa membuat P0 duplikat.
@@ -395,14 +409,17 @@ Jika `is_override=true`, `override_reason` wajib. Tambahkan unique constraint `(
 - `submitted_at TIMESTAMPTZ NOT NULL` — waktu diterima server
 - timestamps
 
-Jika status TIDAK_DAPAT_DIEKSEKUSI, alasan wajib dan kebutuhan padam/material wajib terisi. Jika `asset_id` belum tervalidasi, action tetap tersimpan sebagai temuan tetapi eskalasi P0 menunggu Admin mapping asset terlebih dahulu. Saat P0 dibuat, kebutuhan eksekusi dicopy sebagai snapshot.
+Jika status TIDAK_DAPAT_DIEKSEKUSI, alasan wajib dan kebutuhan padam/material wajib terisi. Jika `asset_id` belum tervalidasi, action tetap tersimpan sebagai temuan tetapi eskalasi P0 menunggu Admin mapping asset terlebih dahulu. Escalation PASILA adalah **proposal/request yang memerlukan Admin approval**; escalation **TIDAK** langsung membuat P0 executable. Saat Admin menyetujui dan P0 dibuat, kebutuhan eksekusi dicopy sebagai snapshot dan P0 ditugaskan ke HARSUS.
 
 ### 4.4.10 `pasila_action_petugas`
 - `action_id`
 - `petugas_id`
 
-### 4.4.11 `harsus_inspection`
+### 4.4.11 `inspections` (was: `harsus_inspections`)
+> **RENAMED** from `harsus_inspections` to `inspections`. Created by role **INSPEKSI**, not HARSUS.
+
 - `id UUID PK`
+- `inspected_by UUID FK users NOT NULL` — INSPEKSI user who created the inspection
 - `asset_id UUID NULL`
 - `section_id UUID NULL`
 - `latitude FLOAT8 NULL`
@@ -419,7 +436,7 @@ Jika status TIDAK_DAPAT_DIEKSEKUSI, alasan wajib dan kebutuhan padam/material wa
 - `submitted_at TIMESTAMPTZ NOT NULL`
 - timestamps
 
-Jika `asset_id` null, koordinat wajib dan status default `PENDING_ASSET_VALIDATION`. P0 executable belum dibuat/ditugaskan sampai Admin memetakan atau membuat asset + Section/Posko. Setelah validasi, P0 dapat dibuat dengan snapshot `kebutuhan_padam` dan `kebutuhan_material` dari inspeksi.
+Jika `asset_id` null, koordinat wajib dan status default `PENDING_ASSET_VALIDATION`. P0 executable belum dibuat sampai Admin memetakan atau membuat asset + Section/Posko. Jika `perlu_p0=true`, Admin memvalidasi/menyetujui terlebih dahulu, baru P0 dibuat dengan snapshot `kebutuhan_padam` dan `kebutuhan_material` dari inspeksi. P0 yang dibuat ditugaskan ke HARSUS.
 
 ### 4.4.12 `row_work`
 - `id UUID PK`
@@ -442,7 +459,7 @@ Tidak ada field teks kondisi sebelum/sesudah wajib.
 
 ### 4.4.14 `vegetasi_proposal`
 - `id UUID PK`
-- `submitted_by UUID FK users`
+- `submitted_by UUID FK users` — submitted by **INSPEKSI** (not ROW)
 - `section_id UUID NULL`
 - `asset_terdekat_id UUID NULL`
 - `latitude FLOAT8 NOT NULL`
@@ -456,25 +473,29 @@ Tidak ada field teks kondisi sebelum/sesudah wajib.
 - `submitted_at TIMESTAMPTZ NOT NULL`
 - timestamps
 
+**Authorization change:** `vegetasi_proposals` are now created/submitted by **INSPEKSI**, NOT ROW.
+
 ### 4.4.15 `special_case`
 - `id UUID PK`
 - `penyulang_id UUID FK`
 - `periode_bulan DATE NOT NULL` — simpan first-day of calendar month
 - `jumlah_trip INTEGER NOT NULL`
 - `threshold INTEGER NOT NULL DEFAULT 3`
-- `status TEXT`
+- `status TEXT` — e.g., DETECTED, ADMIN_REVIEWED, P0_CREATED, DISMISSED
 - timestamps
 
 Rule trigger: jumlah trip **>3** pada bulan kalender.
+
+**IMPORTANT:** Special Case **TIDAK** otomatis membuat P0. Special Case adalah **system recommendation/indication** yang memerlukan keputusan eksplisit Admin sebelum P0 dibuat. Admin dapat mereview dan mengedit informasi P0 yang direkomendasikan sebelum membuat P0.
 
 ### 4.4.16 `special_case_asset`
 - `special_case_id`
 - `asset_id`
 - `issue_type`
-- `decision TEXT` — `MERGED_TO_ACTIVE_P0`, `NEW_P0`, `WO_PRIORITY_ONLY`, dll
+- `decision TEXT` — `MERGED_TO_ACTIVE_P0`, `NEW_P0`, `WO_PRIORITY_ONLY`, `DISMISSED`, dll
 - `p0_id UUID NULL`
 
-Decision rule: **masalah sama** + P0 aktif → `MERGED_TO_ACTIVE_P0` dan append `p0_context_event`; **masalah berbeda** → `NEW_P0` diperbolehkan setelah kebutuhan eksekusi tervalidasi. Taxonomy/comparator `issue_type` final adalah gate sebelum implementasi Special Case production.
+Decision rule: **masalah sama** + P0 aktif → `MERGED_TO_ACTIVE_P0` dan append `p0_context_event`; **masalah berbeda** → `NEW_P0` diperbolehkan setelah Admin decision dan kebutuhan eksekusi tervalidasi. Taxonomy/comparator `issue_type` final adalah gate sebelum implementasi Special Case production. All decisions are explicit Admin actions.
 
 ### 4.4.17 `documentation`
 - `id UUID PK`
@@ -545,6 +566,8 @@ Default awal:
 }
 ```
 
+Note: Shift config applies to POSKO operations. HARSUS is **NOT** shift-based.
+
 ---
 
 # 5. Relationships
@@ -553,15 +576,17 @@ Default awal:
 - **Section N:1 Penyulang & Section N:1 Posko** (satu Section berinduk pada 1 Penyulang dan 1 Posko penanggung jawab aktif)
 - **Asset N:1 Section** (ownership operasional aset diturunkan melalui Section tervalidasi)
 - **Asset 1:N APKUK / History / Work**
-- **P0 N:M Petugas**
+- **P0 N:M Petugas** (selected at completion by HARSUS)
 - **WO N:M Petugas**
 - **PASILA Session 1:N Action**
 - **PASILA Action N:M Petugas**
+- **Inspection N:1 INSPEKSI User**
 - **ROW Work N:M Petugas**
+- **Vegetasi Proposal N:1 INSPEKSI User**
 - **Special Case N:M Asset**
 - **Entity 1:N Documentation**
 
-Unknown-point HARSUS/PASILA dapat memiliki relasi asset kosong sampai Admin validation. P0 executable selalu memiliki asset, Section, dan Posko tervalidasi.
+Unknown-point INSPEKSI/PASILA dapat memiliki relasi asset kosong sampai Admin validation. P0 executable selalu memiliki asset, Section, dan Posko tervalidasi. `posko_id` pada P0 = lokasi/wilayah operasional, bukan executor.
 
 ---
 
@@ -572,14 +597,14 @@ POSKO ──< SECTION >── PENYULANG
             │
             └──< ASSET ──< APKUK
                    │
-                   ├──< P0 >── PETUGAS
+                   ├──< P0 >── PETUGAS (at completion, executor: HARSUS)
                    ├──< WORK_ORDER >── PETUGAS
-                   └──< HARSUS_INSPECTION
+                   └──< INSPECTION (created by INSPEKSI)
 
 POSKO ──< PASILA_SESSION ──< PASILA_ACTION >── PETUGAS
 
 VEGETASI ──< ROW_WORK >── PETUGAS
-ROW USER ──< VEGETASI_PROPOSAL ──(Admin validate)──> VEGETASI
+INSPEKSI USER ──< VEGETASI_PROPOSAL ──(Admin validate)──> VEGETASI
 
 PENYULANG ──< SPECIAL_CASE ──< SPECIAL_CASE_ASSET
 
@@ -606,33 +631,36 @@ Minimum sebelum operasi nyata:
 - APKUK
 - Vegetasi bila tersedia
 - Petugas bila tersedia
-- Users/tim account
+- Users/tim account (5 roles)
 - gangguan source untuk analytics
 
 ---
 
 # 9. Data Generated by New System
 
-P0, WO, PASILA, HARSUS, ROW, proposal vegetasi, Special Case, documentation, histories, audit logs.
+P0 (executor: HARSUS), WO (executor: POSKO), PASILA (executor: POSKO), Inspections (created by: INSPEKSI), ROW work, proposal vegetasi (created by: INSPEKSI), Special Case (system recommendation), documentation, histories, audit logs.
 
 ---
 
 # 10. Data Integrity Rules
 
 1. WO APKUK tidak boleh duplicate pada asset yang memiliki APKUK aktif atau WO APKUK aktif identik.
-2. P0 executable wajib memiliki asset + Section + Posko tervalidasi dan snapshot kebutuhan padam/material.
-3. HARSUS asset-null wajib koordinat dan pending validation; P0 belum dibuat sampai validation selesai.
+2. P0 executable wajib memiliki asset + Section + Posko tervalidasi dan snapshot kebutuhan padam/material. `posko_id` = lokasi, executor = HARSUS.
+3. Inspection (INSPEKSI) asset-null wajib koordinat dan pending validation; P0 belum dibuat sampai validation selesai dan Admin approves.
 4. PASILA override wajib alasan.
 5. PASILA action gagal wajib alasan.
-6. CUSTOM reschedule P0 membutuhkan Admin approval.
-7. NEXT_SHIFT tidak membutuhkan approval.
-8. Completed server transaction tidak diedit user lapangan.
-9. Admin correction wajib audit log.
-10. Photo type hanya BEFORE/AFTER/TEMUAN/SURVEY.
-11. Submit pekerjaan wajib memenuhi minimal photo rule.
-12. OCC version wajib untuk P0/WO dan entity kritis yang dapat diupdate dari beberapa device.
-13. Maksimal satu APKUK berstatus `AKTIF` per asset pada satu waktu (enforce via partial unique index/validation).
-14. PASILA session unique per `(posko_id,tanggal,shift)`.
+6. P0 reschedule membutuhkan Admin approval (target tanggal + alasan).
+7. Completed server transaction tidak diedit user lapangan.
+8. Admin correction wajib audit log.
+9. Photo type hanya BEFORE/AFTER/TEMUAN/SURVEY.
+10. Submit pekerjaan wajib memenuhi minimal photo rule.
+11. OCC version wajib untuk P0/WO dan entity kritis yang dapat diupdate dari beberapa device.
+12. Maksimal satu APKUK berstatus `AKTIF` per asset pada satu waktu (enforce via partial unique index/validation).
+13. PASILA session unique per `(posko_id,tanggal,shift)`.
+14. Special Case TIDAK otomatis membuat P0; Admin decision required.
+15. PASILA escalation TIDAK langsung membuat P0; Admin approval required.
+16. Vegetasi proposals created by INSPEKSI only, not ROW.
+17. P0 Petugas recorded at completion only, not at accept/start.
 
 ---
 
@@ -656,12 +684,15 @@ Saat online, Laravel menerima submission dan menyimpan `submitted_at` terpisah d
 # 12. Index and Query Requirements
 
 Index minimum:
-- `p0(posko_id,status,scheduled_date,scheduled_shift)`
+- `p0(status,scheduled_date)` — no shift index for P0 (HARSUS not shift-based)
+- `p0(posko_id,status)` — posko_id as location filter
 - `work_order(posko_id,tanggal,shift,status)`
 - `work_order(asset_id,jenis_wo,status)`
 - `pasila_session(posko_id,tanggal,shift)`
-- `harsus_inspection(validation_status)`
+- `inspections(validation_status)`
+- `inspections(inspected_by)`
 - `vegetasi_proposal(status)`
+- `vegetasi_proposal(submitted_by)`
 - `special_case(penyulang_id,periode_bulan)`
 - `documentation(entity_type,entity_id)`
 - `status_history(entity_type,entity_id,created_at)`
@@ -682,6 +713,6 @@ Master menggunakan soft deactivate. Transaction tidak di-hard-delete selama oper
 3. Retention/archival policy data dan foto.
 4. Mapping final source data gangguan.
 5. Detail storage production.
-6. Taxonomy `issue_type` dan aturan comparator “masalah sama vs berbeda” sebelum Phase Special Case.
+6. Taxonomy `issue_type` dan aturan comparator "masalah sama vs berbeda" sebelum Phase Special Case.
 
-Yang sudah final dan bukan lagi OQ: jam shift, month-window Special Case, akun berbasis tim, unknown asset HARSUS, photo enum, correction Admin, offline draft/manual submit, WO APKUK-only, target 6 WO, PASILA recommendation+override.
+Yang sudah final dan bukan lagi OQ: jam shift, month-window Special Case, akun berbasis tim, unknown asset inspection (INSPEKSI), photo enum, correction Admin, offline draft/manual submit, WO APKUK-only, target 6 WO, PASILA recommendation+override, HARSUS = Pemeliharaan Khusus, HARSUS executes P0, INSPEKSI performs inspections, ROW execute-only, vegetation proposals by INSPEKSI, Special Case = Admin recommendation (not auto-P0), P0 not shift-based.
