@@ -6,162 +6,297 @@
     <title>Admin Dashboard - ULP Sribhawono</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        (() => {
+            try {
+                const savedWidth = Number(localStorage.getItem('adminSidebarWidth'));
+                const safeWidth = Number.isFinite(savedWidth) && savedWidth >= 190 && savedWidth <= 300 ? savedWidth : 220;
+                document.documentElement.style.setProperty('--admin-sidebar-width', `${safeWidth}px`);
+
+                if (localStorage.getItem('adminSidebarCollapsed') === 'true') {
+                    document.documentElement.dataset.sidebarCollapsed = 'true';
+                }
+            } catch (error) {
+                document.documentElement.style.setProperty('--admin-sidebar-width', '220px');
+            }
+        })();
+    </script>
     <style>
+        :root { --admin-sidebar-width: 220px; }
         body { font-family: 'Inter', sans-serif; }
+        #admin-sidebar { width: var(--admin-sidebar-width); min-width: 190px; max-width: 300px; transition: width 160ms ease, min-width 160ms ease; }
+        html[data-sidebar-collapsed="true"] #admin-sidebar { width: 68px; min-width: 68px; max-width: 68px; }
+        html[data-sidebar-collapsed="true"] .sidebar-label,
+        html[data-sidebar-collapsed="true"] .sidebar-section-label,
+        html[data-sidebar-collapsed="true"] .sidebar-footer-label,
+        html[data-sidebar-collapsed="true"] .sidebar-brand-content { display: none; }
+        html[data-sidebar-collapsed="true"] .sidebar-brand,
+        html[data-sidebar-collapsed="true"] .sidebar-link { justify-content: center; }
+        html[data-sidebar-collapsed="true"] .sidebar-brand { padding-left: 0.75rem; padding-right: 0.75rem; }
+        html[data-sidebar-collapsed="true"] .sidebar-navigation { padding-left: 0.625rem; padding-right: 0.625rem; }
+        html[data-sidebar-collapsed="true"] .sidebar-section { margin-top: 0.75rem; border-top: 1px solid rgb(226 232 240); padding-top: 0.75rem; }
+        html[data-sidebar-collapsed="true"] #sidebar-resizer { display: none; }
+        html[data-sidebar-collapsed="true"] .sidebar-collapse-icon { transform: rotate(180deg); }
+        html.sidebar-is-resizing #admin-sidebar { transition: none; }
+        #sidebar-resizer::after { content: ''; position: absolute; inset: 0 auto 0 2px; width: 2px; background: transparent; transition: background-color 120ms ease; }
+        #sidebar-resizer:hover::after,
+        #sidebar-resizer:focus::after,
+        html.sidebar-is-resizing #sidebar-resizer::after { background: rgb(59 130 246); }
+        @media (max-width: 1023px) {
+            #admin-sidebar { display: none; }
+        }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-800 antialiased flex h-screen overflow-hidden">
+<body class="flex h-screen overflow-hidden bg-slate-50 text-slate-800 antialiased">
+    @php
+        $pendingWorkMenus = [
+            ['label' => 'PASILA', 'icon' => 'PS'],
+            ['label' => 'Inspeksi', 'icon' => 'IN'],
+            ['label' => 'ROW', 'icon' => 'RW'],
+        ];
+        $pendingControlMenus = [
+            ['label' => 'Review & Validasi', 'icon' => 'RV'],
+            ['label' => 'Special Case', 'icon' => 'SC'],
+            ['label' => 'Peta Jaringan', 'icon' => 'PJ'],
+        ];
+        $pendingAdminMenus = [
+            ['label' => 'Master Data', 'icon' => 'MD'],
+            ['label' => 'Analitik', 'icon' => 'AN'],
+            ['label' => 'User & Hak Akses', 'icon' => 'UA'],
+            ['label' => 'Audit Log', 'icon' => 'AL'],
+        ];
+    @endphp
 
-    <!-- Sidebar -->
-    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col flex-shrink-0 h-full overflow-y-auto">
-        <!-- Logo/Header Sidebar -->
-        <div class="h-16 flex items-center px-6 border-b border-slate-200">
-            <div class="flex items-center gap-3">
-                <div class="w-8 h-8 bg-blue-700 rounded flex items-center justify-center text-white font-bold">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+    <aside id="admin-sidebar" class="relative hidden h-full flex-shrink-0 flex-col border-r border-slate-200 bg-white lg:flex" aria-label="Sidebar Admin">
+        <div class="sidebar-brand flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200 px-4">
+            <div class="sidebar-brand-content flex min-w-0 items-center gap-2.5">
+                <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-blue-700 font-bold text-white">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
                 </div>
-                <div>
-                    <h1 class="font-bold text-sm text-slate-900 leading-tight">ULP Sribhawono</h1>
-                    <p class="text-[10px] text-slate-500">Distribusi Lampung</p>
+                <div class="sidebar-label min-w-0">
+                    <h1 class="truncate text-sm font-bold leading-tight text-slate-900">ULP Sribhawono</h1>
+                    <p class="truncate text-[10px] text-slate-500">Distribusi Lampung</p>
                 </div>
             </div>
+            <button id="sidebar-collapse-button" type="button" class="sidebar-label flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-blue-700" aria-label="Ciutkan sidebar" aria-controls="admin-sidebar" aria-expanded="true" title="Ciutkan sidebar">
+                <svg class="sidebar-collapse-icon h-4 w-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            </button>
+            <button id="sidebar-expand-button" type="button" class="hidden h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-blue-700" aria-label="Perbesar sidebar" aria-controls="admin-sidebar" title="Perbesar sidebar">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+            </button>
         </div>
 
-        <!-- Navigation -->
-        <nav class="flex-1 px-4 py-4 space-y-6">
-            
-            <!-- Main Nav -->
+        <nav class="sidebar-navigation flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-3" aria-label="Navigasi utama">
             <ul class="space-y-1">
                 <li>
-                    <a href="{{ route('admin.dashboard') }}" class="flex items-center gap-3 px-3 py-2 {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }} rounded-md font-medium text-sm transition-colors">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-                        Dashboard
+                    <a href="{{ route('admin.dashboard') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="Dashboard" aria-label="Dashboard">
+                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                        <span class="sidebar-label truncate">Dashboard</span>
                     </a>
                 </li>
             </ul>
 
-            <!-- PEKERJAAN -->
-            <div>
-                <h2 class="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2 px-3">Pekerjaan</h2>
+            <div class="sidebar-section">
+                <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pekerjaan</h2>
                 <ul class="space-y-1">
                     <li>
-                        <a href="{{ route('admin.p0.index') }}" class="flex items-center gap-3 px-3 py-2 {{ request()->routeIs('admin.p0.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }} rounded-md font-medium text-sm transition-colors">
-                            <span class="w-4 text-center font-bold text-xs {{ request()->routeIs('admin.p0.*') ? 'text-white' : 'text-red-500' }}">P0</span> P0
+                        <a href="{{ route('admin.p0.index') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.p0.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="P0" aria-label="P0">
+                            <span class="flex h-5 w-5 shrink-0 items-center justify-center text-[10px] font-black">P0</span>
+                            <span class="sidebar-label truncate">P0</span>
                         </a>
                     </li>
                     <li>
-                        <a href="{{ route('admin.work-orders.index') }}" class="flex items-center gap-3 px-3 py-2 {{ request()->routeIs('admin.work-orders.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }} rounded-md font-medium text-sm transition-colors">
-                            <svg class="w-4 h-4 {{ request()->routeIs('admin.work-orders.*') ? 'text-white' : 'text-slate-400' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg> Work Order
+                        <a href="{{ route('admin.work-orders.index') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.work-orders.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="Work Order" aria-label="Work Order">
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4"></path></svg>
+                            <span class="sidebar-label truncate">Work Order</span>
                         </a>
                     </li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg> PASILA</a></li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg> Inspeksi</a></li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"></path></svg> ROW</a></li>
+                    @foreach ($pendingWorkMenus as $pendingMenu)
+                        <li>@include('layouts.partials.pending-menu', $pendingMenu)</li>
+                    @endforeach
                 </ul>
             </div>
 
-            <!-- KONTROL -->
-            <div>
-                <h2 class="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2 px-3">Kontrol</h2>
+            <div class="sidebar-section">
+                <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Kontrol</h2>
                 <ul class="space-y-1">
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> Review & Validasi</a></li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg> Special Case</a></li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg> Peta Jaringan</a></li>
+                    @foreach ($pendingControlMenus as $pendingMenu)
+                        <li>@include('layouts.partials.pending-menu', $pendingMenu)</li>
+                    @endforeach
                 </ul>
             </div>
 
-            <!-- DATA & ADMIN -->
-            <div>
-                <h2 class="text-[10px] font-bold text-slate-400 tracking-wider uppercase mb-2 px-3">Data & Admin</h2>
+            <div class="sidebar-section">
+                <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Data & Admin</h2>
                 <ul class="space-y-1">
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg> Master Data</a></li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"></path></svg> Analitik</a></li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg> User & Hak Akses</a></li>
-                    <li><a href="#" class="flex items-center gap-3 px-3 py-2 text-slate-600 hover:bg-slate-50 rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg> Audit Log</a></li>
-                    <li><a href="{{ route('admin.account.edit') }}" class="flex items-center gap-3 px-3 py-2 {{ request()->routeIs('admin.account.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }} rounded-md text-sm"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg> Pengaturan Akun</a></li>
+                    @foreach ($pendingAdminMenus as $pendingMenu)
+                        <li>@include('layouts.partials.pending-menu', $pendingMenu)</li>
+                    @endforeach
+                    <li>
+                        <a href="{{ route('admin.account.edit') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors {{ request()->routeIs('admin.account.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="Pengaturan Akun" aria-label="Pengaturan Akun">
+                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                            <span class="sidebar-label truncate">Pengaturan Akun</span>
+                        </a>
+                    </li>
                 </ul>
             </div>
         </nav>
-        
-        <div class="p-4 border-t border-slate-200">
-            <div class="flex items-center gap-2 text-xs text-slate-500">
-                <div class="w-2 h-2 rounded-full bg-amber-400"></div>
-                Mode Pengembangan
+
+        <div class="shrink-0 border-t border-slate-200 p-3">
+            <div class="sidebar-link flex items-center gap-2 rounded-md px-2 text-xs text-slate-500" title="Mode Pengembangan">
+                <span class="h-2 w-2 shrink-0 rounded-full bg-amber-400"></span>
+                <span class="sidebar-footer-label sidebar-label truncate">Mode Pengembangan</span>
             </div>
-            <div class="text-[10px] text-slate-400 mt-1 pl-4">Dashboard Operasional</div>
         </div>
+
+        <div id="sidebar-resizer" class="absolute -right-1 top-0 z-20 h-full w-2 cursor-col-resize outline-none" role="separator" aria-label="Ubah lebar sidebar" aria-orientation="vertical" aria-valuemin="190" aria-valuemax="300" tabindex="0" title="Geser untuk mengubah lebar sidebar"></div>
     </aside>
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-full overflow-hidden">
-        <!-- Top Header -->
-        <header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-10">
-            <div class="flex items-center gap-6">
-                <div>
-                    <h2 class="font-bold text-lg text-slate-900 leading-tight">ULP Sribhawono <span class="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5 rounded ml-2 align-middle">DISTRIBUSI</span></h2>
-                    <p class="text-[11px] text-slate-500">Sistem Pengelolaan Pekerjaan Jaringan Distribusi</p>
+    <div id="mobile-sidebar-backdrop" class="fixed inset-0 z-40 hidden bg-slate-950/40 lg:hidden" aria-hidden="true"></div>
+    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 flex w-72 -translate-x-full flex-col bg-white shadow-2xl transition-transform duration-200 lg:hidden" aria-label="Navigasi seluler" aria-hidden="true">
+        <div class="flex h-14 items-center justify-between border-b border-slate-200 px-4">
+            <div class="flex items-center gap-2.5">
+                <div class="flex h-8 w-8 items-center justify-center rounded-md bg-blue-700 text-white">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                </div>
+                <div><div class="text-sm font-bold text-slate-900">ULP Sribhawono</div><div class="text-[10px] text-slate-500">Menu Admin</div></div>
+            </div>
+            <button id="mobile-sidebar-close" type="button" class="flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100" aria-label="Tutup navigasi">
+                <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+        <nav class="flex-1 space-y-1 overflow-y-auto p-3">
+            <a href="{{ route('admin.dashboard') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Dashboard</a>
+            <a href="{{ route('admin.p0.index') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.p0.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">P0</a>
+            <a href="{{ route('admin.work-orders.index') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.work-orders.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Work Order</a>
+            <a href="{{ route('admin.account.edit') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.account.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Pengaturan Akun</a>
+            <p class="mt-3 border-t border-slate-100 px-3 pt-3 text-xs text-slate-400">Modul lainnya belum tersedia.</p>
+        </nav>
+    </aside>
+
+    <main class="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+        <header class="z-30 flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200 bg-white px-3 py-2 sm:px-5">
+            <div class="flex min-w-0 items-center gap-3">
+                <button id="mobile-sidebar-open" type="button" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 lg:hidden" aria-label="Buka navigasi" aria-controls="mobile-sidebar" aria-expanded="false">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                </button>
+                <div class="min-w-0">
+                    <h2 class="truncate text-sm font-bold leading-tight text-slate-900 sm:text-base">ULP Sribhawono <span class="ml-1 rounded bg-blue-100 px-2 py-0.5 align-middle text-[9px] text-blue-700">DISTRIBUSI</span></h2>
+                    <p class="hidden text-[10px] text-slate-500 sm:block">Sistem Pengelolaan Pekerjaan Jaringan Distribusi</p>
                 </div>
             </div>
-            
-            <div class="flex items-center gap-4">
-                <div id="clock-display" class="flex items-center gap-2 text-xs font-medium text-slate-600 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
-                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                    Memuat waktu...
-                </div>
-                
-                <button onclick="window.location.reload()" class="flex items-center gap-2 text-xs font-medium text-slate-600 hover:text-slate-900 px-2 py-1.5">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                    Muat Ulang
-                </button>
-                
-                <div class="w-px h-6 bg-slate-200 mx-2"></div>
-                
-                <button class="relative p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-50">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-                    <!-- no red dot if 0 notifications, but keeping static for UI -->
-                </button>
-                
-                <div class="flex items-center gap-3 pl-2">
-                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm">
-                        {{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr((string) (auth()->user()->username ?: 'ADMIN'), 0, 2)) }}
-                    </div>
+
+            <div class="flex flex-shrink-0 items-center gap-1 sm:gap-2">
+                <div id="clock-display" class="hidden rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[11px] font-medium text-slate-600 xl:block">Memuat waktu...</div>
+                <button type="button" onclick="window.location.reload()" class="hidden rounded-md px-2 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 md:block" title="Muat ulang halaman">Muat Ulang</button>
+                <div class="ml-1 flex items-center gap-2">
+                    <div class="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-sm font-bold text-blue-700">{{ \Illuminate\Support\Str::upper(\Illuminate\Support\Str::substr((string) (auth()->user()->username ?: 'ADMIN'), 0, 2)) }}</div>
                     <div class="hidden md:block">
                         <div class="text-xs font-bold text-slate-900">{{ auth()->user()->username ?: 'ADMIN' }}</div>
                         <div class="text-[10px] text-slate-500">ADMIN · ULP Sribhawono</div>
                     </div>
                 </div>
-
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <button type="submit" class="flex items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-red-50 hover:text-red-700" title="Keluar dari Web Admin">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h6a2 2 0 012 2v1"></path></svg>
-                        Keluar
+                        <span class="hidden sm:inline">Keluar</span>
                     </button>
                 </form>
             </div>
         </header>
 
-        <!-- Scrollable Content Area -->
-        <div class="flex-1 overflow-y-auto p-6">
+        <div class="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5">
             @yield('content')
         </div>
     </main>
-    
-    <script>
-        function updateClock() {
-            const now = new Date();
-            const options = { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric', timeZone: 'Asia/Jakarta' };
-            const dateStr = now.toLocaleDateString('id-ID', options);
-            
-            let hours = now.getHours().toString().padStart(2, '0');
-            let minutes = now.getMinutes().toString().padStart(2, '0');
-            const timeStr = `${hours}:${minutes} WIB`;
-            
-            const el = document.getElementById('clock-display');
-            if(el) el.innerHTML = `<svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg> ${dateStr} • ${timeStr}`;
-        }
 
-        document.addEventListener('DOMContentLoaded', function() {
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const root = document.documentElement;
+            const sidebar = document.getElementById('admin-sidebar');
+            const collapseButton = document.getElementById('sidebar-collapse-button');
+            const expandButton = document.getElementById('sidebar-expand-button');
+            const resizer = document.getElementById('sidebar-resizer');
+            const minimumWidth = 190;
+            const maximumWidth = 300;
+            const defaultWidth = 220;
+            let currentWidth = Number.parseInt(getComputedStyle(root).getPropertyValue('--admin-sidebar-width'), 10) || defaultWidth;
+
+            const store = (key, value) => {
+                try { localStorage.setItem(key, value); } catch (error) { /* Penyimpanan browser tidak tersedia. */ }
+            };
+
+            const setCollapsed = (collapsed) => {
+                root.dataset.sidebarCollapsed = collapsed ? 'true' : 'false';
+                store('adminSidebarCollapsed', collapsed ? 'true' : 'false');
+                collapseButton?.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+                collapseButton?.setAttribute('aria-label', 'Ciutkan sidebar');
+                expandButton?.classList.toggle('hidden', !collapsed);
+            };
+
+            setCollapsed(root.dataset.sidebarCollapsed === 'true');
+            collapseButton?.addEventListener('click', () => setCollapsed(true));
+            expandButton?.addEventListener('click', () => setCollapsed(false));
+
+            const setSidebarWidth = (width) => {
+                currentWidth = Math.min(maximumWidth, Math.max(minimumWidth, Math.round(width)));
+                root.style.setProperty('--admin-sidebar-width', `${currentWidth}px`);
+                store('adminSidebarWidth', String(currentWidth));
+                resizer?.setAttribute('aria-valuenow', String(currentWidth));
+            };
+
+            setSidebarWidth(currentWidth);
+
+            resizer?.addEventListener('pointerdown', (event) => {
+                if (root.dataset.sidebarCollapsed === 'true') return;
+                event.preventDefault();
+                resizer.setPointerCapture(event.pointerId);
+                root.classList.add('sidebar-is-resizing');
+            });
+            resizer?.addEventListener('pointermove', (event) => {
+                if (!resizer.hasPointerCapture(event.pointerId)) return;
+                setSidebarWidth(event.clientX - sidebar.getBoundingClientRect().left);
+            });
+            const stopResize = (event) => {
+                if (resizer?.hasPointerCapture(event.pointerId)) resizer.releasePointerCapture(event.pointerId);
+                root.classList.remove('sidebar-is-resizing');
+            };
+            resizer?.addEventListener('pointerup', stopResize);
+            resizer?.addEventListener('pointercancel', stopResize);
+            resizer?.addEventListener('keydown', (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home'].includes(event.key)) return;
+                event.preventDefault();
+                if (event.key === 'Home') setSidebarWidth(defaultWidth);
+                if (event.key === 'ArrowLeft') setSidebarWidth(currentWidth - 10);
+                if (event.key === 'ArrowRight') setSidebarWidth(currentWidth + 10);
+            });
+
+            const mobileSidebar = document.getElementById('mobile-sidebar');
+            const mobileBackdrop = document.getElementById('mobile-sidebar-backdrop');
+            const mobileOpen = document.getElementById('mobile-sidebar-open');
+            const mobileClose = document.getElementById('mobile-sidebar-close');
+            const setMobileOpen = (open) => {
+                mobileSidebar?.classList.toggle('-translate-x-full', !open);
+                mobileBackdrop?.classList.toggle('hidden', !open);
+                mobileSidebar?.setAttribute('aria-hidden', open ? 'false' : 'true');
+                mobileOpen?.setAttribute('aria-expanded', open ? 'true' : 'false');
+            };
+            mobileOpen?.addEventListener('click', () => setMobileOpen(true));
+            mobileClose?.addEventListener('click', () => setMobileOpen(false));
+            mobileBackdrop?.addEventListener('click', () => setMobileOpen(false));
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') setMobileOpen(false);
+            });
+
+            const updateClock = () => {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Jakarta' });
+                const timeStr = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false, hourCycle: 'h23', timeZone: 'Asia/Jakarta' });
+                const clock = document.getElementById('clock-display');
+                if (clock) clock.textContent = `${dateStr} · ${timeStr} WIB`;
+            };
+
             updateClock();
             setInterval(updateClock, 60000);
         });

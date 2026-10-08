@@ -18,7 +18,7 @@ class DashboardController extends Controller
     public function index(Request $request)
     {
         $data = $this->dashboardService->getDashboardData();
-        
+
         if ($request->wantsJson()) {
             return response()->json($data);
         }

@@ -2,191 +2,272 @@
 
 namespace App\Services;
 
+use App\Models\Penyulang;
 use App\Models\Posko;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Collection;
 
 class DashboardService
 {
+    private const APKUK_TARGET_PER_POSKO_SHIFT = 6;
+
     /**
-     * Get all dashboard data.
+     * Build the Admin Dashboard contract from available master data.
+     * Transaction values stay null until their canonical domains exist.
      */
     public function getDashboardData(): array
     {
         $now = Carbon::now('Asia/Jakarta');
-        $shiftData = $this->getCurrentShift($now);
+        $shift = $this->getCurrentShift($now);
+        $poskos = Posko::query()
+            ->where('is_active', true)
+            ->orderBy('nama_posko')
+            ->get();
+        $activePenyulangCount = Penyulang::query()
+            ->where('is_active', true)
+            ->count();
 
         return [
-            'currentTime' => $now,
-            'shiftData' => $shiftData,
-            'kpi' => $this->getKpiData($shiftData),
-            'adminActions' => $this->getAdminActions(),
-            'fieldActivities' => $this->getFieldActivities(),
-            'poskoStatuses' => $this->getPoskoStatuses(),
-            'mapMarkers' => $this->getMapMarkers(),
+            'context' => $this->getContext($now, $shift, $poskos),
+            'shiftData' => $shift,
+            'kpis' => $this->getKpis(),
+            'teamSummaries' => $this->getTeamSummaries($poskos->count()),
+            'poskoStatuses' => $this->getPoskoStatuses($poskos, $shift),
+            'adminActionSummaries' => $this->getAdminActionSummaries(),
             'recentActivities' => $this->getRecentActivities(),
+            'dataReadiness' => $this->getDataReadiness($poskos->count(), $activePenyulangCount),
+        ];
+    }
+
+    private function getContext(Carbon $now, array $shift, Collection $poskos): array
+    {
+        return [
+            'updated_at' => $now->toIso8601String(),
+            'updated_at_label' => $now->format('d-m-Y H:i').' WIB',
+            'period_label' => 'Shift berjalan',
+            'filters' => [
+                'available' => false,
+                'reason' => 'Filter periode, shift, dan Posko akan diaktifkan setelah transaksi operasional tersedia.',
+                'period' => 'Shift berjalan',
+                'shift' => $shift['code'],
+                'poskos' => $poskos->map(fn (Posko $posko): array => [
+                    'id' => $posko->id,
+                    'name' => $posko->nama_posko,
+                ])->values()->all(),
+            ],
         ];
     }
 
     /**
-     * Determine current shift based on time.
+     * Determine the provisional shift based on Asia/Jakarta time.
      */
     private function getCurrentShift(Carbon $now): array
     {
         $hour = $now->hour;
-        
+
         if ($hour >= 8 && $hour < 16) {
-            return ['name' => 'Pagi', 'time' => '08:00 - 16:00 WIB', 'code' => 'A'];
-        } elseif ($hour >= 16 && $hour < 24) {
-            return ['name' => 'Sore', 'time' => '16:00 - 00:00 WIB', 'code' => 'B'];
-        } else {
-            return ['name' => 'Malam', 'time' => '00:00 - 08:00 WIB', 'code' => 'C'];
+            return ['name' => 'Pagi', 'time' => '08:00–16:00 WIB', 'code' => 'A'];
         }
+
+        if ($hour >= 16) {
+            return ['name' => 'Sore', 'time' => '16:00–00:00 WIB', 'code' => 'B'];
+        }
+
+        return ['name' => 'Malam', 'time' => '00:00–08:00 WIB', 'code' => 'C'];
     }
 
-    /**
-     * Get KPI data.
-     */
-    private function getKpiData(array $shiftData): array
+    private function getKpis(): array
     {
-        // 1. P0 Aktif - no table yet
-        $p0Aktif = 0;
-
-        // 2. Work Order Shift Ini - no table yet
-        // Target is 6 WO per active Posko
-        $activePoskosCount = Posko::where('is_active', true)->count();
-        $targetWo = $activePoskosCount * 6;
-        $woSelesai = 0;
-        $woProses = 0;
-
-        // 3. PASILA Shift Ini - no table yet
-        $pasilaAktif = 0;
-        $pasilaSelesai = 0;
-        $pasilaEskalasi = 0;
-
-        // 4. Menunggu Validasi - no table yet
-        $menungguValidasi = 0;
-
         return [
-            'p0' => [
-                'aktif' => $p0Aktif,
-            ],
-            'wo' => [
-                'selesai' => $woSelesai,
-                'proses' => $woProses,
-                'target' => $targetWo,
-                'total' => $woSelesai + $woProses,
-            ],
-            'pasila' => [
-                'aktif' => $pasilaAktif,
-                'selesai' => $pasilaSelesai,
-                'eskalasi' => $pasilaEskalasi,
-                'total' => $pasilaAktif + $pasilaSelesai,
-            ],
-            'validasi' => [
-                'menunggu' => $menungguValidasi,
-            ]
+            'wo_active' => $this->unavailableMetric(
+                'WO Aktif',
+                'Pekerjaan yang sedang ditugaskan atau dikerjakan.',
+                'admin.work-orders.index',
+                'Buka halaman Work Order',
+            ),
+            'wo_completed' => $this->unavailableMetric(
+                'WO Selesai',
+                'Pekerjaan selesai pada periode yang dipilih.',
+                'admin.work-orders.index',
+                'Buka halaman Work Order',
+            ),
+            'wo_overdue' => $this->unavailableMetric(
+                'WO Terlambat',
+                'Pekerjaan melewati jadwal dan perlu perhatian.',
+                'admin.work-orders.index',
+                'Buka halaman Work Order',
+            ),
+            'p0_active' => $this->unavailableMetric(
+                'P0 Aktif',
+                'P0 POSKO yang terkait dengan PASILA.',
+                'admin.p0.index',
+                'Buka halaman P0',
+            ),
+            'pasila' => $this->unavailableMetric(
+                'PASILA',
+                'Sesi PASILA pada shift dan Posko terkait.',
+            ),
+            'approvals' => $this->unavailableMetric(
+                'Menunggu Approval',
+                'P0 SYSTEM, temuan inspeksi, dan eskalasi yang perlu keputusan Admin.',
+            ),
         ];
     }
 
-    /**
-     * Get pending admin actions.
-     */
-    private function getAdminActions(): array
-    {
-        // No transaction tables yet
-        return [];
+    private function unavailableMetric(
+        string $title,
+        string $description,
+        ?string $routeName = null,
+        ?string $routeLabel = null,
+    ): array {
+        return [
+            'title' => $title,
+            'value' => null,
+            'available' => false,
+            'status' => 'Data belum tersedia',
+            'description' => $description,
+            'navigation' => [
+                'available' => $routeName !== null,
+                'route_name' => $routeName,
+                'label' => $routeLabel,
+                'filter_applied' => false,
+            ],
+        ];
     }
 
-    /**
-     * Get field activities summary.
-     */
-    private function getFieldActivities(): array
+    private function getTeamSummaries(int $activePoskoCount): array
     {
-        // No transaction tables yet
-        $poskoCount = Posko::where('is_active', true)->count();
-
         return [
-            'harsus' => [
-                'wo_khusus_aktif' => 0,
-                'selesai_hari_ini' => 0,
-            ],
             'posko' => [
-                'count' => $poskoCount,
-                'wo_berjalan' => 0,
-                'pasila_aktif' => 0,
+                'name' => 'POSKO',
+                'description' => 'WO APKUK, PASILA, P0, dan reschedule per shift.',
+                'master_context' => "{$activePoskoCount} Posko aktif pada master",
+                'route_name' => 'admin.work-orders.index',
+                'route_label' => 'Buka Work Order',
+                'metrics' => [
+                    $this->teamMetric('APKUK', 'WO shift'),
+                    $this->teamMetric('PASILA', 'Sesi shift'),
+                    $this->teamMetric('P0', 'Pekerjaan aktif'),
+                    $this->teamMetric('Reschedule', 'Perlu tindak lanjut'),
+                ],
+            ],
+            'harsus' => [
+                'name' => 'HARSUS',
+                'description' => 'WO pekerjaan khusus dari Admin atau hasil eskalasi.',
+                'master_context' => 'Cakupan operasional ULP',
+                'route_name' => 'admin.work-orders.index',
+                'route_label' => 'Buka Work Order',
+                'metrics' => [
+                    $this->teamMetric('Aktif', 'WO khusus'),
+                    $this->teamMetric('Selesai', 'Hari ini'),
+                ],
             ],
             'inspeksi' => [
-                'berjalan' => 0,
-                'temuan_dikirim' => 0,
+                'name' => 'INSPEKSI',
+                'description' => 'Kegiatan inspeksi, hasil kunjungan, dan temuan.',
+                'master_context' => 'Cakupan operasional ULP',
+                'route_name' => null,
+                'route_label' => null,
+                'metrics' => [
+                    $this->teamMetric('Kegiatan', 'Hari ini'),
+                    $this->teamMetric('Temuan', 'Dikirim'),
+                ],
             ],
             'row' => [
-                'pekerjaan_aktif' => 0,
-                'selesai_hari_ini' => 0,
-            ]
+                'name' => 'ROW',
+                'description' => 'WO vegetasi RABAS, PANGKAS, dan TEBANG.',
+                'master_context' => 'Cakupan operasional ULP',
+                'route_name' => null,
+                'route_label' => null,
+                'metrics' => [
+                    $this->teamMetric('RABAS', 'WO aktif'),
+                    $this->teamMetric('PANGKAS', 'WO aktif'),
+                    $this->teamMetric('TEBANG', 'WO aktif'),
+                ],
+            ],
         ];
     }
 
-    /**
-     * Get status for each posko.
-     */
-    private function getPoskoStatuses(): array
+    private function teamMetric(string $label, string $detail): array
     {
-        $poskos = Posko::where('is_active', true)->get();
-        $statuses = [];
-
-        // Define exact order
-        $order = [
-            'Sribhawono' => 1,
-            'Pugung' => 2,
-            'Jabung' => 3,
-            'Pasir Sakti' => 4,
-            'Way Jepara' => 5,
-            'Tridatu' => 6,
+        return [
+            'label' => $label,
+            'detail' => $detail,
+            'value' => null,
+            'available' => false,
         ];
-
-        // Sort collection based on predefined order
-        $poskos = $poskos->sortBy(function($posko) use ($order) {
-            return $order[$posko->nama_posko] ?? 99;
-        });
-
-        foreach ($poskos as $posko) {
-            $statuses[] = [
-                'id' => $posko->id,
-                'kode' => $posko->kode_posko ?? substr($posko->nama_posko, 0, 2),
-                'nama' => $posko->nama_posko,
-                'wo_selesai' => 0,
-                'wo_berjalan' => 0,
-                'wo_target' => 6,
-                'pasila_aktif' => 0,
-                'pasila_selesai' => 0,
-                'eskalasi' => 0,
-                'perlu_perhatian' => false,
-            ];
-        }
-
-        return $statuses;
     }
 
-    /**
-     * Get map markers from real data.
-     */
-    private function getMapMarkers(): array
+    private function getPoskoStatuses(Collection $poskos, array $shift): array
     {
-        $markers = [];
-
-        // Currently no operational transaction tables exist with coordinates
-        // Do not use staging tables like VegetasiSourceRow for operational dashboard
-
-        return $markers;
+        return $poskos->map(fn (Posko $posko): array => [
+            'id' => $posko->id,
+            'code' => $posko->kode_posko,
+            'name' => $posko->nama_posko,
+            'shift_code' => $shift['code'],
+            'shift_name' => $shift['name'],
+            'apkuk_target' => self::APKUK_TARGET_PER_POSKO_SHIFT,
+            'apkuk_completed' => null,
+            'pasila_status' => null,
+            'p0_status' => null,
+            'attention' => null,
+            'transactions_available' => false,
+        ])->values()->all();
     }
 
-    /**
-     * Get recent activities timeline.
-     */
+    private function getAdminActionSummaries(): array
+    {
+        return [
+            $this->unavailableAdminAction('P0 SYSTEM menunggu ACC', 'Usulan P0 otomatis yang perlu keputusan Admin.'),
+            $this->unavailableAdminAction('Temuan INSPEKSI', 'Temuan yang menunggu validasi dan penentuan tindak lanjut.'),
+            $this->unavailableAdminAction('Eskalasi lintas tim', 'Permintaan eskalasi yang menunggu keputusan Admin.'),
+            $this->unavailableAdminAction('Kebutuhan pengganti P0', 'Pengganti manual setelah usulan P0 SYSTEM ditolak.'),
+        ];
+    }
+
+    private function unavailableAdminAction(string $title, string $description): array
+    {
+        return [
+            'title' => $title,
+            'description' => $description,
+            'count' => null,
+            'available' => false,
+            'route_name' => null,
+        ];
+    }
+
     private function getRecentActivities(): array
     {
-        // No transaction/audit tables yet
-        return [];
+        return [
+            'available' => false,
+            'reason' => 'Aktivitas akan ditampilkan setelah event pekerjaan dan audit operasional tersedia.',
+            'items' => [],
+        ];
+    }
+
+    private function getDataReadiness(int $activePoskoCount, int $activePenyulangCount): array
+    {
+        return [
+            'masters' => [
+                'available' => true,
+                'active_poskos' => $activePoskoCount,
+                'active_penyulangs' => $activePenyulangCount,
+            ],
+            'transactions' => [
+                'available' => false,
+                'label' => 'Domain transaksi belum tersedia',
+                'description' => 'WO, PASILA, P0, approval, inspeksi, dan ROW belum dapat dihitung.',
+            ],
+            'network' => [
+                'available' => false,
+                'label' => 'Data jaringan canonical belum siap',
+                'description' => 'Section, aset, koordinat, histori, dan foto masih menunggu validasi.',
+            ],
+            'map' => [
+                'available' => false,
+                'label' => 'Peta Jaringan belum tersedia',
+                'description' => 'Peta penuh nantinya mewajibkan pemilihan satu Penyulang sebelum layer dimuat.',
+            ],
+        ];
     }
 }
