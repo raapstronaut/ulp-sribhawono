@@ -80,7 +80,7 @@ Koreksi histori adalah halaman ADMIN dengan alasan wajib, preview sebelum-sesuda
 
 # 7. Status implementasi UI saat rebaseline
 
-Branch feat/admin-work-orders-web berisi **Dashboard Admin, P0 Monitor+Detail, WO Monitor+Detail**. Beberapa teks masih salah (P0-HARSUS), data transaksi masih empty state, sejumlah tombol nonaktif/tautan placeholder. Refactor dan sambungkan ke model asli secara bertahap; jangan membuang UI yang sudah dibuat. Flutter di repo masih skeleton/demo.
+Branch aktif `main` sudah mencakup scaffold **Dashboard Admin, P0 Monitor+Detail, dan WO Monitor+Detail**. Label P0/HARSUS utama telah diperbaiki saat cleanup v3, tetapi data transaksi masih empty state dan beberapa komponen/detail belum berbasis domain canonical. UI lama yang berguna dipertahankan untuk integrasi bertahap. Flutter sudah mengganti demo counter dengan placeholder role lapangan, tetapi fungsi asli belum dibangun.
 
 # 8. TBD visual dan kerja lanjut
 
