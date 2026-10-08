@@ -14,7 +14,7 @@
                 </ol>
             </nav>
             <h1 class="text-2xl font-bold text-slate-900 leading-tight">P0</h1>
-            <p class="text-xs text-slate-500 mt-1">Pemantauan pekerjaan prioritas yang dilaksanakan HARSUS.</p>
+            <p class="text-xs text-slate-500 mt-1">Pemantauan P0 POSKO yang terhubung PASILA pada Section yang sama.</p>
         </div>
         <button class="bg-blue-600/50 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm cursor-not-allowed opacity-75" disabled title="Fitur pembuatan P0 belum diimplementasikan">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
@@ -48,7 +48,7 @@
             <div class="text-3xl font-black text-slate-800">{{ $p0_baru }}</div>
             <div class="mt-3 flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 pt-2">
                 <span>Telah dibuat, menu...</span>
-                <span class="text-amber-600 font-bold">Menunggu HARSUS</span>
+                <span class="text-amber-600 font-bold">Menunggu ACC / POSKO</span>
             </div>
         </div>
 
@@ -61,7 +61,7 @@
             </div>
             <div class="text-3xl font-black text-slate-800">{{ $p0_dikerjakan }}</div>
             <div class="mt-3 flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 pt-2">
-                <span>Tim HARSUS di lapa...</span>
+                <span>Tim POSKO di lapangan</span>
                 <span class="text-indigo-600 font-bold">Proses Tim</span>
             </div>
         </div>
@@ -88,12 +88,12 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <p class="text-xs text-blue-800 leading-relaxed max-w-4xl">
-                <strong class="font-semibold">Peraturan Kerja HARSUS:</strong> P0 dilaksanakan secara terpusat oleh <strong class="font-semibold">Tim HARSUS (Pemeliharaan Khusus)</strong> untuk seluruh wilayah kerja ULP Sribhawono. Posko berfungsi sebagai konteks wilayah/lokasi kerja, bukan pelaksana.
+                <strong class="font-semibold">Aturan P0 POSKO:</strong> P0 wajib terkait PASILA pada Section/Posko yang sama. Usulan otomatis membutuhkan ACC Admin; bila ditolak Admin membuat P0 pengganti manual.
             </p>
         </div>
         <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-xs font-bold text-slate-600 shadow-sm shrink-0">
             <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-            NON-SHIFT HARSUS
+            P0 TERKAIT SHIFT PASILA
         </div>
     </div>
 
