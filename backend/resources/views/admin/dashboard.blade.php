@@ -37,7 +37,7 @@
             <div class="flex justify-between items-start mb-4">
                 <div>
                     <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">P0 AKTIF</h3>
-                    <p class="text-[10px] text-slate-400 mt-0.5">Dikerjakan HARSUS</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Dikerjakan POSKO melalui PASILA</p>
                 </div>
                 <div class="p-2 bg-blue-50 rounded-lg text-blue-600">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
@@ -111,7 +111,7 @@
                 @if($kpi['pasila']['eskalasi'] > 0)
                     <div class="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded">
                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                        {{ $kpi['pasila']['eskalasi'] }} Eskalasi P0
+                        {{ $kpi['pasila']['eskalasi'] }} Eskalasi Pekerjaan
                     </div>
                 @else
                     <div class="h-6"></div> <!-- spacer -->
@@ -203,13 +203,13 @@
                         <span class="text-[10px] text-blue-600 font-medium">Cakupan Se-ULP</span>
                     </div>
                     <div class="flex items-baseline gap-2 mb-2">
-                        <span class="font-bold text-lg text-slate-800">{{ $fieldActivities['harsus']['p0_aktif'] }} P0 Aktif</span>
+                        <span class="font-bold text-lg text-slate-800">{{ $fieldActivities['harsus']['wo_khusus_aktif'] }} WO Khusus Aktif</span>
                         <span class="text-slate-400 text-xs">•</span>
                         <span class="font-medium text-sm text-emerald-600">{{ $fieldActivities['harsus']['selesai_hari_ini'] }} Selesai Hari Ini</span>
                     </div>
                     <div class="flex items-center gap-2 text-[10px] text-slate-500">
-                        <span class="w-2 h-2 rounded-full {{ $fieldActivities['harsus']['p0_aktif'] > 0 ? 'bg-blue-500' : 'bg-slate-300' }}"></span> 
-                        {{ $fieldActivities['harsus']['p0_aktif'] > 0 ? 'Tim aktif di lapangan' : 'Tidak ada P0 aktif' }}
+                        <span class="w-2 h-2 rounded-full {{ $fieldActivities['harsus']['wo_khusus_aktif'] > 0 ? 'bg-blue-500' : 'bg-slate-300' }}"></span> 
+                        {{ $fieldActivities['harsus']['wo_khusus_aktif'] > 0 ? 'Tim aktif di lapangan' : 'Tidak ada WO khusus aktif' }}
                     </div>
                 </div>
 
@@ -282,7 +282,7 @@
             
             <div class="bg-blue-50 border border-blue-100 rounded-lg p-3 text-xs text-blue-800 max-w-sm flex gap-3">
                 <svg class="w-5 h-5 text-blue-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <p>P0 dilaksanakan mandiri oleh HARSUS lintas ULP dan tidak dibebankan pada posko.</p>
+                <p>P0 dikerjakan POSKO dan harus terkait PASILA pada Section yang sama.</p>
             </div>
         </div>
         
