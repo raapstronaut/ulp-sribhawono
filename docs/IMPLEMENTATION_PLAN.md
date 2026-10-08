@@ -2,7 +2,7 @@
 ## Sistem Pengelolaan Pekerjaan Jaringan Distribusi — ULP Sribhawono
 
 **Version:** v3.0 — 8 Oktober 2026  
-**Baseline kode:** feat/admin-work-orders-web @ 6d8ec22c9e12bcfd19b838c9301076c1ec38ff5e  
+**Baseline kode aktif:** `main` v3 (berasal dari feat/admin-work-orders-web dan telah mencakup semua commit implementasi terdahulu).  
 **Status:** Rencana kerja terbaru; bukan laporan semua fase telah dilaksanakan
 
 # 1. Strategi kerja yang disetujui
