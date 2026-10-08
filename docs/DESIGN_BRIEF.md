@@ -1,377 +1,87 @@
 # DESIGN BRIEF
+## Sistem Pengelolaan Pekerjaan Jaringan Distribusi — ULP Sribhawono
 
-## Sistem Pengelolaan Pekerjaan Preventive Jaringan Distribusi — ULP Sribhawono
+**Version:** v3.0 — 8 Oktober 2026  
+**Status:** Arahan desain UI/UX; bukan klaim fitur sudah dibangun  
+**Acuan:** PRD.md v3.0 dan DATA_MODEL.md v3.0
 
-**Status:** Business Flow v2 Baseline (Updated per 4 Oktober 2026)
-**Project Status & Execution State:** [PROJECT_STATUS.md](./PROJECT_STATUS.md)
-**Platform:** Flutter Android App + Laravel Web Admin
-**Primary field users:** POSKO, HARSUS, INSPEKSI, ROW
-**Primary desktop user:** ADMIN
-**Design priority:** Field operation first, monitoring second
-**Connectivity assumption:** Online-primary untuk membaca data terbaru; input lapangan dapat disimpan sebagai draft offline dan dikirim manual saat online.
+# 1. Prinsip pengalaman
 
-> [!NOTE]
-> **STATUS GRAND DESIGN (T05 - AVAILABLE — Requires v2 Revision):**
-> Dokumen ini menetapkan prinsip desain, screen inventory, dan target user flow. Perancangan visual detail / Grand Design menyeluruh untuk Web Admin dan Flutter Mobile belum selesai dan menjadi task aktif berikutnya (**T05 Grand Design Web + Mobile**). Screen inventory dan flow di bawah adalah target desain resmi yang harus diacu saat pembuatan mockup/desain final. Grand Design Web yang dibuat sebelumnya adalah draft/referensi dan **TIDAK BOLEH** ditandai final sampai direvisi untuk Business Flow v2. Mobile Grand Design juga belum final.
+1. **Pekerjaan harus langsung terlihat.** Mobile memprioritaskan CTA berikutnya, bukan dashboard rumit.
+2. **Admin Web dan Mobile bukan pengguna yang sama.** ADMIN saja masuk Web; POSKO, HARSUS, INSPEKSI, ROW memakai Flutter Android.
+3. **Minimum ketikan lapangan.** Auto waktu/tim/konteks/GPS; pilihan master menggunakan dropdown; catatan umum opsional, pengecualian reschedule dan koreksi/penolakan beralasan jika diatur.
+4. **Kirim artinya sudah disimpan lokal.** Bedakan Tersimpan di Perangkat, Menunggu Sinkronisasi, Terkirim ke Server, dan Perlu Kirim Ulang.
+5. **Hindari klaim palsu.** Data belum ada tampil sebagai empty state; jangan mengisi UI dengan laporan/koordinat/foto demo yang dapat disangka data aktual.
+6. **Peta bekerja setelah filter.** Admin memilih satu Penyulang lalu layer/bbox dimuat.
 
----
+# 2. Inventaris Web Admin
 
-# 1. Design Principles
+- **Dashboard:** KPI per role, status enam Posko per shift, enam WO APKUK/Posko/shift, PASILA dan P0 POSKO, WO khusus HARSUS, WO ROW, temuan INSPEKSI, antrean ACC/Tolak.
+- **P0 Monitor & Detail:** rekomendasi SYSTEM menunggu ACC, manual Admin, terikat PASILA/Section/Posko, riwayat, alasan penolakan bila diperkenalkan, pengganti wajib setelah reject SYSTEM.
+- **Work Order Monitor & Detail:** satu modul filter team_type (POSKO, HARSUS, ROW), work_type, status, waktu, Penyulang, Section, rute dan keterkaitan child/origin.
+- **PASILA Monitor & Detail:** tampilan per shift/Posko/Section, dibuat otomatis awal shift, temuan dalam daftar kartu per titik, P0 terkait, eskalasi, tindakan dan pekerjaan tertunda.
+- **Inspeksi:** area rekomendasi/rotasi, hasil tanpa temuan, temuan yang menunggu validasi, rekomendasi tim tujuan sistem dan ACC/Tolak.
+- **ROW:** WO harian otomatis dan manual, paket/rute berdasarkan kedekatan, status eksekusi, histori vegetasi.
+- **HARSUS:** pekerjaan khusus langsung dari Admin dan limpahan yang telah ACC, aset target dan kebutuhan teknis.
+- **Approval Center:** usulan P0 SYSTEM, temuan inspeksi, semua eskalasi lintas tim, informasi dampak dan asal pekerjaan.
+- **Maps Leaflet:** pilih Penyulang wajib, layer checkbox, search 16 Penyulang, detail aset/titik gangguan, histori/foto dan action cepat Admin.
+- **Master & Audit:** master petugas/tim/role/shift, kode pilihan (diatur lewat DB/deployment), histori koreksi, sumber data/import.
 
-## Principle 1 — Prioritas Harus Terbaca dalam < 3 Detik
-Urutan WO → PASILA harus langsung terlihat pada Home POSKO. P0 tidak muncul di POSKO; P0 muncul di Home HARSUS.
+Menu atau tombol menuju fitur yang belum implementasi harus ditandai belum tersedia atau diarahkan ke empty state yang jujur, bukan halaman palsu.
 
-## Principle 2 — Field Action Lebih Penting daripada Dashboard Cantik
-Form harus cepat, tombol utama besar, penggunaan satu tangan memungkinkan, dan kesalahan input harus mudah dipahami.
+# 3. Alur Maps ADMIN
 
-## Principle 3 — Offline adalah Mode Draft, bukan Error
-Ketika jaringan hilang, user tetap dapat mengisi form, mengambil foto, dan menyimpan draft. Aplikasi harus membedakan dengan jelas antara:
-- **Draft lokal** — belum menjadi data server;
-- **Ready to Send** — siap dikirim;
-- **Sending** — sedang dikirim;
-- **Submitted** — sudah diterima server;
-- **Failed** — gagal dan dapat dicoba ulang.
+1. Admin buka Maps; tampil pemilih Penyulang wajib (16 opsi), checkbox layer default sesuai kebutuhan, tanpa memuat seluruh aset ULP.
+2. Setelah pilih Penyulang, API mengambil layer aktif untuk Penyulang dan viewport; marker bisa di-cluster/dimuat bertahap.
+3. Kotak pencarian **global** menampilkan hasil nama/ID/koordinat dari seluruh Penyulang dan konteks nama Penyulang.
+4. Ketika hasil di Penyulang berbeda dipilih: ubah dropdown → tunggu layer dan marker terkait dimuat → zoom/pusatkan/seleksi → buka sidebar.
+5. Klik marker aset membuka sidebar bertab **Informasi | Histori | Foto**. Header berisi foto terbaru, ID aset, jenis, status, Penyulang/Section/Posko, koordinat.
+6. Histori menggabungkan kejadian pekerjaan, maintenance, APKUK, gangguan terkait dan koreksi tanpa menghilangkan versi sebelumnya.
+7. Klik marker **gangguan** menampilkan kejadian pada koordinat kejadian dan daftar aset terdampak; mendukung lebih dari satu aset.
+8. Action cepat **Buat P0 / WO / Pekerjaan Khusus / PASILA** hanya untuk Admin; prefill aset dan lokasi. Buat P0 mensyaratkan PASILA relevan.
+9. GIS jaringan berupa jalur/polyline menjadi layer opsional, menunggu data otoritatif.
 
-Aplikasi tidak menjanjikan bahwa pekerjaan baru dari server akan muncul ketika device offline.
+**Perhatian kinerja:** dropdown hanya satu Penyulang aktif, query server filtered, viewport paging, marker clustering, cache dan permintaan dibatalkan saat Penyulang diganti.
 
----
+# 4. Mobile shared flow
 
-# 2. Visual Direction
+1. Login menggunakan akun tim; pilih petugas aktual saat melaporkan tindakan. Aturan jumlah device dan logout berkala masih TBD.
+2. Beranda: tugas paling relevan, jumlah menunggu sinkronisasi, notifikasi ketika akun login, shortcut riwayat.
+3. Detail tugas: identitas/kode, jenis, prioritas, aset/Section/Penyulang, koordinat, status, rute, **Buka Google Maps**.
+4. Mulai pekerjaan → form kontekstual: tanggal dan waktu perangkat otomatis, tim/shift/Penyulang/Section/aset terisi, GPS otomatis, dropdown petugas dan kode temuan/tindakan, foto wajib, catatan opsional.
+5. Jika submit: tulis transaction + foto + outbox **secara atomik lokal** → UI memberi status Tersimpan / Menunggu Sinkronisasi → kirim otomatis saat diperbolehkan konektivitas/Android.
+6. Jika pengiriman perlu tindakan: notifikasi lokal, item masih utuh, **Kirim Ulang** tanpa input kembali. Server ACK baru boleh mengubah status menjadi Terkirim.
 
-Gunakan tampilan operasional yang bersih, kontras, dan tidak dekoratif berlebihan. Status, prioritas, lokasi, dan tindakan utama harus lebih dominan daripada elemen visual sekunder.
+Android background delivery adalah *best effort* di bawah kebijakan OS, bukan jaminan langsung seketika saat sinyal pulih dan aplikasi dipaksa berhenti.
 
-Status harus memiliki label teks; warna tidak boleh menjadi satu-satunya indikator.
-
----
-
-# 3. Design Tokens
-
-Pertahankan token warna, typography, spacing, radius, dan elevation dari baseline sebelumnya. Implementasi final mengikuti design system proyek; perubahan arsitektur tidak mengubah identitas visual.
-
----
-
-# 4. Screen Inventory
-
-## Shared Mobile
-- Login
-- Connectivity Banner
-- Draft / Submission Center
-- Profile / Session
+# 5. Layar per role mobile
 
 ## POSKO
-- Shift Home
-- WO List / Detail
-- PASILA Session / Action
-- Maps
-- Draft / Submission
-- Riwayat online
-- **REMOVED:** P0 List / Detail (POSKO tidak lagi mengeksekusi P0)
+**Home Shift A/B/C:** enam WO APKUK dan urutan rute; PASILA yang **sudah dibuat otomatis pada awal shift**; P0 yang terhubung PASILA dan status ACC Admin. Tampilan WO sisa mengharuskan reschedule alasan dropdown + catatan, tetapi **tidak mengunci PASILA+P0**. P0 SYSTEM reject → flag Admin wajib mengganti manual.
+
+**PASILA Detail:** Section, ranking/rekomendasi, peta/koordinat, daftar temuan per titik. Satu temuan = satu detail (jenis/kode, aset/lokasi, GPS, foto, petugas, waktu, catatan). Tindakan/escalation tidak mengganti data temuan lain.
 
 ## HARSUS
-- Home
-- P0 List
-- P0 Detail
-- P0 Completion
-- Reschedule Request
-- Maps
-- Draft / Submission (if relevant)
-- Riwayat online
-- **REMOVED:** Inspection screens (inspeksi dilakukan oleh INSPEKSI)
+Beranda **WO Pekerjaan Khusus**, bukan daftar P0. Tiap WO mengarah ke aset jaringan, kebutuhan pemadaman/alat/keahlian jika dicatat, referensi sumber limpahan bila ada.
 
-## INSPEKSI — NEW
-- Home
-- New Inspection
-- Inspection Detail / Draft
-- Unknown Point / Asset Finding
-- New Vegetation Proposal
-- Draft / Submission
-- Maps
-- Riwayat online
+## INSPEKSI
+Urutan area prioritas dengan rotasi, form hasil kunjungan **Tidak Ada Temuan**, tombol Lanjut Area Berikutnya, daftar temuan per titik, status Menunggu Validasi Admin. Target 1 temuan nyata/hari ditampilkan sebagai target, bukan dorongan membuat data fiktif.
 
 ## ROW
-- Home
-- ROW Work List / Detail
-- RABAS/PANGKAS/TEBANG Execution
-- Draft Work
-- Maps
-- Riwayat online
-- **REMOVED:** New Vegetation Proposal (proposal vegetasi baru dilakukan oleh INSPEKSI)
+Daftar paket/rute harian berisi banyak WO berdekatan, filter RABAS/PANGKAS/TEBANG, navigasi Google Maps per titik, bukti pengerjaan sebelum/sesudah.
 
-## Admin Web — Laravel
-- Login
-- Dashboard
-- P0 Monitor + Reschedule Approval (P0 dieksekusi HARSUS)
-- WO Monitor + Manual WO
-- PASILA Monitor
-- INSPEKSI Monitor + Asset/Location Validation + Vegetation Proposal Validation
-- ROW Monitor (monitoring eksekusi saja)
-- Special Case — notification/recommendation → Admin review/edit → create P0
-- Maps
-- Asset Detail / History
-- Master Posko
-- Master Penyulang
-- Master Section
-- Master Asset
-- Master APKUK
-- Master Vegetasi
-- Master Petugas
-- User & Hak Akses (5 roles)
-- Audit Log
-- Settings
+# 6. Foto, validasi dan kesalahan
 
-**Ranking Posko tidak masuk MVP.**
+**Default sementara:** foto BEFORE + AFTER untuk pekerjaan. Template berbeda per work_type akan disepakati kemudian; tiap temuan punya foto/GPS sendiri. Simpan capture timestamp dan lokasi perangkat; beri petunjuk bila GPS tidak tersedia.
 
----
+Dropdown dari referensi database (kode temuan/pekerjaan, petugas aktif, status/kondisi, alasan reschedule); jangan hardcode ke Dart. Catatan reschedule **wajib** selain alasan terstruktur; catatan biasa opsional.
 
-# 5. User Flow
+Koreksi histori adalah halaman ADMIN dengan alasan wajib, preview sebelum-sesudah dan jejak audit. Jangan pernah menyediakan tombol “hapus permanen” untuk histori.
 
-## 5.1 POSKO — Mulai Shift
-1. Login/restore session.
-2. Jika online, refresh data terbaru.
-3. Tampilkan Shift berjalan.
-4. Tampilkan urutan WO → PASILA.
-5. Tampilkan badge jumlah draft belum dikirim.
+# 7. Status implementasi UI saat rebaseline
 
-Shift final:
-- A: 08:00–16:00
-- B: 16:00–00:00
-- C: 00:00–08:00
+Branch feat/admin-work-orders-web berisi **Dashboard Admin, P0 Monitor+Detail, WO Monitor+Detail**. Beberapa teks masih salah (P0-HARSUS), data transaksi masih empty state, sejumlah tombol nonaktif/tautan placeholder. Refactor dan sambungkan ke model asli secara bertahap; jangan membuang UI yang sudah dibuat. Flutter di repo masih skeleton/demo.
 
-POSKO **TIDAK** menerima atau mengeksekusi P0.
+# 8. TBD visual dan kerja lanjut
 
-## 5.2 P0 — HARSUS
-
-### Eksekusi normal
-BARU → DITERIMA → DIKERJAKAN → SELESAI.
-
-HARSUS **TIDAK** berbasis shift. P0 tidak menggunakan Shift A/B/C.
-
-### Petugas
-Petugas aktual dipilih oleh HARSUS saat completion/submission P0, **BUKAN** saat menerima atau memulai P0.
-
-### Belum selesai
-Saat P0 belum selesai, tampilkan CTA:
-
-**Reschedule**
-- pilih target tanggal;
-- alasan wajib;
-- selama request menunggu Admin, P0 tetap berstatus DIKERJAKAN;
-- Admin approve/reject;
-- approve → RESCHEDULED, reject → tetap DIKERJAKAN;
-- P0 tetap menggunakan ID yang sama.
-
-**REMOVED:** "Lanjut Shift Berikutnya" (HARSUS tidak berbasis shift).
-
-## 5.3 Work Order
-
-WO MVP hanya pemasangan APKUK. Detail harus menampilkan:
-- asset;
-- section;
-- shift;
-- priority score bila tersedia;
-- **Kenapa titik ini dipilih?** (`alasan_prioritas`);
-- status;
-- petugas;
-- dokumentasi.
-
-WO yang tidak selesai dapat dijadwalkan ulang ke tanggal/shift target dengan alasan. Carry-over WO memakai slot kuota shift tujuan terlebih dahulu sehingga total target tetap 6 WO/Posko pada shift tersebut.
-
-## 5.4 PASILA
-
-Sebelum mulai, sistem menampilkan **Rekomendasi Target PASILA** berdasarkan prioritas gangguan/trip.
-
-User dapat:
-- **Gunakan Rekomendasi**; atau
-- **Pilih Lokasi Lain** → alasan override wajib.
-
-Action PASILA yang tidak dapat dieksekusi menampilkan field:
-- alasan;
-- kebutuhan padam;
-- kebutuhan material;
-- dokumentasi;
-- opsi eskalasi menjadi P0 (**proposal yang memerlukan persetujuan Admin**).
-
-Escalation PASILA **TIDAK** langsung membuat P0 executable. Admin harus mereview dan menyetujui terlebih dahulu. P0 yang disetujui ditugaskan ke HARSUS.
-
-## 5.5 INSPEKSI — NEW
-
-Form inspeksi mendukung:
-- pilih asset bila tersedia;
-- bila asset belum ada → pilih/isi section bila diketahui, ambil koordinat, foto, temuan, lalu submit sebagai titik `PENDING_ASSET_VALIDATION`;
-- kebutuhan padam: TANPA_PADAM / PERLU_PADAM;
-- kebutuhan material (isi `TIDAK_ADA` bila tidak ada);
-- rekomendasi;
-- perlu P0: ya/tidak.
-
-Jika Perlu P0 = yes:
-- Admin validation/review;
-- P0 executable dibuat hanya setelah approval;
-- HARSUS mengeksekusi.
-
-Unknown point **belum dikirim sebagai P0 ke HARSUS**. Admin harus memetakan/membuat asset + Section/Posko terlebih dahulu; setelah valid barulah P0 dibuat dengan snapshot kebutuhan eksekusi.
-
-### Vegetasi Baru (INSPEKSI)
-- ambil koordinat;
-- foto;
-- catatan;
-- simpan draft/submit;
-- status menunggu validasi Admin;
-- setelah validasi → Master Vegetasi / ROW work.
-
-## 5.6 ROW
-
-ROW Work mencatat tindakan RABAS/PANGKAS/TEBANG, foto, catatan, petugas, waktu, dan lokasi.
-
-**REMOVED:** Proposal vegetasi baru dari ROW. Proposal vegetasi baru dilakukan oleh INSPEKSI.
-
-Tidak ada field teks wajib `kondisi_sebelum` / `kondisi_sesudah`.
-
-## 5.7 Admin Monitoring
-
-Dashboard menggunakan online-primary polling ringan, default sekitar **15 detik**, ditambah tombol **Refresh Sekarang**. Realtime WebSocket tidak menjadi requirement MVP.
-
-## 5.8 Offline Draft → Submit
-
-Flow final:
-
-`Isi Form → Simpan Draft → Edit bila perlu → Ready to Send → online → Kirim/Kirim Semua → Submitted atau Failed`
-
-Bulk submit tidak all-or-nothing. Item berhasil tetap berhasil; hanya item gagal yang tetap berada di Submission Center.
-
----
-
-# 6. Layout per Screen
-
-## 6.1 POSKO Shift Home
-Urutan visual:
-1. Shift header + koneksi.
-2. WO shift berjalan.
-3. PASILA.
-4. Draft belum dikirim.
-
-**REMOVED:** P0 aktif dari POSKO home (POSKO tidak mengeksekusi P0).
-
-## 6.2 Work List
-Filter: jenis pekerjaan, shift, status, tanggal. Item draft lokal diberi label yang berbeda dari record server.
-
-## 6.3 P0 Detail (HARSUS)
-Area utama:
-- status/prioritas;
-- asset/lokasi;
-- sumber P0;
-- kebutuhan padam + kebutuhan material sebagai snapshot eksekusi;
-- konteks INSPEKSI/PASILA bila ada;
-- petugas (dipilih saat completion);
-- dokumentasi;
-- timeline;
-- CTA mulai/selesai;
-- CTA Reschedule ketika belum selesai (target tanggal + alasan).
-
-## 6.4 WO Detail
-Tampilkan alasan prioritas secara eksplisit, bukan hanya angka score. Jika WO merupakan carry-over, tampilkan asal tanggal/shift, target baru, dan alasan reschedule. Saat completion, form dapat menerima kode APKUK bila tersedia; setelah submit berhasil, UI menampilkan bahwa APKUK pada aset telah tercatat aktif.
-
-## 6.5 PASILA Session
-Tampilkan rekomendasi target dan alasan rekomendasi bila tersedia. Bila user override, alasan wajib terlihat di summary.
-
-## 6.6 PASILA Action Form
-Field minimum: asset/lokasi, action type, uraian, status eksekusi, kebutuhan padam/material bila tidak bisa dieksekusi, foto, petugas.
-
-## 6.7 INSPEKSI New Inspection
-Mendukung asset existing atau lokasi belum terdaftar dengan koordinat. Mendukung proposal Perlu P0 yang akan direview Admin.
-
-## 6.8 ROW Job Detail
-Tampilkan target vegetasi, tindakan, foto, catatan, petugas, status.
-
-## 6.9 Maps Mobile
-Online-primary. Marker/koordinat yang sudah dicache boleh tampil tanpa koneksi bila tersedia, tetapi basemap penuh tidak dijamin offline.
-
-## 6.10 Asset Detail
-Histori lengkap online-primary.
-
-## 6.11 Draft / Submission Center
-Ganti konsep "Sync Center" lama menjadi **Draft / Submission Center**.
-
-Tab/kelompok:
-- Draft
-- Ready to Send
-- Sending
-- Failed
-- Recently Submitted
-
-CTA:
-- Edit
-- Kirim
-- Kirim Ulang
-- Kirim Semua
-
-## 6.12 Admin Dashboard
-KPI operasional, critical queue, status reschedule, Special Case notification/recommendation, progress WO, PASILA, INSPEKSI, ROW, dan recent activity.
-
-## 6.13 Admin Work Monitor
-Tabel online dengan filter + refresh manual/otomatis. Admin juga memiliki antrean validasi lokasi untuk unknown point dari INSPEKSI/PASILA sebelum P0 executable dibuat. Validasi proposal vegetasi dari INSPEKSI.
-
-## 6.14 Master Data Screens
-Admin dapat CRUD master Posko, Penyulang, Section, Asset, APKUK, Vegetasi, Petugas, dan User (5 roles) sesuai audit policy.
-
----
-
-# 7. Component Library
-
-Pertahankan App Shell, Button, Job Card, Status Badge, Priority Banner, Asset Selector, Petugas Selector, Timeline, Map Marker, Data Table, KPI Tile, Form Field, Dialog, Toast.
-
-Tambahkan/ubah:
-- `ConnectivityBanner`
-- `LocalDraftBadge`
-- `SubmissionStatusBadge`
-- `SendAllButton`
-- `RescheduleRequestSheet` (target tanggal + alasan, tanpa shift untuk HARSUS)
-- `AdminApprovalBadge`
-
-## Evidence Capture
-Jenis foto final:
-- BEFORE
-- AFTER
-- TEMUAN
-- SURVEY
-
-Semua pekerjaan harus memiliki minimal satu foto sebelum dapat submit. Draft tetap boleh disimpan tanpa memenuhi seluruh validasi submit.
-
----
-
-# 8. Screen States
-
-Setiap screen perlu membedakan:
-- Loading server;
-- Online;
-- Offline Draft Mode;
-- Validation Error;
-- Submission Failed;
-- Conflict;
-- Submitted.
-
-### Offline Draft Mode
-Banner: **Offline — perubahan disimpan sebagai draft di perangkat dan belum dikirim ke server.**
-
-### Conflict
-Jika server berubah sejak data terakhir dibuka, jangan overwrite. Tampilkan bahwa data perlu diperiksa sebelum submit ulang.
-
-### Disabled Account While Offline
-Device dapat tetap menyimpan draft lokal sampai koneksi kembali. Saat online, server memvalidasi akun. Bila akun nonaktif, submit ditolak dan aplikasi meminta login/otorisasi ulang; draft lokal tidak dihapus otomatis.
-
----
-
-# 9. Responsive Behaviour
-
-Mobile diprioritaskan untuk operasi lapangan. Web Admin responsif untuk desktop/laptop dan tablet, tetapi bukan target mobile utama.
-
----
-
-# 10. Accessibility
-
-Pertahankan prinsip kontras, focus, keyboard navigation di web, touch target yang cukup, label form eksplisit, error messaging yang dapat ditindaklanjuti, dan accessibility semantics Flutter.
-
----
-
-# Final Design Direction
-
-Desain MVP menggunakan pola **online-primary + offline draft**. UI tidak boleh memakai istilah "tersinkron otomatis" untuk menjelaskan draft. Istilah yang digunakan ke user adalah **Draft**, **Siap Dikirim**, **Mengirim**, **Terkirim**, dan **Gagal**.
+Detail formulir P0 dan klasifikasi kode dari atasan, foto khusus per pekerjaan, batas sesi perangkat, gaya akhir design system dan prioritas penambahan halaman belum sepenuhnya final. Gunakan komponen reuse (header, menu, filter, detail drawer, status chip, photo uploader, sync status, route card, audit timeline).
