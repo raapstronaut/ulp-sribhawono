@@ -4,7 +4,7 @@
 **Version:** v3.0 — 8 Oktober 2026  
 **Scope:** Single-tenant, 5 role, Admin Web + Flutter 4 role  
 **Status dokumen:** Source of truth aturan bisnis terbaru setelah klarifikasi 6–8 Oktober 2026  
-**Engineering baseline GitHub:** feat/admin-work-orders-web @ 6d8ec22c9e12bcfd19b838c9301076c1ec38ff5e  
+**Engineering baseline GitHub:** `main` (versi operasional v3; seluruh commit Dashboard/P0/WO, dokumen v3, dan migration tim sudah terkonsolidasi).  
 **Verifikasi:** Audit kode melalui GitHub; bukan audit database runtime lokal, bukan tes ulang proyek terbaru
 
 # 1. Baca ini pertama
@@ -62,7 +62,7 @@ Laravel backend/API/Admin Web, PostgreSQL authoritative, Flutter Android, SQLite
 | Flutter mobile domain | Masih demo Flutter default |
 | API mobile + offline sync | Belum dibangun |
 
-Branch main pada commit 5e54446b79d90d1ed396ad57575e24fbba4d937a; branch fitur admin-work-orders-web **3 commit di depan main**, berisi Dashboard, P0, WO. Jangan salah menganggap main memuat UI tersebut. 
+`main` sudah di-fast-forward dari v2 ke baseline v3 pada 8 Oktober 2026. Dashboard/P0/WO Admin, delapan spesifikasi v3 dan migration tim sudah masuk `main`. Branch fitur lama adalah histori; belum otomatis terhapus dari remote. 
 Riwayat **73 tests passed / 274 assertions** dicatat pada dokumentasi lama; belum diuji ulang dalam audit repo ini.
 
 # 6. Data snapshot sumber (historis, bukan query live)
@@ -90,4 +90,4 @@ Riwayat **73 tests passed / 274 assertions** dicatat pada dokumentasi lama; belu
 
 # 9. Perubahan manual terhadap repository
 
-Rebaseline v3 di-commit pada **branch kerja terpisah** dari feat/admin-work-orders-web. Tidak ada merge ke main, reset DB, perubahan file migration lama, atau penulisan ke data operasional hanya dari pembaruan dokumen. Lihat riwayat commit branch untuk waktu/sha final.
+Rebaseline v3 semula dibuat pada branch kerja terpisah lalu **diintegrasikan ke `main` dengan fast-forward**. Setelah itu README, halaman starter, dan label P0/WO lama dibersihkan di `main`. Tidak ada reset database, perubahan migration lama, atau penulisan data operasional. Test runtime dan migrasi PostgreSQL belum dijalankan dari konektor GitHub.
