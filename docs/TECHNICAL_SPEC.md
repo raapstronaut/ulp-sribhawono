@@ -18,7 +18,7 @@
 
 # 2. Status kode yang terverifikasi melalui GitHub
 
-Baseline branch **feat/admin-work-orders-web**, commit **6d8ec22c9e12bcfd19b838c9301076c1ec38ff5e**.
+Baseline aktif **`main` v3**. Sebelumnya UI berasal dari branch feat/admin-work-orders-web @ 6d8ec22c; riwayat tersebut kini tercakup di `main`.
 - Implemented file/migration: 6 staging source tables; poskos, penyulangs, posko_penyulang; importer, profiling, audit, topology sync.
 - Admin Web scaffold: Dashboard, P0 Monitor/Detail, WO Monitor/Detail; service transaksi masih empty state, beberapa tampilan menyebut P0 HARSUS dan demo.
 - Belum ditemukan domain canonical untuk WO/PASILA/P0/Inspeksi/ROW; belum ada auth-role lengkap maupun API mobile. route Admin yang ada belum auth/ADMIN-gated.
