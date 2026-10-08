@@ -29,7 +29,7 @@ class P0Service
         return [
             'p0_id' => $p0_id,
             'status' => 'Tidak Ditemukan',
-            'pelaksana' => 'HARSUS',
+            'pelaksana' => 'POSKO',
             'waktu_dibuat' => '-',
             'waktu_diterima' => '-',
             'waktu_dikerjakan' => '-',
