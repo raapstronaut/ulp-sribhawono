@@ -1,24 +1,36 @@
-# Sistem Pengelolaan Pekerjaan Preventive ULP Sribhawono
+# ULP Sribhawono — Sistem Operasional Jaringan Distribusi
 
-Project pengembangan sistem berbasis Android dan Web untuk membantu pengelolaan pekerjaan preventive jaringan distribusi di ULP Sribhawono.
+**Versi kerja aktif: v3 (8 Oktober 2026). Branch utama: `main`.**
 
-## Platform
+Sistem terdiri dari **Web ADMIN** (Laravel + PostgreSQL) dan **Flutter Android** untuk tim **POSKO, HARSUS, INSPEKSI, ROW**. Akun login mewakili tim, sedangkan petugas pelaksana aktual dipilih dari master petugas.
 
-- Android Application
-- Web Application
+## Dokumentasi aktif (v3)
 
-## Role
+- [Status dan progres](docs/PROJECT_STATUS.md)
+- [Kebutuhan operasional](docs/PRD.md)
+- [Desain UI/UX](docs/DESIGN_BRIEF.md)
+- [Arsitektur teknis](docs/TECHNICAL_SPEC.md)
+- [Rancangan data](docs/DATA_MODEL.md)
+- [Kontrak API](docs/API_CONTRACT.md)
+- [Offline sync mobile](docs/OFFLINE_SYNC_SPEC.md)
+- [Rencana pengerjaan](docs/IMPLEMENTATION_PLAN.md)
 
-- Admin
-- Posko
-- Harsus
-- ROW
+`docs/FINAL_AUDIT_REPORT.md` adalah **audit historis**, bukan spesifikasi operasional terbaru.
 
-## Dokumentasi
+## Struktur yang dipakai
 
-- `docs/PRD.md`
-- `docs/DESIGN_BRIEF.md`
+- `backend/` — Laravel, Web Admin, migrasi dan impor data, fondasi API, tests.
+- `mobile/` — Flutter Android untuk tim lapangan; fungsionalitas operasional masih perlu dikembangkan.
+- `docs/` — delapan dokumen aktif v3 dan satu laporan audit historis.
 
 ## Status
 
-Tahap perencanaan dan perancangan teknis.
+Sudah dibuat: fondasi Laravel/Flutter, source staging/importer, master enam Posko dan 16 Penyulang, pivot Posko–Penyulang, scaffold Web Admin Dashboard/P0/WO, serta migration fondasi tim/petugas/shift/kode dropdown (**belum diuji/dijalankan pada PostgreSQL lokal**).
+
+Belum selesai: otorisasi Web ADMIN, master Section/aset canonical, transaksi WO/PASILA/P0/ROW/HARSUS/INSPEKSI, Maps Admin, Flutter form dan offline outbox.
+
+**Business flow v3:** P0 adalah pekerjaan **POSKO dalam PASILA**; HARSUS menangani **WO Pekerjaan Khusus**. Tidak ada lagi ketentuan tetap >3 trip/bulan.
+
+## Aturan pengembangan
+
+Gunakan `main` sebagai satu-satunya acuan terbaru. Buat branch sementara hanya bila benar-benar diperlukan untuk fitur berikutnya. **Jangan reset database**, mengubah migration yang pernah applied, menghapus histori, atau mengarang data operasional.
