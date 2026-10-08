@@ -31,7 +31,7 @@
                 <h1 class="text-3xl font-black text-slate-900 leading-tight">{{ $p0_id }}</h1>
                 <div class="px-2 py-1 bg-slate-100 text-slate-600 border border-slate-200 rounded text-xs font-bold uppercase">{{ $status }}</div>
             </div>
-            <p class="text-xs text-slate-500 mt-2">Detail pekerjaan prioritas yang ditangani terpusat oleh Tim HARSUS se-ULP Sribhawono.</p>
+            <p class="text-xs text-slate-500 mt-2">Detail P0 dikerjakan POSKO, terkait PASILA dan Section yang sama.</p>
         </div>
         
         <div class="flex items-center gap-2">
@@ -127,7 +127,7 @@
                     </div>
                     
                     <div>
-                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">KONTEKS POSKO (WILAYAH)</div>
+                        <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">POSKO PELAKSANA</div>
                         <div class="text-sm font-semibold text-slate-800">{{ $posko }}</div>
                     </div>
                     
