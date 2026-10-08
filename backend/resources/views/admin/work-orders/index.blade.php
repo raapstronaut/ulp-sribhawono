@@ -14,7 +14,7 @@
                 </ol>
             </nav>
             <h1 class="text-2xl font-bold text-slate-900 leading-tight">Work Order</h1>
-            <p class="text-xs text-slate-500 mt-1">Pemantauan pekerjaan preventif POSKO pada shift berjalan.</p>
+            <p class="text-xs text-slate-500 mt-1">Pemantauan WO POSKO APKUK pada shift berjalan; jenis WO HARSUS dan ROW akan masuk model generik.</p>
         </div>
         <button class="hidden bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold items-center gap-2 shadow-sm cursor-not-allowed opacity-75" disabled title="Fitur pembuatan WO belum diimplementasikan">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
@@ -97,7 +97,7 @@
         <div class="flex justify-between items-center mb-4">
             <div>
                 <h3 class="font-bold text-slate-800 text-sm">Progres Beban Kerja per Posko (Shift Berjalan)</h3>
-                <p class="text-[10px] text-slate-500 mt-1">Carryover menyerap kuota target 6 WO pada shift tujuan terlebih dahulu.</p>
+                <p class="text-[10px] text-slate-500 mt-1">Dampak carryover terhadap kuota shift tujuan belum dikunci dalam aturan terbaru.</p>
             </div>
             <div class="text-xs font-semibold text-slate-500">
                 Shift {{ $shift_index }} ({{ $shift_name }})
@@ -146,7 +146,7 @@
                     <option>Semua Periode</option>
                 </select>
                 <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>PEMASANGAN_APKUK (MVP)</option>
+                    <option>PEMASANGAN_APKUK</option>
                 </select>
                 
                 <button class="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 px-2 disabled:opacity-50" disabled>
