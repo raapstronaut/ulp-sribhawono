@@ -108,7 +108,7 @@ class DashboardService
 
         return [
             'harsus' => [
-                'p0_aktif' => 0,
+                'wo_khusus_aktif' => 0,
                 'selesai_hari_ini' => 0,
             ],
             'posko' => [
