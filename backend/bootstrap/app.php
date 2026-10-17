@@ -13,6 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*');
+        
         $middleware->redirectGuestsTo(fn (Request $request) => route('login'));
         $middleware->redirectUsersTo(fn (Request $request) => route('admin.dashboard'));
         $middleware->alias([
