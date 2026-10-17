@@ -18,6 +18,8 @@ unset GOOGLE_SHEETS_CREDENTIALS_BASE64
 
 trap 'rm -f /tmp/ulp-google-credentials.json' EXIT
 
+php artisan config:clear
+
 failed=0
 
 php artisan gangguan:sync || failed=1
