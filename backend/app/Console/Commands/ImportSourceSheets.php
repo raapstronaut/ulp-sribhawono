@@ -3,8 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\AssetSourceRow;
-use App\Models\GangguanSourceRow;
-use App\Models\KeypointSourceRow;
 use App\Models\SectionPicSourceRow;
 use App\Models\VegetasiSourceRow;
 use Google\Client;
@@ -17,7 +15,7 @@ class ImportSourceSheets extends Command
     protected $signature = 'sources:import
                             {--replace : Hapus data staging lama sebelum import}';
 
-    protected $description = 'Import ASSET_RAW, VEGETASI_RAW, GANGGUAN_RAW, SECTION_PIC_RAW, KEYPOINT_RAW dari Google Sheets ke PostgreSQL';
+    protected $description = 'Import ASSET_RAW, VEGETASI_RAW, SECTION_PIC_RAW, KEYPOINT_RAW dari Google Sheets ke PostgreSQL';
 
     /**
      * Jumlah baris per batch insert.
@@ -124,28 +122,6 @@ class ImportSourceSheets extends Command
                 ],
             ],
             [
-                'sheet' => 'GANGGUAN_RAW',
-                'model' => GangguanSourceRow::class,
-                'column_count' => 24,
-                'headers' => [
-                    'ID_GANGGUAN', 'PENYULANG', 'PERALATAN', 'ULP',
-                    'TANGGAL_KEJADIAN', 'KODE_GANGGUAN', 'URAIAN_PENYEBAB', 'PENYEBAB',
-                    'LEPAS', 'MASUK', 'BEBAN_AMP', 'RELE_KERJA',
-                    'ARUS_GANGGUAN_AMP', 'LAMA_PADAM_MENIT', 'ENS_KWH', 'SIFAT_GANGGUAN',
-                    'ID_ASET', 'SECTION_ID', 'POSKO_ID', 'LATITUDE',
-                    'LONGITUDE', 'JENIS_HEWAN', 'FOTO_REF', 'SUMBER_DATA',
-                ],
-                'db_columns' => [
-                    'id_gangguan_raw', 'penyulang_raw', 'peralatan_raw', 'ulp_raw',
-                    'tanggal_kejadian_raw', 'kode_gangguan_raw', 'uraian_penyebab_raw',
-                    'penyebab_raw', 'lepas_raw', 'masuk_raw', 'beban_amp_raw',
-                    'rele_kerja_raw', 'arus_gangguan_amp_raw', 'lama_padam_menit_raw',
-                    'ens_kwh_raw', 'sifat_gangguan_raw', 'id_aset_raw', 'section_id_raw',
-                    'posko_id_raw', 'latitude_raw', 'longitude_raw', 'jenis_hewan_raw',
-                    'foto_ref_raw', 'sumber_data_raw',
-                ],
-            ],
-            [
                 'sheet' => 'SECTION_PIC_RAW',
                 'model' => SectionPicSourceRow::class,
                 'column_count' => 3,
@@ -157,17 +133,6 @@ class ImportSourceSheets extends Command
                 ],
                 // Source file may have leading blank rows before the header row.
                 'skip_leading_blanks' => true,
-            ],
-            [
-                'sheet' => 'KEYPOINT_RAW',
-                'model' => KeypointSourceRow::class,
-                'column_count' => 5,
-                'headers' => [
-                    'PENYULANG', 'JENIS', 'NAMA', 'KOORDINAT', 'NOTE',
-                ],
-                'db_columns' => [
-                    'penyulang_raw', 'jenis_raw', 'nama_raw', 'koordinat_raw', 'note_raw',
-                ],
             ],
         ];
     }

@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\AssetSourceRow;
-use App\Models\KeypointSourceRow;
 use App\Models\SectionPicSourceRow;
 use Illuminate\Console\Command;
 
@@ -308,17 +307,27 @@ class AuditTopology extends Command
             $this->info('📍 B. KEYPOINT SUMMARY');
             $this->line(str_repeat('─', 78));
         }
-
-        $rawRows = KeypointSourceRow::query()
+        $rawRows = \Illuminate\Support\Facades\DB::table('keypoints')
+            ->where('sumber_input', 'SPS_BOS')
+            ->select([
+                'id',
+                'source_row_number',
+                'penyulang as penyulang_raw',
+                'jenis as jenis_raw',
+                'nama as nama_raw',
+                'koordinat_raw',
+                'note as note_raw',
+            ])
             ->orderBy('source_row_number', 'asc')
             ->orderBy('id', 'asc')
             ->get();
+
 
         $totalRows = $rawRows->count();
 
         if ($totalRows === 0) {
             if ($this->output !== null) {
-                $this->warn('  Tabel keypoint_source_rows kosong (0 baris).');
+                $this->warn('  Tabel keypoints kosong (0 baris).');
             }
 
             return [
