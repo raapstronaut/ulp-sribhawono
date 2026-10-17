@@ -3,10 +3,13 @@
     "name": "laravel/laravel",
     "type": "project",
     "description": "ULP Sribhawono Laravel Admin Web and field operations API.",
-    "keywords": ["laravel", "framework"],
+    "keywords": [
+        "laravel",
+        "framework"
+    ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
+        "php": "^8.4.1",
         "google/apiclient": "^2.20",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0"
