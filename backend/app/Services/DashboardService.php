@@ -11,14 +11,16 @@ class DashboardService
 {
     private const APKUK_TARGET_PER_POSKO_SHIFT = 6;
 
+    public function __construct(private readonly ShiftService $shiftService) {}
+
     /**
      * Build the Admin Dashboard contract from available master data.
      * Transaction values stay null until their canonical domains exist.
      */
     public function getDashboardData(): array
     {
-        $now = Carbon::now('Asia/Jakarta');
-        $shift = $this->getCurrentShift($now);
+        $now = Carbon::now(ShiftService::TIMEZONE);
+        $shift = $this->shiftService->current($now);
         $poskos = Posko::query()
             ->where('is_active', true)
             ->orderBy('nama_posko')
@@ -56,24 +58,6 @@ class DashboardService
                 ])->values()->all(),
             ],
         ];
-    }
-
-    /**
-     * Determine the provisional shift based on Asia/Jakarta time.
-     */
-    private function getCurrentShift(Carbon $now): array
-    {
-        $hour = $now->hour;
-
-        if ($hour >= 8 && $hour < 16) {
-            return ['name' => 'Pagi', 'time' => '08:00–16:00 WIB', 'code' => 'A'];
-        }
-
-        if ($hour >= 16) {
-            return ['name' => 'Sore', 'time' => '16:00–00:00 WIB', 'code' => 'B'];
-        }
-
-        return ['name' => 'Malam', 'time' => '00:00–08:00 WIB', 'code' => 'C'];
     }
 
     private function getKpis(): array

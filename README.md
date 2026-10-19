@@ -25,9 +25,9 @@ Sistem terdiri dari **Web ADMIN** (Laravel + PostgreSQL) dan **Flutter Android**
 
 ## Status
 
-Sudah dibuat: fondasi Laravel/Flutter, source staging/importer, master enam Posko dan 16 Penyulang, pivot Posko–Penyulang, scaffold Web Admin Dashboard/P0/WO, serta migration fondasi tim/petugas/shift/kode dropdown (**belum diuji/dijalankan pada PostgreSQL lokal**).
+Sudah dibuat: fondasi Laravel/Flutter, source staging/importer, sinkron otomatis gangguan/APKUK/keypoint dari Google Sheets (cron Railway → Neon shared dev), master enam Posko dan 16 Penyulang, pivot Posko–Penyulang, login dan otorisasi Web ADMIN, scaffold Web Admin Dashboard/P0/WO, serta migration fondasi tim/petugas/shift/kode dropdown (**belum dijalankan di Neon shared dev**).
 
-Belum selesai: otorisasi Web ADMIN, master Section/aset canonical, transaksi WO/PASILA/P0/ROW/HARSUS/INSPEKSI, Maps Admin, Flutter form dan offline outbox.
+Belum selesai: akun/role tim mobile, master Section/aset canonical, transaksi WO/PASILA/P0/ROW/HARSUS/INSPEKSI, Maps Admin, Flutter form dan offline outbox.
 
 **Business flow v3:** P0 adalah pekerjaan **POSKO dalam PASILA**; HARSUS menangani **WO Pekerjaan Khusus**. Tidak ada lagi ketentuan tetap >3 trip/bulan.
 

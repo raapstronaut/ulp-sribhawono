@@ -5,7 +5,7 @@
 **Scope:** Single-tenant, 5 role, Admin Web + Flutter 4 role  
 **Status dokumen:** Source of truth aturan bisnis terbaru setelah klarifikasi 6–8 Oktober 2026  
 **Engineering baseline GitHub:** `main` (versi operasional v3; seluruh commit Dashboard/P0/WO, dokumen v3, dan migration tim sudah terkonsolidasi).  
-**Verifikasi:** Audit kode melalui GitHub; bukan audit database runtime lokal, bukan tes ulang proyek terbaru
+**Pembaruan terakhir:** 19 Oktober 2026 — audit kode lokal `main` (5e616c7), test suite dijalankan ulang, dan `migrate:status` dicek pada Neon shared dev (read-only).
 
 # 1. Baca ini pertama
 
@@ -46,29 +46,36 @@ Satu akun tim per Posko (enam), satu akun untuk ROW/HARSUS/INSPEKSI, pilihan pet
 
 Laravel backend/API/Admin Web, PostgreSQL authoritative, Flutter Android, SQLite cache/outbox ringan, Laravel Filesystem local dev/S3-ready prod, Leaflet/OSM Web, Google Maps external mobile navigation, scheduler/queue dan polling. Tidak menggunakan Next.js/Supabase/PowerSync/full offline basemap.
 
-# 5. Implementasi yang terkonfirmasi dari GitHub
+# 5. Implementasi yang terkonfirmasi (audit kode lokal 19 Okt 2026)
 
 | Komponen | Kondisi |
 |---|---|
-| Laravel repo/backend framework | Ada |
-| Enam staging source tables + artisan imports, profiler, audit | Ada |
+| Laravel repo/backend framework | Ada (PHP 8.4) |
+| Staging source tables + artisan import, profiler, audit staging, `topology:audit` | Ada |
+| Sinkron Google Sheets → `gangguans` (`gangguan:sync`), `apkuks` (`apkuk:sync`, AppSheet lama), `keypoints` (`keypoint:sync`, SPS BOS) | Ada; dijadwalkan per 15 menit di `routes/console.php` |
+| Runner cron Railway (`backend/railway-sync.sh`) ke Neon shared dev | Ada; menolak jalan bila `DB_DATABASE` bukan `ulp_sribhawono_shared_dev` |
 | Master poskos/penyulangs/pivot | Ada |
-| Canonical Section/Asset & master Petugas | Belum dibangun |
-| Auth Web ADMIN dan role mobile | Belum lengkap; route admin belum middleware auth/role |
-| Dashboard Admin | UI dibangun, sebagian data master asli, transaksi masih nol |
-| P0 Admin Monitor+Detail | UI dibangun, belum domain, teks HARSUS perlu refactor |
-| WO Admin Monitor+Detail | UI dibangun, belum domain, masih POSKO-focused |
+| Tabel fondasi `field_teams`, `field_personnel`, `field_team_shift_assignments`, `reference_codes` | Migration ada; **belum dijalankan di Neon** (Pending); belum ada model/UI |
+| Canonical Section/Asset & data master Petugas | Belum dibangun |
+| Auth Web ADMIN | Ada: login username, middleware `auth`+`admin` pada `/admin/*`, pengaturan akun, `CreateAdminUser` |
+| Auth role mobile (POSKO/HARSUS/INSPEKSI/ROW) | Belum dibangun |
+| Shift A/B/C | `ShiftService` tunggal (jam sementara 08–16 / 16–00 / 00–08 WIB), dipakai Dashboard dan WO |
+| Dashboard Admin | UI v3, angka master asli, KPI transaksi "Data belum tersedia" |
+| P0 Admin Monitor+Detail | UI empty state, belum domain |
+| WO Admin Monitor+Detail | UI empty state, belum domain, masih POSKO-focused |
 | PASILA/Inspeksi/ROW/HARSUS/approval/Maps full | Belum dibangun |
-| Flutter mobile domain | Masih demo Flutter default |
+| Flutter mobile domain | Masih skeleton tanpa dependency |
 | API mobile + offline sync | Belum dibangun |
 
-`main` sudah di-fast-forward dari v2 ke baseline v3 pada 8 Oktober 2026. Dashboard/P0/WO Admin, delapan spesifikasi v3 dan migration tim sudah masuk `main`. Branch fitur lama adalah histori; belum otomatis terhapus dari remote. 
-Riwayat **73 tests passed / 274 assertions** dicatat pada dokumentasi lama; belum diuji ulang dalam audit repo ini.
+`main` sudah di-fast-forward dari v2 ke baseline v3 pada 8 Oktober 2026. Branch fitur lama adalah histori; belum otomatis terhapus dari remote.
+
+**Tes (19 Okt 2026):** `php artisan test` → **108 passed / 489 assertions** (SQLite in-memory). Sebelumnya 8 tes gagal karena masih memakai tabel staging lama `gangguan_source_rows`/`keypoint_source_rows`; tes sudah diarahkan ke tabel sinkron `gangguans`/`keypoints`.
 
 # 6. Data snapshot sumber (historis, bukan query live)
 
 - Enam Posko, 16 Penyulang, 26 pivot.
 - Laporan historis: sekitar 17.059 aset valid dari staging, 16.983 record vegetasi, 129 keypoints, 69 Section/PIC.
+- Sejak 10–15 Oktober, gangguan, APKUK, dan keypoint tidak lagi lewat staging `*_source_rows`, melainkan disinkron langsung ke `gangguans`, `apkuks`, `keypoints`. Jumlah baris live harus dicek dari tabel tersebut.
 - Spreadsheet APKUK dan gangguan telah mendapat pembaruan setelah dokumentasi v2: snapshot percakapan terakhir menyebut **2.922 APKUK source rows** dan **451 gangguan**, sedangkan dokumen GitHub v2 masih menyebut 2.864 dan 443. **Jangan menganggap salah satunya jumlah live PostgreSQL tanpa re-check import/status DB.**
 - KEYPOINT menurut klarifikasi berisi seluruh data FCO/switching yang diperlukan; verifikasi canonical keypoint/Section tetap wajib. Dua PIC Section dari staging masih kosong, jangan ditebak.
 
@@ -76,7 +83,9 @@ Riwayat **73 tests passed / 274 assertions** dicatat pada dokumentasi lama; belu
 
 **Butuh pusat/atasan:** kepastian Section/batas, ID dan koordinat aset/cross references, histori maintenance, foto historis, GIS optional, gangguan affected assets, master petugas/kode temuan resmi, formula prioritas & vegetasi, detail form P0, kebijakan sesi perangkat, approval reschedule, aturan carryover, duplicate vegetation WO dan formula frekuensi special-case.
 
-**Tidak blocked:** dokumen, RBAC/auth skeleton dan tests, migration additive berdasarkan schema pasti, kode reference/master, API contracts, desain dan UI admin halaman berikutnya, peta dengan empty state/lazy filtering, offline worker design.
+**Butuh keputusan tim:** jam shift A/B/C final; kapan migration `create_field_team_foundations` dijalankan di Neon shared dev; peran data `apkuks` hasil sync (sumber WO atau histori).
+
+**Tidak blocked:** dokumen, RBAC role mobile dan tests, migration additive berdasarkan schema pasti, kode reference/master, API contracts, desain dan UI admin halaman berikutnya, peta dengan empty state/lazy filtering, offline worker design.
 
 # 8. Prioritas pekerjaan berikutnya (keputusan 8 Okt)
 
@@ -90,4 +99,6 @@ Riwayat **73 tests passed / 274 assertions** dicatat pada dokumentasi lama; belu
 
 # 9. Perubahan manual terhadap repository
 
-Rebaseline v3 semula dibuat pada branch kerja terpisah lalu **diintegrasikan ke `main` dengan fast-forward**. Setelah itu README, halaman starter, dan label P0/WO lama dibersihkan di `main`. Tidak ada reset database, perubahan migration lama, atau penulisan data operasional. Test runtime dan migrasi PostgreSQL belum dijalankan dari konektor GitHub.
+Rebaseline v3 semula dibuat pada branch kerja terpisah lalu **diintegrasikan ke `main` dengan fast-forward**. Setelah itu README, halaman starter, dan label P0/WO lama dibersihkan di `main`. Tidak ada reset database, perubahan migration lama, atau penulisan data operasional.
+
+Setelah itu (10–17 Okt): autentikasi Admin, redesign Dashboard v3, sinkron gangguan/APKUK/keypoint, konfigurasi SSL Neon, dan runner Railway. Pada 19 Okt: tes yang tertinggal diperbaiki, logika shift disatukan ke `ShiftService`, dan dokumen ini diperbarui. Tidak ada migration yang dijalankan atau data yang ditulis ke Neon.

@@ -3,15 +3,15 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\Posko;
+use App\Services\ShiftService;
 
 class WorkOrderController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(ShiftService $shiftService)
     {
         // Work Order domain is not implemented yet.
         // We will pass empty states for the UI.
@@ -26,22 +26,10 @@ class WorkOrderController extends Controller
 
         $work_orders = []; // Empty collection
 
-        $now = now()->timezone('Asia/Jakarta');
-        $hour = $now->hour;
-        
-        if ($hour >= 8 && $hour < 16) {
-            $shift_name = 'Pagi';
-            $shift_time = '08:00 - 16:00 WIB';
-            $shift_index = '1/3';
-        } elseif ($hour >= 16) {
-            $shift_name = 'Sore';
-            $shift_time = '16:00 - 00:00 WIB';
-            $shift_index = '2/3';
-        } else {
-            $shift_name = 'Malam';
-            $shift_time = '00:00 - 08:00 WIB';
-            $shift_index = '3/3';
-        }
+        $shift = $shiftService->current();
+        $shift_name = $shift['name'];
+        $shift_time = $shift['time'];
+        $shift_index = $shift['index'];
 
         return view('admin.work-orders.index', compact(
             'wo_shift_ini',

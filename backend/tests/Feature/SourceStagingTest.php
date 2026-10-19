@@ -3,11 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\AssetSourceRow;
-use App\Models\GangguanSourceRow;
 use App\Models\KeypointSourceRow;
 use App\Models\SectionPicSourceRow;
 use App\Models\VegetasiSourceRow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
@@ -142,40 +142,36 @@ class SourceStagingTest extends TestCase
         $this->assertSame('0,47', $row->jarak_pohon_raw);
     }
 
-    // ─── Gangguan Source Rows ──────────────────────────────────────
+    // ─── Gangguan (sinkron PLN Pusat) ──────────────────────────────
+    // gangguan_source_rows sudah digantikan tabel `gangguans` yang diisi gangguan:sync.
 
-    public function test_gangguan_source_rows_table_has_expected_columns(): void
+    public function test_gangguan_source_rows_table_is_replaced_by_gangguans(): void
     {
-        $this->assertTrue(Schema::hasTable('gangguan_source_rows'));
-        $this->assertTrue(Schema::hasColumns('gangguan_source_rows', [
-            'id', 'id_gangguan_raw', 'penyulang_raw', 'peralatan_raw',
-            'ulp_raw', 'tanggal_kejadian_raw', 'kode_gangguan_raw',
-            'uraian_penyebab_raw', 'penyebab_raw', 'lepas_raw', 'masuk_raw',
-            'beban_amp_raw', 'rele_kerja_raw', 'arus_gangguan_amp_raw',
-            'lama_padam_menit_raw', 'ens_kwh_raw', 'sifat_gangguan_raw',
-            'id_aset_raw', 'section_id_raw', 'posko_id_raw',
-            'latitude_raw', 'longitude_raw', 'jenis_hewan_raw',
-            'foto_ref_raw', 'sumber_data_raw',
-            'source_row_number', 'imported_at', 'created_at', 'updated_at',
+        $this->assertFalse(Schema::hasTable('gangguan_source_rows'));
+        $this->assertTrue(Schema::hasTable('gangguans'));
+        $this->assertTrue(Schema::hasColumns('gangguans', [
+            'id_gangguan', 'tanggal_kejadian', 'penyulang', 'ulp', 'peralatan',
+            'kode_gangguan', 'sifat_gangguan', 'penyebab', 'uraian_penyebab',
+            'no_tiang', 'keypoint_pusat', 'lepas', 'masuk', 'lama_padam_menit',
+            'ens_kwh', 'beban_amp', 'rele_kerja', 'arus_gangguan_amp',
+            'foto_gangguan_url', 'sumber_data', 'last_synced_at',
+            'created_at', 'updated_at',
         ]));
     }
 
-    public function test_gangguan_source_row_can_be_created(): void
+    public function test_gangguan_row_can_be_created_with_minimal_data(): void
     {
-        GangguanSourceRow::create([
-            'id_gangguan_raw' => 'G-001',
-            'penyulang_raw' => 'JAIPONG',
-            'tanggal_kejadian_raw' => '01/15/2026',
-            'lama_padam_menit_raw' => '4,61',
-            'ens_kwh_raw' => '0,47',
-            'source_row_number' => 2,
-            'imported_at' => now(),
+        DB::table('gangguans')->insert([
+            'id_gangguan' => 'G-001',
+            'penyulang' => 'JAIPONG',
+            'created_at' => now(),
+            'updated_at' => now(),
         ]);
 
-        $this->assertDatabaseHas('gangguan_source_rows', [
-            'id_gangguan_raw' => 'G-001',
-            'lama_padam_menit_raw' => '4,61',
-            'ens_kwh_raw' => '0,47',
+        $this->assertDatabaseHas('gangguans', [
+            'id_gangguan' => 'G-001',
+            'penyulang' => 'JAIPONG',
+            'sumber_data' => 'PLN_PUSAT',
         ]);
     }
 
@@ -344,12 +340,6 @@ class SourceStagingTest extends TestCase
             'imported_at' => now(),
         ]);
         $this->assertNotNull($vegetasi->id);
-
-        $gangguan = GangguanSourceRow::create([
-            'source_row_number' => 4,
-            'imported_at' => now(),
-        ]);
-        $this->assertNotNull($gangguan->id);
 
         $sectionPic = SectionPicSourceRow::create([
             'source_row_number' => 5,

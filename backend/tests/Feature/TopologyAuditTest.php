@@ -4,9 +4,9 @@ namespace Tests\Feature;
 
 use App\Console\Commands\AuditTopology;
 use App\Models\AssetSourceRow;
-use App\Models\KeypointSourceRow;
 use App\Models\SectionPicSourceRow;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class TopologyAuditTest extends TestCase
@@ -19,7 +19,28 @@ class TopologyAuditTest extends TestCase
     {
         parent::setUp();
 
-        $this->command = new AuditTopology();
+        $this->command = new AuditTopology;
+    }
+
+    /**
+     * Insert a row into the synced `keypoints` table (sumber SPS_BOS),
+     * which is what topology:audit reads.
+     *
+     * @param  array{penyulang_raw?: ?string, jenis_raw?: ?string, nama_raw?: ?string, koordinat_raw?: ?string, note_raw?: ?string, source_row_number?: ?int}  $row
+     */
+    private function createKeypoint(array $row): void
+    {
+        DB::table('keypoints')->insert([
+            'penyulang' => $row['penyulang_raw'] ?? null,
+            'jenis' => $row['jenis_raw'] ?? null,
+            'nama' => $row['nama_raw'] ?? null,
+            'koordinat_raw' => $row['koordinat_raw'] ?? null,
+            'note' => $row['note_raw'] ?? null,
+            'sumber_input' => 'SPS_BOS',
+            'source_row_number' => $row['source_row_number'] ?? null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     // ─── 1. Command Registration ─────────────────────────────────────────
@@ -229,7 +250,7 @@ class TopologyAuditTest extends TestCase
         ]);
 
         // Keypoint has LBSM ZAPTOR on BRAJASAKTI
-        KeypointSourceRow::create([
+        $this->createKeypoint([
             'penyulang_raw' => 'BRAJASAKTI',
             'jenis_raw' => 'LBSM',
             'nama_raw' => 'LBSM ZAPTOR',
@@ -260,7 +281,7 @@ class TopologyAuditTest extends TestCase
         ]);
 
         // Keypoint has LBSM KARYA TANI on JAIPONG but with jenis FCO
-        KeypointSourceRow::create([
+        $this->createKeypoint([
             'penyulang_raw' => 'JAIPONG',
             'jenis_raw' => 'FCO',
             'nama_raw' => 'LBSM KARYA TANI',
@@ -304,7 +325,7 @@ class TopologyAuditTest extends TestCase
         ]);
 
         // Keypoint has 1 row: RECLOSER JABO
-        KeypointSourceRow::create([
+        $this->createKeypoint([
             'penyulang_raw' => 'JAIPONG',
             'jenis_raw' => 'RECLOSER',
             'nama_raw' => 'RECLOSER JABO',
@@ -350,7 +371,7 @@ class TopologyAuditTest extends TestCase
         ]);
 
         // Keypoint on JAIPONG
-        KeypointSourceRow::create([
+        $this->createKeypoint([
             'penyulang_raw' => 'JAIPONG',
             'jenis_raw' => 'RECLOSER',
             'nama_raw' => 'REC JABO',
@@ -381,7 +402,7 @@ class TopologyAuditTest extends TestCase
         ]);
 
         // Keypoint on JAIPONG
-        KeypointSourceRow::create([
+        $this->createKeypoint([
             'penyulang_raw' => 'JAIPONG',
             'jenis_raw' => 'RECLOSER',
             'nama_raw' => 'REC JABO',
@@ -409,7 +430,7 @@ class TopologyAuditTest extends TestCase
             'source_row_number' => 2,
         ]);
 
-        KeypointSourceRow::create([
+        $this->createKeypoint([
             'penyulang_raw' => 'JAIPONG',
             'jenis_raw' => 'RECLOSER',
             'nama_raw' => 'REC JABO',
@@ -427,14 +448,14 @@ class TopologyAuditTest extends TestCase
         ]);
 
         $secCountBefore = SectionPicSourceRow::count();
-        $kpCountBefore = KeypointSourceRow::count();
+        $kpCountBefore = DB::table('keypoints')->count();
         $assetCountBefore = AssetSourceRow::count();
 
         // Run audit in test environment
         $this->artisan('topology:audit')->assertExitCode(0);
 
         $this->assertSame($secCountBefore, SectionPicSourceRow::count());
-        $this->assertSame($kpCountBefore, KeypointSourceRow::count());
+        $this->assertSame($kpCountBefore, DB::table('keypoints')->count());
         $this->assertSame($assetCountBefore, AssetSourceRow::count());
     }
 }
