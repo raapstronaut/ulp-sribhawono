@@ -29,6 +29,7 @@
 | Master | penyulangs | Migration + sync |
 | Pivot | posko_penyulang | Migration + sync |
 | Auth | users, password_reset_tokens, sessions | Default Laravel skeleton, belum RBAC final |
+| Operasional | work_orders, work_order_apkuk_targets, work_order_status_logs, work_order_reschedules, work_order_reports, work_order_report_personnel, work_order_media | Migration 20 Okt 2026 (branch `feat/workflows-v3-foundation`); WO APKUK manual Admin aktif. Status: DITUGASKAN, DIKERJAKAN, MENUNGGU_VERIFIKASI, RESCHEDULE_DIAJUKAN, DIJADWALKAN_ULANG, SELESAI, SELESAI_DITERUSKAN, DIBATALKAN; "terlambat" dihitung dari `due_at` WO aktif |
 
 Checkpoint historis: 6 Posko, 16 Penyulang, 26 relasi. Snapshot raw angka dapat berubah setelah reimport; 73 tests / 274 assertions adalah laporan sebelumnya, bukan hasil re-run pada revisi ini.
 

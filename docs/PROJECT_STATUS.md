@@ -62,12 +62,15 @@ Laravel backend/API/Admin Web, PostgreSQL authoritative, Flutter Android, SQLite
 | Shift A/B/C | `ShiftService` tunggal (jam sementara 08–16 / 16–00 / 00–08 WIB), dipakai Dashboard dan WO |
 | Dashboard Admin | UI v3, angka master asli, KPI transaksi "Data belum tersedia" |
 | P0 Admin Monitor+Detail | UI empty state, belum domain |
-| WO Admin Monitor+Detail | UI empty state, belum domain, masih POSKO-focused |
+| WO APKUK Tahap 1 (branch `feat/workflows-v3-foundation`, 20 Okt) | Migration `2026_10_20_000001_create_work_order_foundations` (work_orders generik + target APKUK, audit log, reschedule, laporan, petugas, media); Admin Web daftar/buat manual/detail/batal; validasi kandidat `apkuks` (laporan terbaru per tiang, `kurang_bh` > 0, status BELUM EKSEKUSI/KURANG, penyulang cocok master); cegah WO aktif ganda per tiang (unique `active_target_key`). Sudah dijalankan di Neon branch `dev-workflows-v3` (`--env=workflows`); belum di shared dev. Laporan/reschedule/foto baru struktur data + status, belum ada API/UI |
+| WO HARSUS/ROW | Belum; memakai tabel `work_orders` yang sama |
 | PASILA/Inspeksi/ROW/HARSUS/approval/Maps full | Belum dibangun |
 | Flutter mobile domain | Masih skeleton tanpa dependency |
 | API mobile + offline sync | Belum dibangun |
 
 `main` sudah di-fast-forward dari v2 ke baseline v3 pada 8 Oktober 2026. Branch fitur lama adalah histori; belum otomatis terhapus dari remote.
+
+**Tes (20 Okt 2026, branch `feat/workflows-v3-foundation`):** `php artisan test` → **137 passed / 656 assertions** (SQLite in-memory). Jangan memakai `php artisan test --env=...`: opsi itu membuat koneksi `.env` bocor ke PHPUnit; `tests/TestCase.php` kini membatalkan test bila koneksi bukan SQLite `:memory:`.
 
 **Tes (19 Okt 2026):** `php artisan test` → **108 passed / 489 assertions** (SQLite in-memory). Sebelumnya 8 tes gagal karena masih memakai tabel staging lama `gangguan_source_rows`/`keypoint_source_rows`; tes sudah diarahkan ke tabel sinkron `gangguans`/`keypoints`.
 

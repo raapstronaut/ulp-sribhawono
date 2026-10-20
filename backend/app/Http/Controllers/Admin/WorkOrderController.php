@@ -2,31 +2,101 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CancelWorkOrderRequest;
+use App\Http\Requests\Admin\StoreApkukWorkOrderRequest;
+use App\Models\Penyulang;
 use App\Models\Posko;
+use App\Models\WorkOrder;
+use App\Services\ApkukCandidateService;
+use App\Services\ApkukWorkOrderService;
 use App\Services\ShiftService;
+use App\Services\WorkOrderLifecycleService;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
 
 class WorkOrderController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index(ShiftService $shiftService)
+    public const STATUS_FILTER_OVERDUE = 'TERLAMBAT';
+
+    private const TARGET_PER_SHIFT = 6;
+
+    private const CANDIDATES_PER_PAGE = 25;
+
+    public function index(Request $request, ShiftService $shiftService): View
     {
-        // Work Order domain is not implemented yet.
-        // We will pass empty states for the UI.
-
-        $wo_shift_ini = 0;
-        $wo_dikerjakan = 0;
-        $wo_selesai = 0;
-        $wo_carryover = 0;
-
-        $poskos = Posko::where('is_active', true)->get();
-        $target_total = $poskos->count() * 6; // 6 WO per posko
-
-        $work_orders = []; // Empty collection
-
         $shift = $shiftService->current();
+        $today = $shiftService->today();
+
+        $filters = [
+            'status' => (string) $request->query('status', ''),
+            'posko_id' => (string) $request->query('posko_id', ''),
+            'shift_code' => (string) $request->query('shift_code', ''),
+            'work_date' => (string) $request->query('work_date', ''),
+            'q' => trim((string) $request->query('q', '')),
+        ];
+
+        $query = WorkOrder::query()->apkuk()->with(['posko', 'penyulang', 'apkukTarget']);
+
+        if ($filters['status'] === self::STATUS_FILTER_OVERDUE) {
+            $query->overdue();
+        } elseif ($status = WorkOrderStatus::tryFrom($filters['status'])) {
+            $query->where('status', $status->value);
+        }
+        if ($filters['posko_id'] !== '') {
+            $query->where('posko_id', $filters['posko_id']);
+        }
+        if (in_array($filters['shift_code'], $shiftService->codes(), true)) {
+            $query->where('shift_code', $filters['shift_code']);
+        }
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['work_date'])) {
+            $query->whereDate('work_date', $filters['work_date']);
+        }
+        if ($filters['q'] !== '') {
+            $term = '%'.mb_strtoupper($filters['q']).'%';
+            $query->where(function ($q) use ($term): void {
+                $q->where(DB::raw('upper(code)'), 'like', $term)
+                    ->orWhereHas('apkukTarget', fn ($t) => $t->where(DB::raw('upper(no_tiang)'), 'like', $term));
+            });
+        }
+
+        $work_orders = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
+
+        $currentShift = fn () => WorkOrder::query()->apkuk()
+            ->whereDate('work_date', $today)
+            ->where('shift_code', $shift['code'])
+            ->where('status', '!=', WorkOrderStatus::Dibatalkan->value);
+
+        $wo_shift_ini = $currentShift()->count();
+        $wo_dikerjakan = $currentShift()->where('status', WorkOrderStatus::Dikerjakan->value)->count();
+        $wo_selesai = $currentShift()->where('status', WorkOrderStatus::Selesai->value)->count();
+        $wo_terlambat = WorkOrder::query()->apkuk()->overdue()->count();
+
+        $poskos = Posko::where('is_active', true)->orderBy('nama_posko')->get();
+        $target_per_shift = self::TARGET_PER_SHIFT;
+        $target_total = $poskos->count() * $target_per_shift;
+
+        $progressRows = $currentShift()
+            ->select('posko_id', 'status', DB::raw('count(*) as total'))
+            ->groupBy('posko_id', 'status')
+            ->get();
+        $posko_progress = $poskos->mapWithKeys(function (Posko $posko) use ($progressRows): array {
+            $rows = $progressRows->where('posko_id', $posko->id);
+            $done = (int) $rows->where('status', WorkOrderStatus::Selesai)->sum('total');
+
+            return [$posko->id => [
+                'total' => (int) $rows->sum('total'),
+                'selesai' => $done,
+                'aktif' => (int) $rows->filter(fn ($r) => $r->status->isActive())->sum('total'),
+            ]];
+        });
+
+        $statuses = WorkOrderStatus::cases();
+        $shift_options = array_map(fn (string $code) => $shiftService->describe($code), $shiftService->codes());
         $shift_name = $shift['name'];
         $shift_time = $shift['time'];
         $shift_index = $shift['index'];
@@ -35,23 +105,109 @@ class WorkOrderController extends Controller
             'wo_shift_ini',
             'wo_dikerjakan',
             'wo_selesai',
-            'wo_carryover',
+            'wo_terlambat',
             'poskos',
+            'posko_progress',
+            'target_per_shift',
             'target_total',
             'work_orders',
+            'filters',
+            'statuses',
+            'shift_options',
             'shift_name',
             'shift_time',
             'shift_index'
         ));
     }
 
-    /**
-     * Display the specified resource.
-     */
-    public function show($id)
+    public function create(Request $request, ApkukCandidateService $candidateService, ShiftService $shiftService): View
     {
-        // Work Order domain is not implemented yet.
-        // There are no actual Work Orders to show.
-        abort(404);
+        $filters = [
+            'penyulang_id' => (string) $request->query('penyulang_id', ''),
+            'q' => trim((string) $request->query('q', '')),
+            'show' => $request->query('show') === 'all' ? 'all' : 'eligible',
+        ];
+
+        $all = $candidateService->evaluate();
+        $summary = $candidateService->summary($all);
+        $filtered = $candidateService->filter(
+            $all,
+            $filters['penyulang_id'] !== '' ? $filters['penyulang_id'] : null,
+            $filters['q'],
+            $filters['show'] === 'eligible',
+        );
+
+        $page = LengthAwarePaginator::resolveCurrentPage();
+        $candidates = new LengthAwarePaginator(
+            $filtered->forPage($page, self::CANDIDATES_PER_PAGE)->values(),
+            $filtered->count(),
+            self::CANDIDATES_PER_PAGE,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()],
+        );
+
+        $selectedId = (int) old('apkuk_id', $request->query('apkuk_id'));
+        $selected = $selectedId > 0 ? $all->get($selectedId) : null;
+
+        $poskos = Posko::where('is_active', true)->orderBy('nama_posko')->get();
+        $penyulangs = Penyulang::where('is_active', true)->orderBy('kode_penyulang')->get();
+        $shift_options = array_map(fn (string $code) => $shiftService->describe($code), $shiftService->codes());
+        $default_work_date = $shiftService->today();
+        $default_shift = $shiftService->current()['code'];
+        $issue_labels = ApkukCandidateService::LABELS;
+
+        return view('admin.work-orders.create', compact(
+            'filters',
+            'summary',
+            'candidates',
+            'selected',
+            'poskos',
+            'penyulangs',
+            'shift_options',
+            'default_work_date',
+            'default_shift',
+            'issue_labels'
+        ));
+    }
+
+    public function store(StoreApkukWorkOrderRequest $request, ApkukWorkOrderService $service): RedirectResponse
+    {
+        $workOrder = $service->createManual($request->user(), $request->validated());
+
+        return redirect()
+            ->route('admin.work-orders.show', $workOrder)
+            ->with('status', 'work-order-created');
+    }
+
+    public function show(WorkOrder $workOrder, ShiftService $shiftService): View
+    {
+        $workOrder->load([
+            'posko',
+            'penyulang',
+            'apkukTarget',
+            'createdBy',
+            'cancelledBy',
+            'statusLogs.actor',
+            'reschedules.reviewedBy',
+            'reports.personnel',
+            'reports.media',
+            'media',
+        ]);
+
+        $shift = $workOrder->shift_code ? $shiftService->describe($workOrder->shift_code) : null;
+
+        return view('admin.work-orders.show', [
+            'wo' => $workOrder,
+            'shift' => $shift,
+        ]);
+    }
+
+    public function cancel(CancelWorkOrderRequest $request, WorkOrder $workOrder, WorkOrderLifecycleService $lifecycle): RedirectResponse
+    {
+        $lifecycle->cancel($workOrder, $request->user(), trim($request->validated('cancel_reason')));
+
+        return redirect()
+            ->route('admin.work-orders.show', $workOrder)
+            ->with('status', 'work-order-cancelled');
     }
 }

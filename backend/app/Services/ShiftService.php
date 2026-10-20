@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 
 /**
@@ -42,6 +43,38 @@ class ShiftService
 
         // Tidak tercapai selama SHIFTS menutupi 0–24 jam penuh.
         return $this->describe('C');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function codes(): array
+    {
+        return array_keys(self::SHIFTS);
+    }
+
+    /**
+     * Rentang waktu shift pada tanggal kalender WIB (shift C = 00:00–08:00 tanggal itu).
+     *
+     * @return array{start: CarbonImmutable, end: CarbonImmutable}
+     */
+    public function window(CarbonInterface|string $date, string $code): array
+    {
+        $shift = self::SHIFTS[$code];
+        $day = CarbonImmutable::parse(
+            $date instanceof CarbonInterface ? $date->format('Y-m-d') : $date,
+            self::TIMEZONE,
+        )->startOfDay();
+
+        return [
+            'start' => $day->addHours($shift['start_hour']),
+            'end' => $day->addHours($shift['end_hour']),
+        ];
+    }
+
+    public function today(?CarbonInterface $now = null): string
+    {
+        return ($now ?? Carbon::now())->copy()->setTimezone(self::TIMEZONE)->toDateString();
     }
 
     /**
