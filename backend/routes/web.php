@@ -25,7 +25,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/p0/{p0}', [P0Controller::class, 'show'])->name('p0.show');
 
     Route::get('/work-orders', [WorkOrderController::class, 'index'])->name('work-orders.index');
+    Route::get('/work-orders/create', [WorkOrderController::class, 'create'])->name('work-orders.create');
+    Route::post('/work-orders', [WorkOrderController::class, 'store'])->name('work-orders.store');
     Route::get('/work-orders/{workOrder}', [WorkOrderController::class, 'show'])->name('work-orders.show');
+    Route::post('/work-orders/{workOrder}/cancel', [WorkOrderController::class, 'cancel'])->name('work-orders.cancel');
 
     Route::get('/account', [AccountSettingsController::class, 'edit'])->name('account.edit');
     Route::patch('/account/username', [AccountSettingsController::class, 'updateUsername'])->name('account.username.update');

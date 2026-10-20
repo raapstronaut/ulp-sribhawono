@@ -1,6 +1,19 @@
 @extends('layouts.admin')
 
 @section('content')
+@php
+    $statusClasses = [
+        'DITUGASKAN' => 'bg-blue-50 text-blue-700 border-blue-200',
+        'DIKERJAKAN' => 'bg-indigo-50 text-indigo-700 border-indigo-200',
+        'MENUNGGU_VERIFIKASI' => 'bg-amber-50 text-amber-700 border-amber-200',
+        'RESCHEDULE_DIAJUKAN' => 'bg-amber-50 text-amber-700 border-amber-200',
+        'DIJADWALKAN_ULANG' => 'bg-sky-50 text-sky-700 border-sky-200',
+        'SELESAI' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'SELESAI_DITERUSKAN' => 'bg-emerald-50 text-emerald-700 border-emerald-200',
+        'DIBATALKAN' => 'bg-slate-100 text-slate-500 border-slate-200',
+    ];
+    $hasFilter = collect($filters)->filter(fn ($v) => $v !== '')->isNotEmpty();
+@endphp
 <div class="max-w-7xl mx-auto space-y-6">
 
     <!-- Header Section -->
@@ -13,13 +26,13 @@
                     <li class="text-blue-600">Work Order</li>
                 </ol>
             </nav>
-            <h1 class="text-2xl font-bold text-slate-900 leading-tight">Work Order</h1>
-            <p class="text-xs text-slate-500 mt-1">Pemantauan WO POSKO APKUK pada shift berjalan; jenis WO HARSUS dan ROW akan masuk model generik.</p>
+            <h1 class="text-2xl font-bold text-slate-900 leading-tight">Work Order APKUK</h1>
+            <p class="text-xs text-slate-500 mt-1">Pemantauan WO PEMASANGAN_APKUK POSKO. Jenis WO HARSUS dan ROW akan memakai model WO yang sama.</p>
         </div>
-        <button class="hidden bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold items-center gap-2 shadow-sm cursor-not-allowed opacity-75" disabled title="Fitur pembuatan WO belum diimplementasikan">
+        <a href="{{ route('admin.work-orders.create') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-2 shadow-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            Buat WO
-        </button>
+            Buat WO APKUK
+        </a>
     </div>
 
     <!-- Info Banner -->
@@ -29,7 +42,7 @@
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
             </div>
             <p class="text-xs text-blue-800 leading-relaxed max-w-4xl">
-                <strong class="font-semibold">Shift POSKO Saat Ini:</strong> {{ $shift_name }} ({{ $shift_time }}) • Target preventif 6 WO per shift per Posko (Total referensi kuota shift: {{ $target_total }} WO se-ULP). Pekerjaan Work Order dilaksanakan langsung oleh personel POSKO.
+                <strong class="font-semibold">Shift POSKO Saat Ini:</strong> {{ $shift_name }} ({{ $shift_time }}) • Target preventif {{ $target_per_shift }} WO per shift per Posko (Total referensi kuota shift: {{ $target_total }} WO se-ULP). Satu WO adalah satu pekerjaan tiang; jumlah APKUK fisik dicatat terpisah.
             </p>
         </div>
         <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-xs font-bold text-slate-600 shadow-sm shrink-0">
@@ -39,57 +52,26 @@
 
     <!-- 4 KPI Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">WO SHIFT INI</span>
-                <div class="p-1.5 text-slate-400">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                </div>
-            </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">WO SHIFT INI</span>
             <div class="text-3xl font-black text-slate-800">{{ $wo_shift_ini }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">
-                Realisasi dari target {{ $target_total }} WO
-            </div>
+            <div class="mt-3 text-[10px] text-slate-500">Dari referensi target {{ $target_total }} WO</div>
         </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SEDANG DIKERJAKAN</span>
-                <div class="p-1.5 text-blue-500">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                </div>
-            </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">SEDANG DIKERJAKAN</span>
             <div class="text-3xl font-black text-slate-800">{{ $wo_dikerjakan }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">
-                Petugas di lapangan
-            </div>
+            <div class="mt-3 text-[10px] text-slate-500">Shift berjalan</div>
         </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SELESAI SHIFT INI</span>
-                <div class="p-1.5 text-emerald-500">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </div>
-            </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">SELESAI SHIFT INI</span>
             <div class="text-3xl font-black text-slate-800">{{ $wo_selesai }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">
-                Tuntas & terverifikasi
-            </div>
+            <div class="mt-3 text-[10px] text-slate-500">Pemasangan dilaporkan selesai</div>
         </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">CARRYOVER SHIFT INI</span>
-                <div class="p-1.5 text-amber-500">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </div>
-            </div>
-            <div class="text-3xl font-black text-slate-800">{{ $wo_carryover }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">
-                Dari shift sebelumnya
-            </div>
-        </div>
+        <a href="{{ route('admin.work-orders.index', ['status' => \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE]) }}" class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col hover:border-red-200">
+            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">TERLAMBAT</span>
+            <div class="text-3xl font-black {{ $wo_terlambat > 0 ? 'text-red-600' : 'text-slate-800' }}">{{ $wo_terlambat }}</div>
+            <div class="mt-3 text-[10px] text-slate-500">WO aktif melewati akhir shift</div>
+        </a>
     </div>
 
     <!-- Posko Progress Section -->
@@ -103,20 +85,23 @@
                 Shift {{ $shift_index }} ({{ $shift_name }})
             </div>
         </div>
-        
+
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
             @foreach($poskos as $posko)
+            @php
+                $progress = $posko_progress[$posko->id];
+                $percent = $target_per_shift > 0 ? min(100, (int) round($progress['selesai'] / $target_per_shift * 100)) : 0;
+            @endphp
             <div class="border border-slate-100 rounded-lg p-3 bg-slate-50">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-xs font-bold text-slate-700">{{ $posko->nama_posko }}</span>
-                    <span class="text-xs font-bold text-slate-900">0/6</span>
+                    <span class="text-xs font-bold text-slate-900">{{ $progress['total'] }}/{{ $target_per_shift }}</span>
                 </div>
                 <div class="w-full bg-slate-200 rounded-full h-1.5 mb-2 overflow-hidden flex">
-                    <!-- Progress bar empty -->
+                    <div class="bg-emerald-500 h-1.5" style="width: {{ $percent }}%"></div>
                 </div>
-                <div class="flex items-center gap-2 text-[9px] text-slate-500">
-                    <span>0 Carryover</span>
-                    <span>0 Selesai, 0 Aktif</span>
+                <div class="text-[9px] text-slate-500">
+                    {{ $progress['selesai'] }} Selesai, {{ $progress['aktif'] }} Aktif
                 </div>
             </div>
             @endforeach
@@ -126,35 +111,40 @@
     <!-- Main List Container -->
     <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
         <!-- Filter Bar -->
-        <div class="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row gap-4 items-center justify-between">
+        <form method="GET" action="{{ route('admin.work-orders.index') }}" class="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div class="flex-1 w-full lg:w-auto relative">
                 <svg class="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                <input type="text" placeholder="Cari WO, aset, penyulang, atau lokasi..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50" disabled>
+                <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="Cari kode WO atau no. tiang..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
             </div>
-            
+
             <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>Semua Status</option>
+                <select name="status" aria-label="Status" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
+                    <option value="">Semua Status</option>
+                    @foreach($statuses as $status)
+                        <option value="{{ $status->value }}" @selected($filters['status'] === $status->value)>{{ $status->label() }}</option>
+                    @endforeach
+                    <option value="{{ \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE }}" @selected($filters['status'] === \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE)>Terlambat</option>
                 </select>
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>Semua Posko</option>
+                <select name="posko_id" aria-label="Posko" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
+                    <option value="">Semua Posko</option>
+                    @foreach($poskos as $posko)
+                        <option value="{{ $posko->id }}" @selected($filters['posko_id'] === $posko->id)>{{ $posko->nama_posko }}</option>
+                    @endforeach
                 </select>
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>{{ $shift_name }} (Aktif)</option>
+                <select name="shift_code" aria-label="Shift" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
+                    <option value="">Semua Shift</option>
+                    @foreach($shift_options as $option)
+                        <option value="{{ $option['code'] }}" @selected($filters['shift_code'] === $option['code'])>Shift {{ $option['code'] }} ({{ $option['name'] }})</option>
+                    @endforeach
                 </select>
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>Semua Periode</option>
-                </select>
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>PEMASANGAN_APKUK</option>
-                </select>
-                
-                <button class="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 px-2 disabled:opacity-50" disabled>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                    Reset
-                </button>
+                <input type="date" name="work_date" value="{{ $filters['work_date'] }}" aria-label="Tanggal kerja" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
+
+                <button type="submit" class="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Terapkan</button>
+                @if($hasFilter)
+                    <a href="{{ route('admin.work-orders.index') }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800 px-2">Reset</a>
+                @endif
             </div>
-        </div>
+        </form>
 
         <!-- Table -->
         <div class="overflow-x-auto">
@@ -162,19 +152,48 @@
                 <thead class="bg-white text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200 tracking-wider">
                     <tr>
                         <th class="px-6 py-4">WO</th>
-                        <th class="px-6 py-4">POSKO LAPANGAN</th>
-                        <th class="px-6 py-4">JENIS PEKERJAAN</th>
-                        <th class="px-6 py-4">ASET / LOKASI</th>
+                        <th class="px-6 py-4">POSKO</th>
+                        <th class="px-6 py-4">TIANG / SECTION</th>
                         <th class="px-6 py-4">PENYULANG</th>
-                        <th class="px-6 py-4">SHIFT</th>
+                        <th class="px-6 py-4 text-center">TARGET</th>
+                        <th class="px-6 py-4">JADWAL</th>
                         <th class="px-6 py-4">STATUS</th>
-                        <th class="px-6 py-4 text-right">PEMBARUAN TERAKHIR</th>
+                        <th class="px-6 py-4 text-right">PEMBARUAN</th>
                         <th class="px-6 py-4 text-center">AKSI</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse($work_orders as $wo)
-                        <!-- Rendering real data if exists -->
+                        <tr class="hover:bg-slate-50/60">
+                            <td class="px-6 py-4">
+                                <div class="font-semibold text-slate-900">{{ $wo->code }}</div>
+                                <div class="text-[10px] text-slate-500">{{ $wo->source === \App\Models\WorkOrder::SOURCE_ADMIN_MANUAL ? 'Manual Admin' : $wo->source }}</div>
+                            </td>
+                            <td class="px-6 py-4">{{ $wo->posko?->nama_posko ?? '-' }}</td>
+                            <td class="px-6 py-4">
+                                <div class="font-medium text-slate-800">{{ $wo->apkukTarget?->no_tiang ?? '-' }}</div>
+                                <div class="text-[10px] text-slate-500">{{ $wo->section_name ?? 'Section belum diketahui' }}</div>
+                            </td>
+                            <td class="px-6 py-4">{{ $wo->penyulang?->nama_penyulang ?? '-' }}</td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="font-semibold text-slate-800">{{ $wo->apkukTarget?->target_quantity ?? '-' }}</span>
+                                <span class="text-[10px] text-slate-500">bh</span>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div>{{ $wo->work_date?->format('d/m/Y') }}</div>
+                                <div class="text-[10px] text-slate-500">Shift {{ $wo->shift_code ?? '-' }}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold {{ $statusClasses[$wo->status->value] ?? '' }}">{{ $wo->status->label() }}</span>
+                                @if($wo->isOverdue())
+                                    <span class="ml-1 inline-flex items-center rounded-md border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-700">Terlambat</span>
+                                @endif
+                            </td>
+                            <td class="px-6 py-4 text-right text-xs">{{ $wo->updated_at?->timezone(\App\Services\ShiftService::TIMEZONE)->format('d/m/Y H:i') }} WIB</td>
+                            <td class="px-6 py-4 text-center">
+                                <a href="{{ route('admin.work-orders.show', $wo) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Detail</a>
+                            </td>
+                        </tr>
                     @empty
                         <tr>
                             <td colspan="9" class="px-6 py-16 text-center">
@@ -183,7 +202,7 @@
                                         <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                                     </div>
                                     <h3 class="text-base font-bold text-slate-700 mb-1">Belum ada Work Order.</h3>
-                                    <p class="text-xs text-slate-500 max-w-sm">Data Work Order preventif belum tersedia di sistem atau tidak ada data yang cocok dengan filter yang diterapkan.</p>
+                                    <p class="text-xs text-slate-500 max-w-sm">Belum ada WO APKUK yang tersimpan atau tidak ada data yang cocok dengan filter.</p>
                                 </div>
                             </td>
                         </tr>
@@ -193,25 +212,24 @@
         </div>
 
         <!-- Footer / Pagination -->
-        <div class="p-4 border-t border-slate-200 bg-slate-50/30 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-                <div class="text-[10px] text-slate-500 leading-tight">
-                    Menampilkan <strong class="text-slate-700">0</strong> dari <strong class="text-slate-700">0</strong> data Work Order aktif ULP Sribhawono.
+        <div class="p-4 border-t border-slate-200 bg-slate-50/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="text-[10px] text-slate-500 leading-tight">
+                Menampilkan <strong class="text-slate-700">{{ $work_orders->count() }}</strong> dari <strong class="text-slate-700">{{ $work_orders->total() }}</strong> WO APKUK.
+            </div>
+            @if($work_orders->hasPages())
+                <div class="flex items-center gap-2 text-xs">
+                    @if($work_orders->onFirstPage())
+                        <span class="px-3 py-1.5 rounded border border-slate-200 text-slate-400 bg-slate-50">Sebelumnya</span>
+                    @else
+                        <a href="{{ $work_orders->previousPageUrl() }}" class="px-3 py-1.5 rounded border border-slate-200 text-slate-700 bg-white hover:bg-slate-50">Sebelumnya</a>
+                    @endif
+                    <span class="text-slate-500">Hal. {{ $work_orders->currentPage() }} / {{ $work_orders->lastPage() }}</span>
+                    @if($work_orders->hasMorePages())
+                        <a href="{{ $work_orders->nextPageUrl() }}" class="px-3 py-1.5 rounded border border-slate-200 text-slate-700 bg-white hover:bg-slate-50">Berikutnya</a>
+                    @else
+                        <span class="px-3 py-1.5 rounded border border-slate-200 text-slate-400 bg-slate-50">Berikutnya</span>
+                    @endif
                 </div>
-            </div>
-            
-            <!-- Pagination controls -->
-            @if(!empty($work_orders) && count($work_orders) > 0)
-            <div class="flex items-center gap-1">
-                <button class="px-3 py-1.5 flex items-center gap-1 rounded border border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed text-xs font-medium" disabled>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg> Sebelumnya
-                </button>
-                <button class="w-8 h-8 flex items-center justify-center rounded border border-blue-500 text-white bg-blue-600 font-medium text-xs">1</button>
-                <button class="px-3 py-1.5 flex items-center gap-1 rounded border border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed text-xs font-medium" disabled>
-                    Berikutnya <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                </button>
-            </div>
             @endif
         </div>
     </div>
