@@ -98,6 +98,12 @@ return [
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             'sslrootcert' => env('DB_SSLROOTCERT'),
+            // pdo_pgsql meneruskan ATTR_TIMEOUT sebagai libpq connect_timeout (default 30 detik
+            // per alamat IP). Dibuat pendek agar alamat IPv6 yang tidak bisa dijangkau cepat
+            // dilewati dan koneksi pindah ke IPv4, bukan menggantung sampai max_execution_time.
+            'options' => [
+                PDO::ATTR_TIMEOUT => (int) env('DB_CONNECT_TIMEOUT', 5),
+            ],
         ],
 
         'sqlsrv' => [
