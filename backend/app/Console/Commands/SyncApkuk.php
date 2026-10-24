@@ -157,6 +157,7 @@ class SyncApkuk extends Command
                 'longitude' => $longitude,
                 'foto' => $this->text($row[11]),
                 'sumber_input' => 'APPSHEET_LAMA',
+                'source_missing_at' => null,
                 'source_row_number' => $sheetRow,
                 'last_synced_at' => $now,
                 'created_at' => $now,
@@ -202,17 +203,28 @@ class SyncApkuk extends Command
             $existing = DB::table('apkuks')
                 ->where('sumber_input', 'APPSHEET_LAMA')
                 ->whereNotNull('legacy_key')
-                ->pluck('legacy_key')
-                ->all();
+                ->whereNull('source_missing_at')
+                ->get(['legacy_key', 'source_id', 'no_tiang']);
 
             $incoming = array_fill_keys(array_keys($keyToSheetRow), true);
-            $missing = array_values(array_filter($existing, fn ($key) => !isset($incoming[$key])));
-            if ($missing !== []) {
-                $this->error(count($missing) . ' identitas lama di PostgreSQL tidak ditemukan di sumber terbaru.');
-                $this->error('Mungkin nomor tiang/ID diubah, baris dihapus, atau IMPORTRANGE belum lengkap. Sync dibatalkan demi mencegah duplikat.');
+
+            $missing = $existing->filter(
+                fn ($old) => !isset($incoming[$old->legacy_key])
+            );
+
+            if ($missing->isNotEmpty()) {
+                $this->error($missing->count() . ' identitas lama di PostgreSQL tidak ditemukan di sumber terbaru.');
+
+                foreach ($missing as $old) {
+                    $this->line(
+                        ' - ID: ' . ($old->source_id ?? '(kosong)') .
+                        ' | Tiang: ' . ($old->no_tiang ?? '(kosong)')
+                    );
+                }
+
+                $this->error('Sync dibatalkan demi mencegah duplikat.');
                 return self::FAILURE;
             }
-
             if ($this->option('dry-run')) {
                 $this->info('DRY RUN BERHASIL. Data PostgreSQL tidak diubah.');
                 return self::SUCCESS;

@@ -70,6 +70,7 @@ class ApkukCandidateService
         $activeCodes = $this->activeWorkOrderCodes();
 
         $rows = Apkuk::query()
+            ->whereNull('source_missing_at')
             ->orderBy('id')
             ->get([
                 'id', 'source_id', 'tanggal', 'petugas', 'penyulang', 'section', 'no_tiang',

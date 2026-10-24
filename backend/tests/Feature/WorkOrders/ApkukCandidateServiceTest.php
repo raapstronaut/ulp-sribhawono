@@ -127,6 +127,26 @@ class ApkukCandidateServiceTest extends TestCase
     /**
      * @param  array<string, mixed>  $overrides
      */
+
+    public function test_archived_apkuk_is_excluded_from_work_order_candidates(): void
+    {
+        $archived = $this->apkuk([
+            'no_tiang' => 'F.REOG.009999',
+            'source_missing_at' => now(),
+        ]);
+
+        $active = $this->apkuk([
+            'no_tiang' => 'F.REOG.009999',
+            'source_missing_at' => null,
+        ]);
+
+        $candidates = app(Candidates::class)->evaluate();
+
+        $this->assertFalse($candidates->has($archived));
+        $this->assertTrue($candidates->has($active));
+        $this->assertTrue($candidates[$active]->isEligible());
+    }
+
     private function apkuk(array $overrides = []): int
     {
         static $sequence = 0;
