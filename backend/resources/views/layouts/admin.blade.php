@@ -57,7 +57,6 @@
         $pendingControlMenus = [
             ['label' => 'Review & Validasi', 'icon' => 'RV'],
             ['label' => 'Special Case', 'icon' => 'SC'],
-            ['label' => 'Peta Jaringan', 'icon' => 'PJ'],
         ];
         $pendingAdminMenus = [
             ['label' => 'Master Data', 'icon' => 'MD'],
@@ -120,6 +119,14 @@
             <div class="sidebar-section">
                 <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Kontrol</h2>
                 <ul class="space-y-1">
+                    <li>
+                        <a href="{{ route('admin.maps.index') }}"
+                        class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.maps.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}"
+                        title="Peta Jaringan">
+                            <span class="flex h-5 w-5 shrink-0 items-center justify-center text-[10px] font-black">PJ</span>
+                            <span class="sidebar-label truncate">Peta Jaringan</span>
+                        </a>
+                    </li>
                     @foreach ($pendingControlMenus as $pendingMenu)
                         <li>@include('layouts.partials.pending-menu', $pendingMenu)</li>
                     @endforeach
@@ -169,6 +176,7 @@
             <a href="{{ route('admin.dashboard') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Dashboard</a>
             <a href="{{ route('admin.p0.index') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.p0.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">P0</a>
             <a href="{{ route('admin.work-orders.index') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.work-orders.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Work Order</a>
+            <a href="{{ route('admin.maps.index') }}"class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.maps.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Peta Jaringan</a>
             <a href="{{ route('admin.account.edit') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.account.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Pengaturan Akun</a>
             <p class="mt-3 border-t border-slate-100 px-3 pt-3 text-xs text-slate-400">Modul lainnya belum tersedia.</p>
         </nav>
