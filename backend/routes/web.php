@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AccountSettingsController;
 use App\Http\Controllers\Admin\DashboardController;
+use App\Http\Controllers\Admin\MapDataController;
 use App\Http\Controllers\Admin\P0Controller;
 use App\Http\Controllers\Admin\WorkOrderController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -31,6 +32,7 @@ Route::prefix('admin')
         // Maps
         Route::view('/maps', 'admin.maps.index')
             ->name('maps.index');
+    Route::get('/maps/data', [MapDataController::class, 'index'])->name('maps.data');
 
         // Data Keypoint untuk marker Leaflet
         Route::get('/maps/keypoints', function () {
