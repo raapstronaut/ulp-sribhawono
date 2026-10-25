@@ -1,7 +1,7 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-// Warna marker berdasarkan jenis peralatan
+// Warna marker setiap jenis peralatan
 const MARKER_STYLES = {
     RECLOSER: {
         color: '#2563EB',
@@ -24,20 +24,31 @@ const DEFAULT_MARKER = {
 
 function getMarkerStyle(jenis) {
     const key = String(jenis || '').trim().toUpperCase();
+
     return MARKER_STYLES[key] || DEFAULT_MARKER;
+}
+
+function normalizeSearch(value) {
+    return String(value || '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLocaleLowerCase('id-ID');
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
     const element = document.getElementById('admin-network-map');
+
     if (!element) return;
 
+    // Elemen pencarian dan filter
+    const searchInput = document.getElementById('maps-search');
     const penyulangFilter = document.getElementById('maps-penyulang-filter');
     const jenisFilter = document.getElementById('maps-jenis-filter');
     const resetButton = document.getElementById('maps-reset-filter');
     const filterStatus = document.getElementById('maps-filter-status');
 
-    if (!penyulangFilter || !jenisFilter || !resetButton) {
-        console.error('Elemen filter Maps belum tersedia.');
+    if (!searchInput || !penyulangFilter || !jenisFilter || !resetButton) {
+        console.error('Elemen pencarian atau filter Maps tidak ditemukan.');
         return;
     }
 
@@ -53,7 +64,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let allKeypoints = [];
 
-    // Status jumlah marker
+    // Kontrol jumlah marker
     const statusControl = L.control({
         position: 'topright',
     });
@@ -109,8 +120,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const title = document.createElement('strong');
         title.textContent = 'Jenis Peralatan';
-        title.style.display = 'block';
-        title.style.marginBottom = '8px';
+
+        Object.assign(title.style, {
+            display: 'block',
+            marginBottom: '8px',
+        });
 
         container.appendChild(title);
 
@@ -184,43 +198,56 @@ document.addEventListener('DOMContentLoaded', async () => {
         return container;
     }
 
-    // Isi dropdown dari data Keypoint
+    // Isi pilihan filter dari data database
     function populateFilters(points) {
         const penyulangs = [
             ...new Set(
-                points.map(point => point.penyulang).filter(Boolean)
+                points
+                    .map(point => point.penyulang)
+                    .filter(Boolean)
             ),
         ].sort((a, b) => a.localeCompare(b, 'id'));
 
         const jenisPeralatan = [
             ...new Set(
-                points.map(point => point.jenis).filter(Boolean)
+                points
+                    .map(point => point.jenis)
+                    .filter(Boolean)
             ),
         ].sort((a, b) => a.localeCompare(b, 'id'));
 
         penyulangs.forEach((penyulang) => {
             const option = document.createElement('option');
+
             option.value = penyulang;
             option.textContent = penyulang;
+
             penyulangFilter.appendChild(option);
         });
 
         jenisPeralatan.forEach((jenis) => {
             const option = document.createElement('option');
+
             option.value = jenis;
             option.textContent = jenis;
+
             jenisFilter.appendChild(option);
         });
     }
 
-    // Render marker dengan warna dan filter
+    // Render marker berdasarkan pencarian dan filter
     function renderMarkers() {
+        const searchText = normalizeSearch(searchInput.value);
         const selectedPenyulang = penyulangFilter.value;
         const selectedJenis = jenisFilter.value;
 
         keypointLayer.clearLayers();
 
         const filtered = allKeypoints.filter((point) => {
+            const matchSearch =
+                !searchText ||
+                normalizeSearch(point.nama).includes(searchText);
+
             const matchPenyulang =
                 !selectedPenyulang ||
                 point.penyulang === selectedPenyulang;
@@ -229,10 +256,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 !selectedJenis ||
                 point.jenis === selectedJenis;
 
-            return matchPenyulang && matchJenis;
+            return matchSearch && matchPenyulang && matchJenis;
         });
 
         const bounds = [];
+        let singleMarker = null;
 
         filtered.forEach((point) => {
             const lat = Number(point.latitude);
@@ -240,7 +268,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const style = getMarkerStyle(point.jenis);
 
-            // Marker lingkaran berwarna
             const marker = L.circleMarker([lat, lng], {
                 radius: 9,
                 color: '#FFFFFF',
@@ -255,10 +282,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             marker.addTo(keypointLayer);
 
             bounds.push([lat, lng]);
+            singleMarker = marker;
         });
 
+        const total = filtered.length;
+
         setStatus(
-            `${filtered.length} dari ${allKeypoints.length} Keypoint ditampilkan`
+            `${total} dari ${allKeypoints.length} Keypoint ditampilkan`
         );
 
         if (bounds.length > 0) {
@@ -266,10 +296,18 @@ document.addEventListener('DOMContentLoaded', async () => {
                 padding: [40, 40],
                 maxZoom: 13,
             });
+
+            // Jika hasil pencarian hanya satu,
+            // langsung buka detail peralatannya
+            if (searchText && total === 1 && singleMarker) {
+                singleMarker.openPopup();
+            }
+        } else {
+            map.closePopup();
         }
     }
 
-    // Ambil data dari Laravel
+    // Ambil data Keypoint dari Laravel
     try {
         const response = await fetch('/admin/maps/keypoints', {
             credentials: 'same-origin',
@@ -288,7 +326,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             throw new Error('Format data Keypoint tidak valid');
         }
 
-        // Hanya simpan koordinat yang valid
+        // Validasi koordinat
         allKeypoints = result.data.filter((point) => {
             const lat = Number(point.latitude);
             const lng = Number(point.longitude);
@@ -308,22 +346,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         populateFilters(allKeypoints);
         renderMarkers();
 
+        console.log(
+            `${allKeypoints.length} Keypoint berhasil dimuat`
+        );
+
     } catch (error) {
         console.error('Gagal memuat Keypoint:', error);
         setStatus('Gagal memuat data Keypoint');
     }
 
-    // Event filter
+    // Pencarian langsung saat pengguna mengetik
+    searchInput.addEventListener('input', renderMarkers);
+
+    // Filter Penyulang dan Jenis
     penyulangFilter.addEventListener('change', renderMarkers);
     jenisFilter.addEventListener('change', renderMarkers);
 
+    // Reset seluruh pencarian dan filter
     resetButton.addEventListener('click', () => {
+        searchInput.value = '';
         penyulangFilter.value = '';
         jenisFilter.value = '';
+
         renderMarkers();
     });
 
-    // Klik area peta untuk menampilkan koordinat
+    // Klik area kosong peta untuk melihat koordinat
     map.on('click', (event) => {
         const { lat, lng } = event.latlng;
 
