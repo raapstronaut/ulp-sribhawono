@@ -13,6 +13,8 @@ use App\Services\ApkukCandidateService;
 use App\Services\ApkukWorkOrderService;
 use App\Services\ShiftService;
 use App\Services\WorkOrderLifecycleService;
+use App\Support\DataLoader;
+use App\Support\QueryInput;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -32,12 +34,13 @@ class WorkOrderController extends Controller
         $shift = $shiftService->current();
         $today = $shiftService->today();
 
+        // QueryInput mengabaikan nilai yang ditolak PostgreSQL (UUID/tanggal tidak valid, array).
         $filters = [
-            'status' => (string) $request->query('status', ''),
-            'posko_id' => (string) $request->query('posko_id', ''),
-            'shift_code' => (string) $request->query('shift_code', ''),
-            'work_date' => (string) $request->query('work_date', ''),
-            'q' => trim((string) $request->query('q', '')),
+            'status' => QueryInput::text($request, 'status', 32),
+            'posko_id' => QueryInput::uuid($request, 'posko_id'),
+            'shift_code' => QueryInput::text($request, 'shift_code', 1),
+            'work_date' => QueryInput::date($request, 'work_date'),
+            'q' => QueryInput::text($request, 'q'),
         ];
 
         $query = WorkOrder::query()->apkuk()->with(['posko', 'penyulang', 'apkukTarget']);
@@ -53,7 +56,7 @@ class WorkOrderController extends Controller
         if (in_array($filters['shift_code'], $shiftService->codes(), true)) {
             $query->where('shift_code', $filters['shift_code']);
         }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['work_date'])) {
+        if ($filters['work_date'] !== '') {
             $query->whereDate('work_date', $filters['work_date']);
         }
         if ($filters['q'] !== '') {
@@ -64,7 +67,10 @@ class WorkOrderController extends Controller
             });
         }
 
-        $work_orders = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
+        $work_orders = $query->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString()
+            ->tap(DataLoader::withinRange(...));
 
         $currentShift = fn () => WorkOrder::query()->apkuk()
             ->whereDate('work_date', $today)
@@ -123,8 +129,8 @@ class WorkOrderController extends Controller
     public function create(Request $request, ApkukCandidateService $candidateService, ShiftService $shiftService): View
     {
         $filters = [
-            'penyulang_id' => (string) $request->query('penyulang_id', ''),
-            'q' => trim((string) $request->query('q', '')),
+            'penyulang_id' => QueryInput::uuid($request, 'penyulang_id'),
+            'q' => QueryInput::text($request, 'q'),
             'show' => $request->query('show') === 'all' ? 'all' : 'eligible',
         ];
 

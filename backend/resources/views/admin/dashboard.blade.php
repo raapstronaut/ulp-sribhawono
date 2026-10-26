@@ -229,13 +229,20 @@
             <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
                 <div>
                     <h2 class="text-sm font-bold text-slate-900">Status Data dan Peta</h2>
-                    <p class="text-[10px] text-emerald-700">{{ $dataReadiness['masters']['active_poskos'] }} Posko · {{ $dataReadiness['masters']['active_penyulangs'] }} Penyulang dari master</p>
+                    <p class="text-[10px] text-emerald-700">{{ $dataReadiness['masters']['active_poskos'] }} Posko · {{ $dataReadiness['masters']['active_penyulangs'] }} Penyulang dari master{{ $dataReadiness['map']['available'] ? ' · Peta Jaringan aktif' : '' }}</p>
                 </div>
                 <svg class="h-4 w-4 text-slate-400 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
             </summary>
             <div class="grid gap-2 border-t border-slate-100 p-3 sm:grid-cols-3">
                 @foreach(['transactions', 'network', 'map'] as $readinessKey)
-                    <div class="rounded-lg border border-amber-200 bg-amber-50 p-3"><h3 class="text-[10px] font-bold text-amber-900">{{ $dataReadiness[$readinessKey]['label'] }}</h3><p class="mt-1 text-[9px] leading-snug text-amber-800">{{ $dataReadiness[$readinessKey]['description'] }}</p></div>
+                    @php($readiness = $dataReadiness[$readinessKey])
+                    <div class="rounded-lg border p-3 {{ $readiness['available'] ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50' }}">
+                        <h3 class="text-[10px] font-bold {{ $readiness['available'] ? 'text-emerald-900' : 'text-amber-900' }}">{{ $readiness['label'] }}</h3>
+                        <p class="mt-1 text-[9px] leading-snug {{ $readiness['available'] ? 'text-emerald-800' : 'text-amber-800' }}">{{ $readiness['description'] }}</p>
+                        @if($readiness['route_name'])
+                            <a href="{{ route($readiness['route_name']) }}" class="mt-1.5 inline-block text-[10px] font-semibold text-emerald-800 hover:text-emerald-950">{{ $readiness['route_label'] }} →</a>
+                        @endif
+                    </div>
                 @endforeach
             </div>
         </details>

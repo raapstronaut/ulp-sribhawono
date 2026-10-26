@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - ULP Sribhawono</title>
+    <title>@yield('title', 'Admin Dashboard') - ULP Sribhawono</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script>
@@ -49,21 +49,7 @@
 </head>
 <body class="flex h-screen overflow-hidden bg-slate-50 text-slate-800 antialiased">
     @php
-        $pendingWorkMenus = [
-            ['label' => 'PASILA', 'icon' => 'PS'],
-            ['label' => 'Inspeksi', 'icon' => 'IN'],
-            ['label' => 'ROW', 'icon' => 'RW'],
-        ];
-        $pendingControlMenus = [
-            ['label' => 'Review & Validasi', 'icon' => 'RV'],
-            ['label' => 'Special Case', 'icon' => 'SC'],
-        ];
-        $pendingAdminMenus = [
-            ['label' => 'Master Data', 'icon' => 'MD'],
-            ['label' => 'Analitik', 'icon' => 'AN'],
-            ['label' => 'User & Hak Akses', 'icon' => 'UA'],
-            ['label' => 'Audit Log', 'icon' => 'AL'],
-        ];
+        $navigationSections = \App\Support\AdminNavigation::sections();
     @endphp
 
     <aside id="admin-sidebar" class="relative hidden h-full flex-shrink-0 flex-col border-r border-slate-200 bg-white lg:flex" aria-label="Sidebar Admin">
@@ -86,67 +72,24 @@
         </div>
 
         <nav class="sidebar-navigation flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-3" aria-label="Navigasi utama">
-            <ul class="space-y-1">
-                <li>
-                    <a href="{{ route('admin.dashboard') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="Dashboard" aria-label="Dashboard">
-                        <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
-                        <span class="sidebar-label truncate">Dashboard</span>
-                    </a>
-                </li>
-            </ul>
-
-            <div class="sidebar-section">
-                <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Pekerjaan</h2>
-                <ul class="space-y-1">
-                    <li>
-                        <a href="{{ route('admin.p0.index') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.p0.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="P0" aria-label="P0">
-                            <span class="flex h-5 w-5 shrink-0 items-center justify-center text-[10px] font-black">P0</span>
-                            <span class="sidebar-label truncate">P0</span>
-                        </a>
-                    </li>
-                    <li>
-                        <a href="{{ route('admin.work-orders.index') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.work-orders.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="Work Order" aria-label="Work Order">
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4"></path></svg>
-                            <span class="sidebar-label truncate">Work Order</span>
-                        </a>
-                    </li>
-                    @foreach ($pendingWorkMenus as $pendingMenu)
-                        <li>@include('layouts.partials.pending-menu', $pendingMenu)</li>
-                    @endforeach
-                </ul>
-            </div>
-
-            <div class="sidebar-section">
-                <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Kontrol</h2>
-                <ul class="space-y-1">
-                    <li>
-                        <a href="{{ route('admin.maps.index') }}"
-                        class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors {{ request()->routeIs('admin.maps.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}"
-                        title="Peta Jaringan">
-                            <span class="flex h-5 w-5 shrink-0 items-center justify-center text-[10px] font-black">PJ</span>
-                            <span class="sidebar-label truncate">Peta Jaringan</span>
-                        </a>
-                    </li>
-                    @foreach ($pendingControlMenus as $pendingMenu)
-                        <li>@include('layouts.partials.pending-menu', $pendingMenu)</li>
-                    @endforeach
-                </ul>
-            </div>
-
-            <div class="sidebar-section">
-                <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Data & Admin</h2>
-                <ul class="space-y-1">
-                    @foreach ($pendingAdminMenus as $pendingMenu)
-                        <li>@include('layouts.partials.pending-menu', $pendingMenu)</li>
-                    @endforeach
-                    <li>
-                        <a href="{{ route('admin.account.edit') }}" class="sidebar-link flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors {{ request()->routeIs('admin.account.*') ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50' }}" title="Pengaturan Akun" aria-label="Pengaturan Akun">
-                            <svg class="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                            <span class="sidebar-label truncate">Pengaturan Akun</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
+            @foreach ($navigationSections as $navigationSection)
+                @if ($navigationSection['label'] === null)
+                    <ul class="space-y-1">
+                        @foreach ($navigationSection['items'] as $navigationItem)
+                            <li>@include('layouts.partials.sidebar-link', ['item' => $navigationItem])</li>
+                        @endforeach
+                    </ul>
+                @else
+                    <div class="sidebar-section">
+                        <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">{{ $navigationSection['label'] }}</h2>
+                        <ul class="space-y-1">
+                            @foreach ($navigationSection['items'] as $navigationItem)
+                                <li>@include('layouts.partials.sidebar-link', ['item' => $navigationItem])</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+            @endforeach
         </nav>
 
         <div class="shrink-0 border-t border-slate-200 p-3">
@@ -172,13 +115,20 @@
                 <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
         </div>
-        <nav class="flex-1 space-y-1 overflow-y-auto p-3">
-            <a href="{{ route('admin.dashboard') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.dashboard') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Dashboard</a>
-            <a href="{{ route('admin.p0.index') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.p0.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">P0</a>
-            <a href="{{ route('admin.work-orders.index') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.work-orders.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Work Order</a>
-            <a href="{{ route('admin.maps.index') }}"class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.maps.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Peta Jaringan</a>
-            <a href="{{ route('admin.account.edit') }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ request()->routeIs('admin.account.*') ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}">Pengaturan Akun</a>
-            <p class="mt-3 border-t border-slate-100 px-3 pt-3 text-xs text-slate-400">Modul lainnya belum tersedia.</p>
+        <nav class="flex-1 overflow-y-auto p-3" aria-label="Navigasi utama seluler">
+            @foreach ($navigationSections as $navigationSection)
+                <div class="{{ $loop->first ? '' : 'mt-3 border-t border-slate-100 pt-3' }}">
+                    @if ($navigationSection['label'] !== null)
+                        <h2 class="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">{{ $navigationSection['label'] }}</h2>
+                    @endif
+                    <div class="space-y-1">
+                        @foreach ($navigationSection['items'] as $navigationItem)
+                            @php($isActiveItem = request()->routeIs($navigationItem['active']))
+                            <a href="{{ route($navigationItem['route']) }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ $isActiveItem ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}" @if ($isActiveItem) aria-current="page" @endif>{{ $navigationItem['label'] }}</a>
+                        @endforeach
+                    </div>
+                </div>
+            @endforeach
         </nav>
     </aside>
 
@@ -213,6 +163,11 @@
                 </form>
             </div>
         </header>
+
+        <div id="page-loading" class="hidden h-0.5 w-full shrink-0 overflow-hidden bg-blue-100" role="status" aria-live="polite">
+            <div class="h-full w-1/3 animate-pulse bg-blue-600"></div>
+            <span class="sr-only">Memuat data…</span>
+        </div>
 
         <div class="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5">
             @yield('content')
@@ -307,6 +262,31 @@
 
             updateClock();
             setInterval(updateClock, 60000);
+
+            // Loading state untuk filter (GET) dan pagination di halaman modul.
+            const pageLoading = document.getElementById('page-loading');
+            const showLoading = () => pageLoading?.classList.remove('hidden');
+            document.querySelectorAll('form[data-loading-form]').forEach((form) => {
+                form.addEventListener('submit', () => {
+                    form.setAttribute('aria-busy', 'true');
+                    form.querySelectorAll('[data-loading-label]').forEach((button) => {
+                        button.dataset.originalLabel ??= button.textContent;
+                        button.textContent = button.dataset.loadingLabel;
+                        button.disabled = true;
+                    });
+                    showLoading();
+                });
+            });
+            document.querySelectorAll('a[data-loading-link]').forEach((link) => link.addEventListener('click', showLoading));
+            window.addEventListener('pageshow', (event) => {
+                if (!event.persisted) return;
+                pageLoading?.classList.add('hidden');
+                document.querySelectorAll('[data-loading-label]').forEach((button) => {
+                    if (button.dataset.originalLabel) button.textContent = button.dataset.originalLabel;
+                    button.disabled = false;
+                    button.closest('form')?.removeAttribute('aria-busy');
+                });
+            });
         });
     </script>
     @yield('scripts')

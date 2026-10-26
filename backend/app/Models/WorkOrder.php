@@ -20,6 +20,12 @@ class WorkOrder extends Model
     public const TEAM_ROW = 'ROW';
 
     public const TYPE_PEMASANGAN_APKUK = 'PEMASANGAN_APKUK';
+    public const TYPE_PEKERJAAN_KHUSUS = 'PEKERJAAN_KHUSUS';
+    public const TYPE_RABAS = 'RABAS';
+    public const TYPE_PANGKAS = 'PANGKAS';
+    public const TYPE_TEBANG = 'TEBANG';
+
+    public const ROW_WORK_TYPES = [self::TYPE_RABAS, self::TYPE_PANGKAS, self::TYPE_TEBANG];
 
     public const SOURCE_ADMIN_MANUAL = 'ADMIN_MANUAL';
     public const SOURCE_SYSTEM = 'SYSTEM';
@@ -136,6 +142,16 @@ class WorkOrder extends Model
     public function scopeOverdue(Builder $query, ?CarbonInterface $now = null): Builder
     {
         return $query->active()->whereNotNull('due_at')->where('due_at', '<', $now ?? now());
+    }
+
+    /**
+     * Pembatalan Admin baru disahkan dan diuji untuk WO APKUK POSKO. Aturan batal
+     * WO ROW/HARSUS (child eskalasi, WO otomatis ROW) belum diputuskan.
+     */
+    public function supportsAdminCancellation(): bool
+    {
+        return $this->team_type === self::TEAM_POSKO
+            && $this->work_type === self::TYPE_PEMASANGAN_APKUK;
     }
 
     public function isOverdue(?CarbonInterface $now = null): bool

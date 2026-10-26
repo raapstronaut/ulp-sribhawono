@@ -90,10 +90,14 @@ class DashboardService
             'pasila' => $this->unavailableMetric(
                 'PASILA',
                 'Sesi PASILA pada shift dan Posko terkait.',
+                'admin.pasila.index',
+                'Buka halaman PASILA',
             ),
             'approvals' => $this->unavailableMetric(
                 'Menunggu Approval',
                 'P0 SYSTEM, temuan inspeksi, dan eskalasi yang perlu keputusan Admin.',
+                'admin.reviews.index',
+                'Buka Review & Validasi',
             ),
         ];
     }
@@ -139,8 +143,8 @@ class DashboardService
                 'name' => 'HARSUS',
                 'description' => 'WO pekerjaan khusus dari Admin atau hasil eskalasi.',
                 'master_context' => 'Cakupan operasional ULP',
-                'route_name' => 'admin.work-orders.index',
-                'route_label' => 'Buka Work Order',
+                'route_name' => 'admin.harsus.index',
+                'route_label' => 'Buka HARSUS',
                 'metrics' => [
                     $this->teamMetric('Aktif', 'WO khusus'),
                     $this->teamMetric('Selesai', 'Hari ini'),
@@ -150,8 +154,8 @@ class DashboardService
                 'name' => 'INSPEKSI',
                 'description' => 'Kegiatan inspeksi, hasil kunjungan, dan temuan.',
                 'master_context' => 'Cakupan operasional ULP',
-                'route_name' => null,
-                'route_label' => null,
+                'route_name' => 'admin.inspeksi.index',
+                'route_label' => 'Buka Inspeksi',
                 'metrics' => [
                     $this->teamMetric('Kegiatan', 'Hari ini'),
                     $this->teamMetric('Temuan', 'Dikirim'),
@@ -161,8 +165,8 @@ class DashboardService
                 'name' => 'ROW',
                 'description' => 'WO vegetasi RABAS, PANGKAS, dan TEBANG.',
                 'master_context' => 'Cakupan operasional ULP',
-                'route_name' => null,
-                'route_label' => null,
+                'route_name' => 'admin.row.index',
+                'route_label' => 'Buka ROW',
                 'metrics' => [
                     $this->teamMetric('RABAS', 'WO aktif'),
                     $this->teamMetric('PANGKAS', 'WO aktif'),
@@ -241,16 +245,23 @@ class DashboardService
                 'available' => false,
                 'label' => 'Domain transaksi belum tersedia',
                 'description' => 'WO, PASILA, P0, approval, inspeksi, dan ROW belum dapat dihitung.',
+                'route_name' => null,
+                'route_label' => null,
             ],
             'network' => [
                 'available' => false,
                 'label' => 'Data jaringan canonical belum siap',
                 'description' => 'Section, aset, koordinat, histori, dan foto masih menunggu validasi.',
+                'route_name' => null,
+                'route_label' => null,
             ],
+            // Peta berjalan dari data sinkron (keypoints, apkuks, gangguans), bukan aset canonical.
             'map' => [
-                'available' => false,
-                'label' => 'Peta Jaringan belum tersedia',
-                'description' => 'Peta penuh nantinya mewajibkan pemilihan satu Penyulang sebelum layer dimuat.',
+                'available' => true,
+                'label' => 'Peta Jaringan tersedia',
+                'description' => 'Marker Keypoint dan layer APKUK berkoordinat dari data sinkron, dengan pencarian dan filter Penyulang. Gangguan tampil sebagai daftar karena belum memiliki koordinat kejadian.',
+                'route_name' => 'admin.maps.index',
+                'route_label' => 'Buka Peta Jaringan',
             ],
         ];
     }

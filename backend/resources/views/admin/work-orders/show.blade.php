@@ -29,7 +29,14 @@
                 <span class="text-xs text-slate-500">{{ $wo->team_type }} • {{ $wo->work_type }} • {{ $wo->source === \App\Models\WorkOrder::SOURCE_ADMIN_MANUAL ? 'Manual Admin' : $wo->source }}</span>
             </div>
         </div>
-        <a href="{{ route('admin.work-orders.index') }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Kembali ke WO</a>
+        @php
+            $backRoute = match ($wo->team_type) {
+                \App\Models\WorkOrder::TEAM_HARSUS => ['admin.harsus.index', 'Kembali ke HARSUS'],
+                \App\Models\WorkOrder::TEAM_ROW => ['admin.row.index', 'Kembali ke ROW'],
+                default => ['admin.work-orders.index', 'Kembali ke WO'],
+            };
+        @endphp
+        <a href="{{ route($backRoute[0]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">{{ $backRoute[1] }}</a>
     </div>
 
     @if(session('status') === 'work-order-created')
@@ -70,6 +77,7 @@
             @endif
         </section>
 
+        @if($wo->work_type === \App\Models\WorkOrder::TYPE_PEMASANGAN_APKUK)
         <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h2 class="font-semibold text-slate-900 mb-4">Realisasi APKUK</h2>
             <div class="grid grid-cols-3 gap-3 text-center">
@@ -79,6 +87,7 @@
             </div>
             <p class="mt-3 text-[11px] text-slate-500">Satuan buah (bh). Realisasi terisi dari laporan petugas POSKO.</p>
         </section>
+        @endif
     </div>
 
     @if($target)
@@ -106,7 +115,7 @@
     @endif
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <section id="laporan" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h2 class="font-semibold text-slate-900">Laporan Pelaksanaan & Bukti</h2>
             @forelse($wo->reports as $report)
                 <div class="mt-4 rounded-lg border border-slate-100 p-3 text-sm">
@@ -120,7 +129,7 @@
             @endforelse
         </section>
 
-        <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+        <section id="reschedule" class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
             <h2 class="font-semibold text-slate-900">Reschedule</h2>
             @forelse($wo->reschedules as $reschedule)
                 <div class="mt-4 rounded-lg border border-slate-100 p-3 text-sm">
@@ -157,7 +166,15 @@
         </ol>
     </section>
 
-    @if($wo->status->canTransitionTo(\App\Enums\WorkOrderStatus::Dibatalkan))
+    @if($wo->status->canTransitionTo(\App\Enums\WorkOrderStatus::Dibatalkan) && ! $wo->supportsAdminCancellation())
+        <section class="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
+            <h2 class="font-semibold text-slate-900">Batalkan WO</h2>
+            <p class="text-xs text-slate-500 mt-1">Pembatalan WO {{ $wo->team_type }} belum tersedia karena aturan pembatalannya (termasuk WO limpahan eskalasi dan WO otomatis) belum disahkan.</p>
+            <div class="mt-4">
+                <x-admin.unavailable-action label="Batalkan WO" variant="secondary" reason="Pembatalan WO ROW/HARSUS belum disahkan dan belum diuji." />
+            </div>
+        </section>
+    @elseif($wo->status->canTransitionTo(\App\Enums\WorkOrderStatus::Dibatalkan))
         <section class="bg-white rounded-xl border border-red-100 shadow-sm p-6">
             <h2 class="font-semibold text-slate-900">Batalkan WO</h2>
             <p class="text-xs text-slate-500 mt-1">Pembatalan tercatat di riwayat audit dan melepas kunci tiang sehingga dapat dibuatkan WO baru.</p>

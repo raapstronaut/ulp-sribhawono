@@ -59,6 +59,12 @@ class WorkOrderLifecycleService
 
     public function cancel(WorkOrder $workOrder, User $admin, string $reason): WorkOrder
     {
+        if (! $workOrder->supportsAdminCancellation()) {
+            throw ValidationException::withMessages([
+                'status' => "Pembatalan WO {$workOrder->team_type} {$workOrder->work_type} belum tersedia karena aturan pembatalannya belum disahkan.",
+            ]);
+        }
+
         return $this->transition(
             $workOrder,
             WorkOrderStatus::Dibatalkan,
