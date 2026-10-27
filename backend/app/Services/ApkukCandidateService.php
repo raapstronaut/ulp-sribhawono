@@ -62,9 +62,11 @@ class ApkukCandidateService
     private const KEY_MAX_LENGTH = 191;
 
     /**
+     * @param  array<int, int>  $excludeApkukIds  diperlakukan seolah sudah bertanda source_missing_at
+     *                                            (simulasi dampak apkuk:reconcile; tidak menulis apa pun)
      * @return Collection<int, ApkukCandidate> keyed by apkuks.id
      */
-    public function evaluate(): Collection
+    public function evaluate(array $excludeApkukIds = []): Collection
     {
         $penyulangs = $this->penyulangLookup();
         $activeCodes = $this->activeWorkOrderCodes();
@@ -77,6 +79,11 @@ class ApkukCandidateService
                 'naik_dari', 'terpasang_bh', 'kurang_bh', 'status', 'latitude', 'longitude',
                 'source_row_number', 'sumber_input',
             ]);
+
+        if ($excludeApkukIds !== []) {
+            $excluded = array_flip($excludeApkukIds);
+            $rows = $rows->reject(fn (Apkuk $row) => isset($excluded[$row->id]));
+        }
 
         $prepared = $rows->map(function (Apkuk $row) use ($penyulangs): array {
             $rawPenyulang = self::normalizePenyulang($row->penyulang);
