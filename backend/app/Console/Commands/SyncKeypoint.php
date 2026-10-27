@@ -2,13 +2,15 @@
 
 namespace App\Console\Commands;
 
-use Google\Client;
-use Google\Service\Sheets;
+use App\Console\Commands\Concerns\ReportsSyncResult;
+use App\Services\GoogleSheetValues;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class SyncKeypoint extends Command
 {
+    use ReportsSyncResult;
+
     protected $signature = 'keypoint:sync {--dry-run : Periksa sumber dan identitas, tanpa menyimpan ke PostgreSQL}';
 
     protected $description = 'Sinkronisasi KEYPOINT_RAW MASTER_DATA ke tabel keypoints';
@@ -18,7 +20,7 @@ class SyncKeypoint extends Command
 
     private const SOURCE = 'SPS_BOS';
 
-    public function handle(): int
+    public function handle(GoogleSheetValues $sheets): int
     {
         $credentialsPath = config('services.google_sheets.credentials_path');
         $spreadsheetId = config('services.google_sheets.spreadsheet_id');
@@ -29,16 +31,12 @@ class SyncKeypoint extends Command
         }
 
         try {
-            $client = new Client();
-            $client->setAuthConfig($credentialsPath);
-            $client->setScopes([Sheets::SPREADSHEETS_READONLY]);
-            $service = new Sheets($client);
-            $result = $service->spreadsheets_values->get(
+            $rows = $sheets->get(
+                $credentialsPath,
                 $spreadsheetId,
                 "'KEYPOINT_RAW'!A1:E",
                 ['valueRenderOption' => 'UNFORMATTED_VALUE']
             );
-            $rows = $result->getValues() ?? [];
         } catch (\Throwable $e) {
             $this->error('Google Sheets gagal dibaca: ' . $e->getMessage());
             return self::FAILURE;
@@ -134,9 +132,7 @@ class SyncKeypoint extends Command
 
         if ($issues !== []) {
             $this->error('Ada data yang perlu diperbaiki. PostgreSQL tidak diubah:');
-            foreach (array_slice($issues, 0, 20) as $issue) {
-                $this->line(' - ' . $issue);
-            }
+            $this->listLimited($issues);
             return self::FAILURE;
         }
 
