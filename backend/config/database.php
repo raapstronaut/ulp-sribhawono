@@ -95,7 +95,8 @@ return [
             'charset' => env('DB_CHARSET', 'utf8'),
             'prefix' => '',
             'prefix_indexes' => true,
-            'search_path' => 'public',
+            // Default public. Dapat diarahkan ke schema terisolasi untuk uji lokal (DB_SEARCH_PATH).
+            'search_path' => env('DB_SEARCH_PATH', 'public'),
             'sslmode' => env('DB_SSLMODE', 'prefer'),
             'sslrootcert' => env('DB_SSLROOTCERT'),
             // pdo_pgsql meneruskan ATTR_TIMEOUT sebagai libpq connect_timeout (default 30 detik

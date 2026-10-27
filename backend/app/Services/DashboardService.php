@@ -2,267 +2,309 @@
 
 namespace App\Services;
 
+use App\Enums\WorkOrderStatus;
+use App\Models\Inspection;
+use App\Models\InspectionFinding;
 use App\Models\Penyulang;
 use App\Models\Posko;
-use Carbon\Carbon;
+use App\Models\WorkEscalation;
+use App\Models\WorkOrder;
+use App\Models\WorkOrderIssue;
+use App\Models\WorkOrderReport;
+use App\Models\WorkOrderReschedule;
+use App\Models\WorkOrderStatusLog;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
+/**
+ * Data Dashboard Admin dari database operasional. Tidak ada angka contoh: bila tabel
+ * kosong, nilai 0 / daftar kosong ditampilkan apa adanya.
+ */
 class DashboardService
 {
-    private const APKUK_TARGET_PER_POSKO_SHIFT = 6;
+    public const APKUK_TARGET_PER_POSKO_SHIFT = 6;
+
+    public const PERIODS = ['today' => 'Hari ini', '7d' => '7 hari', '30d' => '30 hari'];
+
+    // Pengelompokan status untuk ringkasan operasional.
+    public const STATUS_GROUPS = [
+        'belum' => [WorkOrderStatus::Ditugaskan, WorkOrderStatus::DijadwalkanUlang],
+        'dikerjakan' => [WorkOrderStatus::Dikerjakan],
+        'menunggu' => [WorkOrderStatus::MenungguVerifikasi, WorkOrderStatus::RescheduleDiajukan],
+        'selesai' => [WorkOrderStatus::Selesai, WorkOrderStatus::SelesaiDiteruskan],
+        'batal' => [WorkOrderStatus::Dibatalkan],
+    ];
+
+    public const GROUP_LABELS = [
+        'belum' => 'Belum dikerjakan',
+        'dikerjakan' => 'Sedang dikerjakan',
+        'menunggu' => 'Menunggu keputusan',
+        'selesai' => 'Selesai',
+        'batal' => 'Dibatalkan',
+    ];
 
     public function __construct(private readonly ShiftService $shiftService) {}
 
     /**
-     * Build the Admin Dashboard contract from available master data.
-     * Transaction values stay null until their canonical domains exist.
+     * @return array<string, mixed>
      */
-    public function getDashboardData(): array
+    public function getDashboardData(string $period = 'today'): array
     {
-        $now = Carbon::now(ShiftService::TIMEZONE);
+        $period = array_key_exists($period, self::PERIODS) ? $period : 'today';
+        $now = CarbonImmutable::now(ShiftService::TIMEZONE);
         $shift = $this->shiftService->current($now);
-        $poskos = Posko::query()
-            ->where('is_active', true)
-            ->orderBy('nama_posko')
-            ->get();
-        $activePenyulangCount = Penyulang::query()
-            ->where('is_active', true)
-            ->count();
+        $from = match ($period) {
+            '7d' => $now->subDays(6)->startOfDay(),
+            '30d' => $now->subDays(29)->startOfDay(),
+            default => $now->startOfDay(),
+        };
+        $poskos = Posko::query()->where('is_active', true)->orderBy('nama_posko')->get();
 
         return [
-            'context' => $this->getContext($now, $shift, $poskos),
+            'context' => [
+                'updated_at' => $now->toIso8601String(),
+                'updated_at_label' => $now->format('d-m-Y H:i').' WIB',
+                'period' => $period,
+                'period_label' => self::PERIODS[$period],
+                'period_from' => $from->toDateString(),
+                'active_poskos' => $poskos->count(),
+                'active_penyulangs' => Penyulang::query()->where('is_active', true)->count(),
+            ],
             'shiftData' => $shift,
-            'kpis' => $this->getKpis(),
-            'teamSummaries' => $this->getTeamSummaries($poskos->count()),
-            'poskoStatuses' => $this->getPoskoStatuses($poskos, $shift),
-            'adminActionSummaries' => $this->getAdminActionSummaries(),
-            'recentActivities' => $this->getRecentActivities(),
-            'dataReadiness' => $this->getDataReadiness($poskos->count(), $activePenyulangCount),
+            'kpis' => $this->kpis($from, $now),
+            'statusGroups' => $this->statusGroups(),
+            'teamSummaries' => $this->teamSummaries($from),
+            'poskoStatuses' => $this->poskoStatuses($poskos, $shift, $now),
+            'byPenyulang' => $this->byPenyulang(),
+            'trend' => $this->trend($now),
+            'apkuk' => $this->apkuk($from),
+            'gangguan' => $this->gangguan($now),
+            'inspection' => $this->inspection($now),
+            'pending' => $this->pending(),
+            'recentActivities' => $this->recentActivities(),
         ];
     }
 
-    private function getContext(Carbon $now, array $shift, Collection $poskos): array
+    /**
+     * @return array<string, int>
+     */
+    private function kpis(CarbonImmutable $from, CarbonImmutable $now): array
+    {
+        $values = fn (array $statuses) => array_map(fn (WorkOrderStatus $s) => $s->value, $statuses);
+
+        return [
+            'total' => WorkOrder::query()->count(),
+            'active' => WorkOrder::query()->active()->count(),
+            'belum' => WorkOrder::query()->whereIn('status', $values(self::STATUS_GROUPS['belum']))->count(),
+            'dikerjakan' => WorkOrder::query()->whereIn('status', $values(self::STATUS_GROUPS['dikerjakan']))->count(),
+            'menunggu' => WorkOrder::query()->whereIn('status', $values(self::STATUS_GROUPS['menunggu']))->count(),
+            'selesai_periode' => WorkOrder::query()->whereIn('status', $values(self::STATUS_GROUPS['selesai']))
+                ->whereBetween('completed_at', [$from->utc(), $now->utc()])->count(),
+            'dibuat_periode' => WorkOrder::query()->whereBetween('created_at', [$from->utc(), $now->utc()])->count(),
+            'terlambat' => WorkOrder::query()->overdue()->count(),
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function statusGroups(): array
+    {
+        $counts = WorkOrder::query()->select('status', DB::raw('count(*) as total'))->groupBy('status')->pluck('total', 'status');
+        $result = [];
+        foreach (self::STATUS_GROUPS as $group => $statuses) {
+            $result[$group] = (int) collect($statuses)->sum(fn (WorkOrderStatus $s) => $counts[$s->value] ?? 0);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function teamSummaries(CarbonImmutable $from): array
+    {
+        $rows = WorkOrder::query()->select('team_type', 'status', DB::raw('count(*) as total'))->groupBy('team_type', 'status')->toBase()->get();
+        $overdue = WorkOrder::query()->overdue()->select('team_type', DB::raw('count(*) as total'))->groupBy('team_type')->pluck('total', 'team_type');
+        $done = WorkOrder::query()->where('status', WorkOrderStatus::Selesai->value)->where('completed_at', '>=', $from->utc())
+            ->select('team_type', DB::raw('count(*) as total'))->groupBy('team_type')->pluck('total', 'team_type');
+
+        $summaries = [];
+        foreach (WorkOrder::TEAM_LABELS as $team => $label) {
+            $teamRows = $rows->where('team_type', $team);
+            $summaries[] = [
+                'team' => $team,
+                'label' => $label,
+                'work_types' => array_map(fn ($t) => WorkOrder::WORK_TYPE_LABELS[$t], WorkOrder::WORK_TYPES_BY_TEAM[$team]),
+                'active' => (int) $teamRows->filter(fn ($r) => WorkOrderStatus::from($r->status)->isActive())->sum('total'),
+                'waiting' => (int) $teamRows->whereIn('status', [WorkOrderStatus::MenungguVerifikasi->value, WorkOrderStatus::RescheduleDiajukan->value])->sum('total'),
+                'overdue' => (int) ($overdue[$team] ?? 0),
+                'completed_period' => (int) ($done[$team] ?? 0),
+                'route' => match ($team) {
+                    WorkOrder::TEAM_HARSUS => 'admin.harsus.index',
+                    WorkOrder::TEAM_ROW => 'admin.row.index',
+                    default => 'admin.work-orders.index',
+                },
+            ];
+        }
+
+        return $summaries;
+    }
+
+    /**
+     * Progres WO APKUK per Posko pada shift berjalan terhadap target 6 WO per shift.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function poskoStatuses(Collection $poskos, array $shift, CarbonImmutable $now): array
+    {
+        $rows = WorkOrder::query()->apkuk()
+            ->whereDate('work_date', $now->toDateString())
+            ->where('shift_code', $shift['code'])
+            ->where('status', '!=', WorkOrderStatus::Dibatalkan->value)
+            ->select('posko_id', 'status', DB::raw('count(*) as total'))
+            ->groupBy('posko_id', 'status')
+            ->toBase()
+            ->get();
+        $overdue = WorkOrder::query()->overdue()->whereNotNull('posko_id')->select('posko_id', DB::raw('count(*) as total'))->groupBy('posko_id')->pluck('total', 'posko_id');
+        $teams = DB::table('field_teams')->where('role', 'POSKO')->whereNotNull('posko_id')->select('posko_id', DB::raw('count(*) as total'))->groupBy('posko_id')->pluck('total', 'posko_id');
+
+        return $poskos->map(function (Posko $posko) use ($rows, $overdue, $teams): array {
+            $posRows = $rows->where('posko_id', $posko->id);
+
+            return [
+                'id' => $posko->id,
+                'name' => $posko->nama_posko,
+                'apkuk_target' => self::APKUK_TARGET_PER_POSKO_SHIFT,
+                'apkuk_total' => (int) $posRows->sum('total'),
+                'apkuk_completed' => (int) $posRows->where('status', WorkOrderStatus::Selesai->value)->sum('total'),
+                'apkuk_active' => (int) $posRows->filter(fn ($r) => WorkOrderStatus::from($r->status)->isActive())->sum('total'),
+                'overdue' => (int) ($overdue[$posko->id] ?? 0),
+                'teams' => (int) ($teams[$posko->id] ?? 0),
+            ];
+        })->values()->all();
+    }
+
+    /**
+     * @return array<int, array{name: string, active: int, overdue: int}>
+     */
+    private function byPenyulang(): array
+    {
+        $active = WorkOrder::query()->active()->whereNotNull('penyulang_id')->select('penyulang_id', DB::raw('count(*) as total'))->groupBy('penyulang_id')->pluck('total', 'penyulang_id');
+        $overdue = WorkOrder::query()->overdue()->whereNotNull('penyulang_id')->select('penyulang_id', DB::raw('count(*) as total'))->groupBy('penyulang_id')->pluck('total', 'penyulang_id');
+
+        return Penyulang::query()->where('is_active', true)->orderBy('kode_penyulang')->get()
+            ->map(fn (Penyulang $p) => ['name' => $p->nama_penyulang, 'active' => (int) ($active[$p->id] ?? 0), 'overdue' => (int) ($overdue[$p->id] ?? 0)])
+            ->sortByDesc('active')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * WO dibuat vs diselesaikan per hari WIB, 14 hari terakhir.
+     *
+     * @return array<int, array{date: string, label: string, created: int, completed: int}>
+     */
+    private function trend(CarbonImmutable $now): array
+    {
+        $start = $now->subDays(13)->startOfDay();
+        $created = WorkOrder::query()->where('created_at', '>=', $start->utc())->get(['created_at'])
+            ->countBy(fn ($wo) => $wo->created_at->copy()->timezone(ShiftService::TIMEZONE)->toDateString());
+        $completed = WorkOrder::query()->whereNotNull('completed_at')->where('completed_at', '>=', $start->utc())->get(['completed_at'])
+            ->countBy(fn ($wo) => $wo->completed_at->copy()->timezone(ShiftService::TIMEZONE)->toDateString());
+
+        $days = [];
+        for ($day = $start; $day->lte($now); $day = $day->addDay()) {
+            $key = $day->toDateString();
+            $days[] = ['date' => $key, 'label' => $day->format('d/m'), 'created' => (int) ($created[$key] ?? 0), 'completed' => (int) ($completed[$key] ?? 0)];
+        }
+
+        return $days;
+    }
+
+    /**
+     * @return array<string, int|string|null>
+     */
+    private function apkuk(CarbonImmutable $from): array
     {
         return [
-            'updated_at' => $now->toIso8601String(),
-            'updated_at_label' => $now->format('d-m-Y H:i').' WIB',
-            'period_label' => 'Shift berjalan',
-            'filters' => [
-                'available' => false,
-                'reason' => 'Filter periode, shift, dan Posko akan diaktifkan setelah transaksi operasional tersedia.',
-                'period' => 'Shift berjalan',
-                'shift' => $shift['code'],
-                'poskos' => $poskos->map(fn (Posko $posko): array => [
-                    'id' => $posko->id,
-                    'name' => $posko->nama_posko,
-                ])->values()->all(),
-            ],
+            'active_reports' => DB::table('apkuks')->whereNull('source_missing_at')->count(),
+            'history_reports' => DB::table('apkuks')->whereNotNull('source_missing_at')->count(),
+            'last_synced_at' => DB::table('apkuks')->max('last_synced_at'),
+            'wo_active' => WorkOrder::query()->apkuk()->active()->count(),
+            'installed_period' => (int) DB::table('work_order_apkuk_targets as t')
+                ->join('work_orders as w', 'w.id', '=', 't.work_order_id')
+                ->where('w.completed_at', '>=', $from->utc())
+                ->sum('t.installed_quantity'),
         ];
     }
 
-    private function getKpis(): array
+    /**
+     * @return array<string, mixed>
+     */
+    private function gangguan(CarbonImmutable $now): array
+    {
+        $since30 = $now->subDays(29)->toDateString();
+
+        return [
+            'last_7_days' => DB::table('gangguans')->where('tanggal_kejadian', '>=', $now->subDays(6)->toDateString())->count(),
+            'last_30_days' => DB::table('gangguans')->where('tanggal_kejadian', '>=', $since30)->count(),
+            'top_penyulang' => DB::table('gangguans')->where('tanggal_kejadian', '>=', $since30)->whereNotNull('penyulang')
+                ->select('penyulang', DB::raw('count(*) as total'))->groupBy('penyulang')->orderByDesc('total')->limit(5)->get()
+                ->map(fn ($r) => ['name' => $r->penyulang, 'total' => (int) $r->total])->all(),
+            'last_synced_at' => DB::table('gangguans')->max('last_synced_at'),
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function inspection(CarbonImmutable $now): array
+    {
+        $today = $now->startOfDay()->utc();
+
+        return [
+            'visits_today' => Inspection::query()->where('visited_at', '>=', $today)->count(),
+            'findings_today' => InspectionFinding::query()->whereHas('inspection', fn ($q) => $q->where('visited_at', '>=', $today))->count(),
+        ];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function pending(): array
     {
         return [
-            'wo_active' => $this->unavailableMetric(
-                'WO Aktif',
-                'Pekerjaan yang sedang ditugaskan atau dikerjakan.',
-                'admin.work-orders.index',
-                'Buka halaman Work Order',
-            ),
-            'wo_completed' => $this->unavailableMetric(
-                'WO Selesai',
-                'Pekerjaan selesai pada periode yang dipilih.',
-                'admin.work-orders.index',
-                'Buka halaman Work Order',
-            ),
-            'wo_overdue' => $this->unavailableMetric(
-                'WO Terlambat',
-                'Pekerjaan melewati jadwal dan perlu perhatian.',
-                'admin.work-orders.index',
-                'Buka halaman Work Order',
-            ),
-            'p0_active' => $this->unavailableMetric(
-                'P0 Aktif',
-                'P0 POSKO yang terkait dengan PASILA.',
-                'admin.p0.index',
-                'Buka halaman P0',
-            ),
-            'pasila' => $this->unavailableMetric(
-                'PASILA',
-                'Sesi PASILA pada shift dan Posko terkait.',
-                'admin.pasila.index',
-                'Buka halaman PASILA',
-            ),
-            'approvals' => $this->unavailableMetric(
-                'Menunggu Approval',
-                'P0 SYSTEM, temuan inspeksi, dan eskalasi yang perlu keputusan Admin.',
-                'admin.reviews.index',
-                'Buka Review & Validasi',
-            ),
+            'reports' => WorkOrderReport::query()->where('verification_status', WorkOrderReport::VERIFICATION_MENUNGGU)->count(),
+            'reschedules' => WorkOrderReschedule::query()->where('status', WorkOrderReschedule::STATUS_MENUNGGU_ACC)->count(),
+            'escalations' => WorkEscalation::query()->where('status', WorkEscalation::STATUS_MENUNGGU_ACC)->count(),
+            'findings' => InspectionFinding::query()->where('validation_status', InspectionFinding::VALIDATION_MENUNGGU)->count(),
+            'issues' => WorkOrderIssue::query()->where('status', WorkOrderIssue::STATUS_TERBUKA)->count(),
         ];
     }
 
-    private function unavailableMetric(
-        string $title,
-        string $description,
-        ?string $routeName = null,
-        ?string $routeLabel = null,
-    ): array {
-        return [
-            'title' => $title,
-            'value' => null,
-            'available' => false,
-            'status' => 'Data belum tersedia',
-            'description' => $description,
-            'navigation' => [
-                'available' => $routeName !== null,
-                'route_name' => $routeName,
-                'label' => $routeLabel,
-                'filter_applied' => false,
-            ],
-        ];
-    }
-
-    private function getTeamSummaries(int $activePoskoCount): array
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function recentActivities(): array
     {
-        return [
-            'posko' => [
-                'name' => 'POSKO',
-                'description' => 'WO APKUK, PASILA, P0, dan reschedule per shift.',
-                'master_context' => "{$activePoskoCount} Posko aktif pada master",
-                'route_name' => 'admin.work-orders.index',
-                'route_label' => 'Buka Work Order',
-                'metrics' => [
-                    $this->teamMetric('APKUK', 'WO shift'),
-                    $this->teamMetric('PASILA', 'Sesi shift'),
-                    $this->teamMetric('P0', 'Pekerjaan aktif'),
-                    $this->teamMetric('Reschedule', 'Perlu tindak lanjut'),
-                ],
-            ],
-            'harsus' => [
-                'name' => 'HARSUS',
-                'description' => 'WO pekerjaan khusus dari Admin atau hasil eskalasi.',
-                'master_context' => 'Cakupan operasional ULP',
-                'route_name' => 'admin.harsus.index',
-                'route_label' => 'Buka HARSUS',
-                'metrics' => [
-                    $this->teamMetric('Aktif', 'WO khusus'),
-                    $this->teamMetric('Selesai', 'Hari ini'),
-                ],
-            ],
-            'inspeksi' => [
-                'name' => 'INSPEKSI',
-                'description' => 'Kegiatan inspeksi, hasil kunjungan, dan temuan.',
-                'master_context' => 'Cakupan operasional ULP',
-                'route_name' => 'admin.inspeksi.index',
-                'route_label' => 'Buka Inspeksi',
-                'metrics' => [
-                    $this->teamMetric('Kegiatan', 'Hari ini'),
-                    $this->teamMetric('Temuan', 'Dikirim'),
-                ],
-            ],
-            'row' => [
-                'name' => 'ROW',
-                'description' => 'WO vegetasi RABAS, PANGKAS, dan TEBANG.',
-                'master_context' => 'Cakupan operasional ULP',
-                'route_name' => 'admin.row.index',
-                'route_label' => 'Buka ROW',
-                'metrics' => [
-                    $this->teamMetric('RABAS', 'WO aktif'),
-                    $this->teamMetric('PANGKAS', 'WO aktif'),
-                    $this->teamMetric('TEBANG', 'WO aktif'),
-                ],
-            ],
-        ];
-    }
-
-    private function teamMetric(string $label, string $detail): array
-    {
-        return [
-            'label' => $label,
-            'detail' => $detail,
-            'value' => null,
-            'available' => false,
-        ];
-    }
-
-    private function getPoskoStatuses(Collection $poskos, array $shift): array
-    {
-        return $poskos->map(fn (Posko $posko): array => [
-            'id' => $posko->id,
-            'code' => $posko->kode_posko,
-            'name' => $posko->nama_posko,
-            'shift_code' => $shift['code'],
-            'shift_name' => $shift['name'],
-            'apkuk_target' => self::APKUK_TARGET_PER_POSKO_SHIFT,
-            'apkuk_completed' => null,
-            'pasila_status' => null,
-            'p0_status' => null,
-            'attention' => null,
-            'transactions_available' => false,
-        ])->values()->all();
-    }
-
-    private function getAdminActionSummaries(): array
-    {
-        return [
-            $this->unavailableAdminAction('P0 SYSTEM menunggu ACC', 'Usulan P0 otomatis yang perlu keputusan Admin.'),
-            $this->unavailableAdminAction('Temuan INSPEKSI', 'Temuan yang menunggu validasi dan penentuan tindak lanjut.'),
-            $this->unavailableAdminAction('Eskalasi lintas tim', 'Permintaan eskalasi yang menunggu keputusan Admin.'),
-            $this->unavailableAdminAction('Kebutuhan pengganti P0', 'Pengganti manual setelah usulan P0 SYSTEM ditolak.'),
-        ];
-    }
-
-    private function unavailableAdminAction(string $title, string $description): array
-    {
-        return [
-            'title' => $title,
-            'description' => $description,
-            'count' => null,
-            'available' => false,
-            'route_name' => null,
-        ];
-    }
-
-    private function getRecentActivities(): array
-    {
-        return [
-            'available' => false,
-            'reason' => 'Aktivitas akan ditampilkan setelah event pekerjaan dan audit operasional tersedia.',
-            'items' => [],
-        ];
-    }
-
-    private function getDataReadiness(int $activePoskoCount, int $activePenyulangCount): array
-    {
-        return [
-            'masters' => [
-                'available' => true,
-                'active_poskos' => $activePoskoCount,
-                'active_penyulangs' => $activePenyulangCount,
-            ],
-            'transactions' => [
-                'available' => false,
-                'label' => 'Domain transaksi belum tersedia',
-                'description' => 'WO, PASILA, P0, approval, inspeksi, dan ROW belum dapat dihitung.',
-                'route_name' => null,
-                'route_label' => null,
-            ],
-            'network' => [
-                'available' => false,
-                'label' => 'Data jaringan canonical belum siap',
-                'description' => 'Section, aset, koordinat, histori, dan foto masih menunggu validasi.',
-                'route_name' => null,
-                'route_label' => null,
-            ],
-            // Peta berjalan dari data sinkron (keypoints, apkuks, gangguans), bukan aset canonical.
-            'map' => [
-                'available' => true,
-                'label' => 'Peta Jaringan tersedia',
-                'description' => 'Marker Keypoint dan layer APKUK berkoordinat dari data sinkron, dengan pencarian dan filter Penyulang. Gangguan tampil sebagai daftar karena belum memiliki koordinat kejadian.',
-                'route_name' => 'admin.maps.index',
-                'route_label' => 'Buka Peta Jaringan',
-            ],
-        ];
+        return WorkOrderStatusLog::query()
+            ->with(['workOrder:id,code,team_type,work_type', 'actor:id,username,name'])
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit(10)
+            ->get()
+            ->map(fn (WorkOrderStatusLog $log) => [
+                'id' => $log->id,
+                'work_order_id' => $log->work_order_id,
+                'code' => $log->workOrder?->code,
+                'action' => $log->action,
+                'action_label' => WorkOrderStatusLog::ACTION_LABELS[$log->action] ?? $log->action,
+                'to_status' => $log->to_status,
+                'actor' => $log->actor?->displayName() ?? 'Sistem',
+                'at' => $log->created_at?->copy()->timezone(ShiftService::TIMEZONE)->format('d/m H:i'),
+            ])
+            ->all();
     }
 }

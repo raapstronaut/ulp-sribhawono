@@ -108,7 +108,7 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)->get('/admin/pasila/9d3b1a4e-0000-4000-8000-000000000000')->assertNotFound();
     }
 
-    public function test_inspeksi_is_honest_skeleton_with_real_team_roster(): void
+    public function test_inspeksi_lists_visits_with_real_team_roster(): void
     {
         $team = FieldTeam::create(['code' => 'INSPEKSI-1', 'name' => 'Tim Inspeksi ULP', 'role' => 'INSPEKSI']);
         $team->personnel()->create(['name' => 'Petugas Satu']);
@@ -117,19 +117,14 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.inspeksi.index'))
             ->assertOk()
-            ->assertSee('Domain Inspeksi belum dibangun')
-            ->assertSee('Kerangka · domain belum dibangun')
+            ->assertSee('Data asli')
             ->assertSee('Tim Inspeksi ULP')
             ->assertSee('1 petugas aktif')
-            ->assertDontSee('Tim ROW ULP')
-            ->assertSee('Belum ada temuan inspeksi.')
-            ->assertSee('Filter belum aktif');
+            ->assertSee('Belum ada kunjungan inspeksi.')
+            ->assertSee(route('admin.inspeksi.create'), false);
 
-        $this->actingAs($this->admin)
-            ->get(route('admin.inspeksi.show', 'INS-404'))
-            ->assertNotFound()
-            ->assertSee('Data inspeksi tidak ditemukan.')
-            ->assertSee('INS-404');
+        // ID bukan UUID ditolak 404 setelah otorisasi Admin, tanpa error database.
+        $this->actingAs($this->admin)->get('/admin/inspeksi/INS-404')->assertNotFound();
     }
 
     public function test_row_page_lists_only_row_work_orders_with_filters_and_pagination(): void
@@ -224,7 +219,6 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.work-orders.show', $row))
             ->assertOk()
-            ->assertSee('Kembali ke ROW')
             ->assertSee(route('admin.row.index'), false)
             ->assertDontSee('Realisasi APKUK')
             ->assertSee('id="laporan"', false)
@@ -234,72 +228,52 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.work-orders.show', $apkuk))
             ->assertOk()
-            ->assertSee('Kembali ke WO')
+            ->assertSee(route('admin.work-orders.index'), false)
             ->assertSee('Realisasi APKUK');
     }
 
-    public function test_admin_cannot_cancel_row_or_harsus_work_orders_until_rules_exist(): void
+    public function test_admin_can_cancel_manual_row_and_harsus_but_not_escalation_or_system_work_orders(): void
     {
+        // WO manual Admin tanpa keterlibatan limpahan: dapat dibatalkan dengan alasan dan audit.
         foreach ([[WorkOrder::TEAM_ROW, WorkOrder::TYPE_RABAS], [WorkOrder::TEAM_HARSUS, WorkOrder::TYPE_PEKERJAAN_KHUSUS]] as [$team, $type]) {
             $wo = $this->makeWorkOrder(['team_type' => $team, 'work_type' => $type, 'shift_code' => null]);
-
+            $this->actingAs($this->admin)->get(route('admin.work-orders.show', $wo))
+                ->assertSee('action="'.route('admin.work-orders.cancel', $wo).'"', false);
             $this->actingAs($this->admin)
-                ->get(route('admin.work-orders.show', $wo))
-                ->assertOk()
-                ->assertSee("Pembatalan WO {$team} belum tersedia")
-                ->assertDontSee('action="'.route('admin.work-orders.cancel', $wo).'"', false)
-                ->assertDontSee('name="cancel_reason"', false);
+                ->post(route('admin.work-orders.cancel', $wo), ['cancel_reason' => 'Pekerjaan digabung'])
+                ->assertRedirect(route('admin.work-orders.show', $wo))
+                ->assertSessionHasNoErrors();
+            $this->assertSame(WorkOrderStatus::Dibatalkan, $wo->refresh()->status);
+        }
 
+        // WO otomatis sistem dan child limpahan: aturan batal belum disahkan.
+        $source = $this->makeWorkOrder(['code' => 'WO-SUMBER', 'status' => WorkOrderStatus::SelesaiDiteruskan]);
+        $blocked = [
+            $this->makeWorkOrder(['team_type' => WorkOrder::TEAM_ROW, 'work_type' => WorkOrder::TYPE_RABAS, 'source' => WorkOrder::SOURCE_SYSTEM, 'shift_code' => null]),
+            $this->makeWorkOrder(['team_type' => WorkOrder::TEAM_HARSUS, 'work_type' => WorkOrder::TYPE_PEKERJAAN_KHUSUS, 'source' => WorkOrder::SOURCE_ESCALATION, 'parent_work_order_id' => $source->id, 'shift_code' => null]),
+        ];
+        foreach ($blocked as $wo) {
+            $this->actingAs($this->admin)->get(route('admin.work-orders.show', $wo))
+                ->assertOk()
+                ->assertSee('belum dapat dibatalkan')
+                ->assertDontSee('name="cancel_reason"', false);
             $this->actingAs($this->admin)
                 ->from(route('admin.work-orders.show', $wo))
                 ->post(route('admin.work-orders.cancel', $wo), ['cancel_reason' => 'Coba batalkan langsung'])
                 ->assertRedirect(route('admin.work-orders.show', $wo))
                 ->assertSessionHasErrors('status');
-
-            $wo->refresh();
-            $this->assertSame(WorkOrderStatus::Ditugaskan, $wo->status);
-            $this->assertNull($wo->cancelled_at);
-            $this->assertNull($wo->cancel_reason);
+            $this->assertSame(WorkOrderStatus::Ditugaskan, $wo->refresh()->status);
             $this->assertSame(0, WorkOrderStatusLog::query()->where('work_order_id', $wo->id)->count());
         }
-
-        // Kontrol: WO APKUK tetap dapat dibatalkan melalui alur beraudit yang sama.
-        $apkuk = $this->makeWorkOrder();
-        $this->actingAs($this->admin)
-            ->get(route('admin.work-orders.show', $apkuk))
-            ->assertSee('action="'.route('admin.work-orders.cancel', $apkuk).'"', false);
-        $this->actingAs($this->admin)
-            ->post(route('admin.work-orders.cancel', $apkuk), ['cancel_reason' => 'Salah pilih POSKO'])
-            ->assertRedirect(route('admin.work-orders.show', $apkuk))
-            ->assertSessionHasNoErrors();
-        $this->assertSame(WorkOrderStatus::Dibatalkan, $apkuk->refresh()->status);
-        $this->assertSame(1, WorkOrderStatusLog::query()->where('work_order_id', $apkuk->id)->where('action', WorkOrderStatusLog::ACTION_CANCELLED)->count());
     }
 
-    public function test_dashboard_reports_network_map_as_available(): void
+    public function test_dashboard_links_network_map_and_team_modules(): void
     {
-        $this->actingAs($this->admin)
-            ->getJson(route('admin.dashboard'))
-            ->assertOk()
-            ->assertJsonPath('dataReadiness.map.available', true)
-            ->assertJsonPath('dataReadiness.map.route_name', 'admin.maps.index')
-            ->assertJsonPath('dataReadiness.transactions.available', false)
-            ->assertJsonPath('dataReadiness.network.available', false);
-
         $this->actingAs($this->admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Peta Jaringan tersedia')
             ->assertSee('Buka Peta Jaringan')
-            ->assertSee('Peta Jaringan aktif')
-            ->assertDontSee('Peta Jaringan belum tersedia');
-    }
-
-    public function test_dashboard_links_team_summaries_to_new_modules(): void
-    {
-        $this->actingAs($this->admin)
-            ->get(route('admin.dashboard'))
-            ->assertOk()
+            ->assertSee(route('admin.maps.index'), false)
             ->assertSee('Buka HARSUS')
             ->assertSee('Buka Inspeksi')
             ->assertSee('Buka ROW')

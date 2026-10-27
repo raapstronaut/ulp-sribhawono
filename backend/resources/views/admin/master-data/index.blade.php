@@ -15,10 +15,12 @@
         section="Data & Admin"
         title="Master Data"
         state="live"
-        description="Master Posko, Penyulang, tim lapangan, petugas, kode referensi, Keypoint, dan status sumber data. Seluruh tampilan baca saja."
+        description="Tim lapangan, petugas, kode referensi, dan jadwal shift dikelola di sini (tercatat di Audit Log). Posko, Penyulang, dan Keypoint adalah master resmi hasil sinkronisasi sehingga baca saja."
     >
         <x-slot:actions>
-            <x-admin.unavailable-action label="Tambah / Ubah Master" reason="Perubahan master melalui Web belum tersedia; master dikelola lewat sinkronisasi dan database dengan audit." />
+            @if (array_key_exists($tab, $manageable))
+                <x-admin.button :href="route('admin.master-data.manage.create', $manageable[$tab])">Tambah {{ \Illuminate\Support\Str::lower($tabs[$tab]) }}</x-admin.button>
+            @endif
         </x-slot:actions>
     </x-admin.page-header>
 
@@ -35,11 +37,15 @@
             @endforeach
         </nav>
 
+        @if (in_array($tab, ['posko', 'penyulang', 'keypoint'], true))
+            <p class="border-b border-slate-200 bg-slate-50 px-4 py-2 text-[11px] text-slate-600">Master resmi: {{ $tab === 'keypoint' ? 'diisi keypoint:sync dari Google Sheets' : '6 Posko dan 16 Penyulang resmi diisi topology:sync-core-masters' }}; tidak diubah dari Web agar tidak bertentangan dengan sinkronisasi.</p>
+        @endif
+
         @if ($tab !== 'sumber')
             <x-admin.filter-bar :action="route('admin.master-data.index')" :reset-url="route('admin.master-data.index', ['tab' => $tab])" :active="$hasFilter">
                 <input type="hidden" name="tab" value="{{ $tab }}">
                 <x-admin.filter-input name="q" label="Cari" :value="$filters['q']" placeholder="Nama atau kode" />
-                @if (in_array($tab, ['tim', 'petugas'], true))
+                @if (in_array($tab, ['tim', 'petugas', 'jadwal'], true))
                     <x-admin.filter-select name="role" label="Role tim" :options="$roles" :value="$filters['role']" placeholder="Semua role" />
                 @endif
                 @if ($tab === 'kode')
@@ -136,6 +142,7 @@
                             <th class="px-4 py-3">Posko</th>
                             <th class="px-4 py-3 text-right">Petugas aktif / total</th>
                             <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3 text-center">Aksi</th>
                         </x-slot:head>
                         @forelse ($rows as $team)
                             <tr class="hover:bg-slate-50/60">
@@ -144,9 +151,10 @@
                                 <td class="px-4 py-3">{{ $team->posko?->nama_posko ?? '-' }}</td>
                                 <td class="px-4 py-3 text-right">{{ $team->active_personnel_count }} / {{ $team->personnel_count }}</td>
                                 <td class="px-4 py-3"><x-admin.status-badge :tone="$team->is_active ? 'emerald' : 'slate'">{{ $team->is_active ? 'Aktif' : 'Nonaktif' }}</x-admin.status-badge></td>
+                                <td class="px-4 py-3 text-center"><a href="{{ route('admin.master-data.manage.edit', ['tim', $team->id]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Ubah</a></td>
                             </tr>
                         @empty
-                            <tr><td colspan="5"><x-admin.empty-state title="Belum ada akun tim lapangan." description="Tabel field_teams kosong atau tidak cocok dengan filter. Akun tim POSKO/HARSUS/INSPEKSI/ROW belum diisi." /></td></tr>
+                            <tr><td colspan="6"><x-admin.empty-state title="Belum ada tim lapangan." description="Tambahkan tim POSKO/HARSUS/INSPEKSI/ROW dengan tombol Tambah." /></td></tr>
                         @endforelse
                     </x-admin.table>
                     @break
@@ -158,6 +166,7 @@
                             <th class="px-4 py-3">Kode</th>
                             <th class="px-4 py-3">Tim</th>
                             <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3 text-center">Aksi</th>
                         </x-slot:head>
                         @forelse ($rows as $person)
                             <tr class="hover:bg-slate-50/60">
@@ -165,9 +174,10 @@
                                 <td class="px-4 py-3 font-mono text-xs">{{ $person->personnel_code ?? '-' }}</td>
                                 <td class="px-4 py-3">{{ $person->team?->name ?? '-' }} <span class="text-[10px] text-slate-500">{{ $person->team?->role }}</span></td>
                                 <td class="px-4 py-3"><x-admin.status-badge :tone="$person->is_active ? 'emerald' : 'slate'">{{ $person->is_active ? 'Aktif' : 'Nonaktif' }}</x-admin.status-badge></td>
+                                <td class="px-4 py-3 text-center"><a href="{{ route('admin.master-data.manage.edit', ['petugas', $person->id]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Ubah</a></td>
                             </tr>
                         @empty
-                            <tr><td colspan="4"><x-admin.empty-state title="Belum ada data petugas." description="Roster petugas resmi belum diisi ke tabel field_personnel." /></td></tr>
+                            <tr><td colspan="5"><x-admin.empty-state title="Belum ada data petugas." description="Tambahkan petugas (orang pelaksana) per tim dengan tombol Tambah." /></td></tr>
                         @endforelse
                     </x-admin.table>
                     @break
@@ -180,6 +190,7 @@
                             <th class="px-4 py-3">Label</th>
                             <th class="px-4 py-3">Role</th>
                             <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3 text-center">Aksi</th>
                         </x-slot:head>
                         @forelse ($rows as $code)
                             <tr class="hover:bg-slate-50/60">
@@ -188,9 +199,33 @@
                                 <td class="px-4 py-3">{{ $code->label }}</td>
                                 <td class="px-4 py-3 text-xs">{{ $code->role_scope ?? 'Semua' }}</td>
                                 <td class="px-4 py-3"><x-admin.status-badge :tone="$code->is_active ? 'emerald' : 'slate'">{{ $code->is_active ? 'Aktif' : 'Nonaktif' }}</x-admin.status-badge></td>
+                                <td class="px-4 py-3 text-center"><a href="{{ route('admin.master-data.manage.edit', ['kode', $code->id]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Ubah</a></td>
                             </tr>
                         @empty
-                            <tr><td colspan="5"><x-admin.empty-state title="Belum ada kode referensi." description="Kode dropdown resmi (temuan, tindakan, alasan reschedule) belum ditetapkan di reference_codes." /></td></tr>
+                            <tr><td colspan="6"><x-admin.empty-state title="Belum ada kode referensi." description="Tambahkan kode dropdown: alasan reschedule, alasan limpahan, dan jenis temuan inspeksi." /></td></tr>
+                        @endforelse
+                    </x-admin.table>
+                    @break
+
+                @case('jadwal')
+                    <x-admin.table min-width="min-w-[720px]">
+                        <x-slot:head>
+                            <th class="px-4 py-3">Tim POSKO</th>
+                            <th class="px-4 py-3">Shift</th>
+                            <th class="px-4 py-3">Berlaku mulai</th>
+                            <th class="px-4 py-3">Sampai</th>
+                            <th class="px-4 py-3 text-center">Aksi</th>
+                        </x-slot:head>
+                        @forelse ($rows as $assignment)
+                            <tr class="hover:bg-slate-50/60">
+                                <td class="px-4 py-3 font-semibold text-slate-900">{{ $assignment->team?->name ?? '-' }} <span class="text-[10px] text-slate-500">{{ $assignment->team?->posko?->nama_posko }}</span></td>
+                                <td class="px-4 py-3"><x-admin.status-badge tone="blue">Shift {{ $assignment->shift_code }}</x-admin.status-badge></td>
+                                <td class="px-4 py-3 text-xs">{{ $assignment->effective_from?->format('d/m/Y') }}</td>
+                                <td class="px-4 py-3 text-xs">{{ $assignment->effective_until?->format('d/m/Y') ?? 'Tanpa batas' }}</td>
+                                <td class="px-4 py-3 text-center"><a href="{{ route('admin.master-data.manage.edit', ['jadwal', $assignment->id]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Ubah</a></td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="5"><x-admin.empty-state title="Belum ada jadwal shift tim." description="Atur shift A/B/C per tim POSKO berikut periode berlakunya." /></td></tr>
                         @endforelse
                     </x-admin.table>
                     @break
@@ -198,6 +233,7 @@
                 @case('keypoint')
                     <x-admin.table min-width="min-w-[860px]">
                         <x-slot:head>
+                            <th class="px-4 py-3">ID</th>
                             <th class="px-4 py-3">Nama</th>
                             <th class="px-4 py-3">Jenis</th>
                             <th class="px-4 py-3">Penyulang (sumber)</th>
@@ -206,6 +242,7 @@
                         </x-slot:head>
                         @forelse ($rows as $keypoint)
                             <tr class="hover:bg-slate-50/60">
+                                <td class="px-4 py-3 font-mono text-xs">{{ $keypoint->id }}</td>
                                 <td class="px-4 py-3 font-semibold text-slate-900">{{ $keypoint->nama ?? '-' }}</td>
                                 <td class="px-4 py-3 text-xs">{{ $keypoint->jenis ?? '-' }}</td>
                                 <td class="px-4 py-3 text-xs">{{ $keypoint->penyulang ?? '-' }}</td>
@@ -219,7 +256,7 @@
                                 <td class="px-4 py-3 text-xs">{{ $formatTime($keypoint->last_synced_at) }}</td>
                             </tr>
                         @empty
-                            <tr><td colspan="5"><x-admin.empty-state title="Belum ada Keypoint." description="Tabel keypoints kosong atau tidak cocok dengan filter. Data diisi oleh keypoint:sync." /></td></tr>
+                            <tr><td colspan="6"><x-admin.empty-state title="Belum ada Keypoint." description="Tabel keypoints kosong atau tidak cocok dengan filter. Data diisi oleh keypoint:sync." /></td></tr>
                         @endforelse
                     </x-admin.table>
                     @break

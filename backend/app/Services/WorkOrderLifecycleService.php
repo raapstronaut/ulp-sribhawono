@@ -6,6 +6,7 @@ use App\Enums\WorkOrderStatus;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderApkukTarget;
+use App\Models\WorkOrderLocationTarget;
 use App\Models\WorkOrderStatusLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -45,8 +46,11 @@ class WorkOrderLifecycleService
             $locked->save();
 
             if ($to->isTerminal()) {
-                // WO berakhir: tiang boleh dibuatkan WO baru (mis. sisa kebutuhan).
+                // WO berakhir: tiang/titik boleh dibuatkan WO baru (mis. sisa kebutuhan).
                 WorkOrderApkukTarget::query()
+                    ->where('work_order_id', $locked->getKey())
+                    ->update(['active_target_key' => null]);
+                WorkOrderLocationTarget::query()
                     ->where('work_order_id', $locked->getKey())
                     ->update(['active_target_key' => null]);
             }

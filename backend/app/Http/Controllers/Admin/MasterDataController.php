@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\FieldPersonnel;
 use App\Models\FieldTeam;
+use App\Models\FieldTeamShiftAssignment;
 use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\WorkOrder;
 use App\Services\ApkukCandidateService;
+use App\Services\ShiftService;
 use App\Support\DataLoader;
 use App\Support\QueryInput;
 use Illuminate\Http\Request;
@@ -16,7 +18,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
- * Master & sumber data Web Admin (baca saja). Perubahan master tetap lewat sinkronisasi/DB.
+ * Master & sumber data Web Admin. Tim, petugas, kode, dan jadwal shift dikelola lewat
+ * MasterDataManageController; Posko, Penyulang, dan Keypoint tetap hasil sinkronisasi.
  */
 class MasterDataController extends Controller
 {
@@ -28,6 +31,7 @@ class MasterDataController extends Controller
         'tim' => 'Tim Lapangan',
         'petugas' => 'Petugas',
         'kode' => 'Kode Referensi',
+        'jadwal' => 'Jadwal Shift Tim',
         'keypoint' => 'Keypoint',
         'sumber' => 'Sumber Data',
     ];
@@ -145,6 +149,21 @@ class MasterDataController extends Controller
                     ->tap(DataLoader::withinRange(...)), DataLoader::emptyPage(self::PER_PAGE));
                 break;
 
+            case 'jadwal':
+                $data['rows'] = $load->attempt('rows', fn () => FieldTeamShiftAssignment::query()
+                    ->with('team.posko')
+                    ->when($filters['q'] !== '', fn ($query) => $query->whereHas('team', fn ($team) => $team
+                        ->where(DB::raw('upper(name)'), 'like', $like)
+                        ->orWhere(DB::raw('upper(code)'), 'like', $like)))
+                    ->when($activeFlag !== null, fn ($query) => $activeFlag
+                        ? $query->where(fn ($q) => $q->whereNull('effective_until')->orWhere('effective_until', '>=', now(ShiftService::TIMEZONE)->toDateString()))
+                        : $query->where('effective_until', '<', now(ShiftService::TIMEZONE)->toDateString()))
+                    ->orderByDesc('effective_from')
+                    ->paginate(self::PER_PAGE)
+                    ->withQueryString()
+                    ->tap(DataLoader::withinRange(...)), DataLoader::emptyPage(self::PER_PAGE));
+                break;
+
             case 'keypoint':
                 $data['options']['penyulang'] = $load->attempt('rows', fn () => DB::table('keypoints')
                     ->whereNotNull('penyulang')
@@ -176,6 +195,8 @@ class MasterDataController extends Controller
 
         return view('admin.master-data.index', [
             'tab' => $tab,
+            // Tab yang dapat dikelola dari Web => slug MasterDataManageController.
+            'manageable' => ['tim' => 'tim', 'petugas' => 'petugas', 'kode' => 'kode', 'jadwal' => 'jadwal'],
             'filters' => $filters,
             'hasFilter' => collect($filters)->contains(fn ($value) => $value !== ''),
             'counts' => $counts,

@@ -110,7 +110,7 @@ class ApkukWorkOrderTest extends TestCase
             ->get(route('admin.work-orders.show', $wo))
             ->assertOk()
             ->assertSee('WO-APKUK-20261020-0001')
-            ->assertSee('WO APKUK berhasil dibuat.')
+            ->assertSee('WO APKUK WO-APKUK-20261020-0001 berhasil dibuat.')
             ->assertSee('F.REOG.001096')
             ->assertSee('PUGUNG')
             ->assertSee('Ditugaskan');

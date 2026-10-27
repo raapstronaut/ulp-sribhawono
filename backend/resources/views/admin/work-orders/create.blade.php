@@ -27,16 +27,6 @@
         <a href="{{ route('admin.work-orders.index') }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Kembali ke WO</a>
     </div>
 
-    @if($errors->any())
-        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-            <p class="font-semibold">WO belum dibuat:</p>
-            <ul class="mt-1 list-disc pl-5">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
 
     <!-- Step 2: selected candidate + form -->
     @if($selected)

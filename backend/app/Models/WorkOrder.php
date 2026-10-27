@@ -16,20 +16,55 @@ class WorkOrder extends Model
     use HasUuids;
 
     public const TEAM_POSKO = 'POSKO';
+
     public const TEAM_HARSUS = 'HARSUS';
+
     public const TEAM_ROW = 'ROW';
 
     public const TYPE_PEMASANGAN_APKUK = 'PEMASANGAN_APKUK';
+
     public const TYPE_PEKERJAAN_KHUSUS = 'PEKERJAAN_KHUSUS';
+
     public const TYPE_RABAS = 'RABAS';
+
     public const TYPE_PANGKAS = 'PANGKAS';
+
     public const TYPE_TEBANG = 'TEBANG';
 
     public const ROW_WORK_TYPES = [self::TYPE_RABAS, self::TYPE_PANGKAS, self::TYPE_TEBANG];
 
     public const SOURCE_ADMIN_MANUAL = 'ADMIN_MANUAL';
+
     public const SOURCE_SYSTEM = 'SYSTEM';
+
     public const SOURCE_ESCALATION = 'ESCALATION';
+
+    public const TEAM_LABELS = [
+        self::TEAM_POSKO => 'POSKO',
+        self::TEAM_HARSUS => 'HARSUS',
+        self::TEAM_ROW => 'ROW',
+    ];
+
+    // Jenis pekerjaan yang sah per tim (PRD §6).
+    public const WORK_TYPES_BY_TEAM = [
+        self::TEAM_POSKO => [self::TYPE_PEMASANGAN_APKUK],
+        self::TEAM_HARSUS => [self::TYPE_PEKERJAAN_KHUSUS],
+        self::TEAM_ROW => self::ROW_WORK_TYPES,
+    ];
+
+    public const WORK_TYPE_LABELS = [
+        self::TYPE_PEMASANGAN_APKUK => 'Pemasangan APKUK',
+        self::TYPE_PEKERJAAN_KHUSUS => 'Pekerjaan khusus',
+        self::TYPE_RABAS => 'Rabas',
+        self::TYPE_PANGKAS => 'Pangkas',
+        self::TYPE_TEBANG => 'Tebang',
+    ];
+
+    public const SOURCE_LABELS = [
+        self::SOURCE_ADMIN_MANUAL => 'Manual Admin',
+        self::SOURCE_SYSTEM => 'Otomatis sistem',
+        self::SOURCE_ESCALATION => 'Limpahan (eskalasi)',
+    ];
 
     protected $fillable = [
         'code',
@@ -108,6 +143,26 @@ class WorkOrder extends Model
         return $this->hasOne(WorkOrderApkukTarget::class);
     }
 
+    public function locationTarget(): HasOne
+    {
+        return $this->hasOne(WorkOrderLocationTarget::class);
+    }
+
+    public function escalations(): HasMany
+    {
+        return $this->hasMany(WorkEscalation::class, 'source_work_order_id')->latest();
+    }
+
+    public function sourceEscalation(): HasOne
+    {
+        return $this->hasOne(WorkEscalation::class, 'child_work_order_id');
+    }
+
+    public function issues(): HasMany
+    {
+        return $this->hasMany(WorkOrderIssue::class)->latest();
+    }
+
     public function statusLogs(): HasMany
     {
         return $this->hasMany(WorkOrderStatusLog::class)->orderBy('created_at')->orderBy('id');
@@ -145,13 +200,63 @@ class WorkOrder extends Model
     }
 
     /**
-     * Pembatalan Admin baru disahkan dan diuji untuk WO APKUK POSKO. Aturan batal
-     * WO ROW/HARSUS (child eskalasi, WO otomatis ROW) belum diputuskan.
+     * Pembatalan Admin: WO APKUK POSKO, serta WO ROW/HARSUS yang dibuat manual oleh Admin
+     * dan tidak terlibat limpahan. Aturan batal untuk child eskalasi dan WO otomatis ROW
+     * belum diputuskan, sehingga keduanya tetap tidak dapat dibatalkan dari Web Admin.
      */
     public function supportsAdminCancellation(): bool
     {
-        return $this->team_type === self::TEAM_POSKO
-            && $this->work_type === self::TYPE_PEMASANGAN_APKUK;
+        if ($this->team_type === self::TEAM_POSKO && $this->work_type === self::TYPE_PEMASANGAN_APKUK) {
+            return true;
+        }
+
+        return $this->source === self::SOURCE_ADMIN_MANUAL
+            && $this->parent_work_order_id === null
+            && ! $this->children()->exists();
+    }
+
+    public function teamLabel(): string
+    {
+        return self::TEAM_LABELS[$this->team_type] ?? $this->team_type;
+    }
+
+    public function workTypeLabel(): string
+    {
+        return self::WORK_TYPE_LABELS[$this->work_type] ?? $this->work_type;
+    }
+
+    public function sourceLabel(): string
+    {
+        return self::SOURCE_LABELS[$this->source] ?? $this->source;
+    }
+
+    public function isApkuk(): bool
+    {
+        return $this->team_type === self::TEAM_POSKO && $this->work_type === self::TYPE_PEMASANGAN_APKUK;
+    }
+
+    /**
+     * Koordinat target untuk Peta/Google Maps: target APKUK atau target lokasi.
+     *
+     * @return array{0: float, 1: float}|null
+     */
+    public function targetCoordinates(): ?array
+    {
+        $target = $this->isApkuk() ? $this->apkukTarget : $this->locationTarget;
+        if ($target === null || $target->latitude === null || $target->longitude === null) {
+            return null;
+        }
+
+        return [(float) $target->latitude, (float) $target->longitude];
+    }
+
+    public function targetLabel(): ?string
+    {
+        if ($this->isApkuk()) {
+            return $this->apkukTarget?->no_tiang;
+        }
+
+        return $this->locationTarget?->label;
     }
 
     public function isOverdue(?CarbonInterface $now = null): bool

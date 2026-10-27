@@ -3,11 +3,17 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\WorkEscalation;
+use App\Models\WorkOrder;
+use App\Models\WorkOrderIssue;
+use App\Models\WorkOrderReschedule;
 use App\Services\ShiftService;
+use App\Services\Work\WorkOrderReviewService;
 use App\Support\DataLoader;
 use App\Support\QueryInput;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
@@ -55,6 +61,22 @@ class SpecialCaseController extends Controller
         ]);
 
         return view('admin.special-case.index', [
+            // Special case pelaksanaan WO: kendala, reschedule, limpahan, keterlambatan.
+            'issues' => $load->attempt('issues', fn () => WorkOrderIssue::query()
+                ->with(['workOrder.posko', 'reportedByTeam', 'reportedBy'])
+                ->where('status', WorkOrderIssue::STATUS_TERBUKA)
+                ->orderBy('created_at')
+                ->paginate(10, ['*'], 'issues_page')
+                ->withQueryString()
+                ->tap(DataLoader::withinRange(...)), DataLoader::emptyPage(10, 'issues_page')),
+            'exceptionCounts' => $load->attempt('exception_counts', fn () => [
+                'issues' => WorkOrderIssue::query()->where('status', WorkOrderIssue::STATUS_TERBUKA)->count(),
+                'reschedules' => WorkOrderReschedule::query()->where('status', WorkOrderReschedule::STATUS_MENUNGGU_ACC)->count(),
+                'escalations' => WorkEscalation::query()->where('status', WorkEscalation::STATUS_MENUNGGU_ACC)->count(),
+                'overdue' => WorkOrder::query()->overdue()->count(),
+            ]),
+            'overdue' => $load->attempt('overdue', fn () => WorkOrder::query()->overdue()->with(['posko', 'penyulang'])->orderBy('due_at')->limit(10)->get(), collect()),
+            'resolutionOptions' => WorkOrderIssue::RESOLUTION_LABELS,
             'filters' => $filters,
             'hasFilter' => $request->hasAny(['period', 'dimension', 'q']),
             'range' => $range,
@@ -62,6 +84,17 @@ class SpecialCaseController extends Controller
             'summary' => $summary,
             'load' => $load,
         ]);
+    }
+
+    public function resolveIssue(Request $request, WorkOrderIssue $issue, WorkOrderReviewService $review): RedirectResponse
+    {
+        $data = $request->validate([
+            'resolution_action' => ['required', 'string', 'max:24'],
+            'resolution_note' => ['required', 'string', 'min:5', 'max:1000'],
+        ]);
+        $review->resolveIssue($issue, $request->user(), $data['resolution_action'], $data['resolution_note']);
+
+        return back()->with('flash', "Kendala pada {$issue->workOrder->code} ditindaklanjuti.");
     }
 
     public function show(Request $request, ShiftService $shifts, DataLoader $load): View

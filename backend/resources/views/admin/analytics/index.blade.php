@@ -21,15 +21,60 @@
     <x-admin.page-header
         section="Data & Admin"
         title="Analitik"
-        state="partial"
-        :description="'Ringkasan baca saja dari data yang tersedia di database, periode '.$fromLabel.' – '.$toLabel.' (tanggal WIB).'"
-    />
+        state="live"
+        :description="'Statistik dari data nyata database, periode '.$fromLabel.' – '.$toLabel.' (tanggal WIB).'"
+    >
+        <x-slot:actions>
+            <x-admin.button variant="secondary" :href="route('admin.analytics.export', request()->only(['period', 'team_type', 'posko_id', 'penyulang_id']))">Ekspor CSV laporan WO</x-admin.button>
+        </x-slot:actions>
+    </x-admin.page-header>
 
     <x-admin.panel flush>
-        <x-admin.filter-bar :action="route('admin.analytics.index')" :reset-url="route('admin.analytics.index')" :active="$hasFilter" note="Periode berlaku untuk WO (tanggal kerja) dan gangguan (tanggal kejadian). APKUK dan Keypoint menampilkan kondisi sumber saat ini.">
+        <x-admin.filter-bar :action="route('admin.analytics.index')" :reset-url="route('admin.analytics.index')" :active="$hasFilter" note="Periode berlaku untuk WO (tanggal kerja) dan gangguan (tanggal kejadian). Filter tim/Posko/penyulang hanya untuk statistik WO. APKUK dan Keypoint menampilkan kondisi sumber saat ini.">
             <x-admin.filter-select name="period" label="Periode" :options="\App\Http\Controllers\Admin\AnalyticsController::PERIODS" :value="$period" :allow-empty="false" />
+            <x-admin.filter-select name="team_type" label="Tim" :options="\App\Models\WorkOrder::TEAM_LABELS" :value="$woFilters['team_type']" placeholder="Semua tim" />
+            <x-admin.filter-select name="posko_id" label="Posko" :options="$poskoOptions" :value="$woFilters['posko_id']" placeholder="Semua Posko" />
+            <x-admin.filter-select name="penyulang_id" label="Penyulang" :options="$penyulangOptions" :value="$woFilters['penyulang_id']" placeholder="Semua penyulang" />
         </x-admin.filter-bar>
     </x-admin.panel>
+
+    @if ($load->failed('wo_stats'))
+        <x-admin.error-state :inset="false" />
+    @else
+        @php $perf = $woStats['performance']; @endphp
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <x-admin.stat-card label="WO dalam periode" :value="$perf['total']" :hint="$perf['active'].' aktif · '.$perf['cancelled'].' dibatalkan'" />
+            <x-admin.stat-card label="Selesai" :value="$perf['completed']" :hint="$perf['on_time'].' tepat waktu · '.$perf['late_completed'].' terlambat'" tone="emerald" />
+            <x-admin.stat-card label="Ketepatan waktu" :value="$perf['on_time_rate'] === null ? null : number_format($perf['on_time_rate'], 1, ',', '.').'%'" hint="Selesai sebelum batas waktu, dari WO selesai yang punya batas waktu" unavailable-label="Belum ada WO selesai" />
+            <x-admin.stat-card label="Terlambat (masih aktif)" :value="$perf['overdue_active']" :tone="$perf['overdue_active'] > 0 ? 'red' : 'slate'" :hint="'Rata-rata durasi selesai '.($perf['avg_hours'] === null ? '—' : number_format($perf['avg_hours'], 1, ',', '.').' jam')" />
+        </div>
+
+        @foreach (['by_period' => 'Rekap per periode ('.$woStats['period_granularity'].')', 'by_work_type' => 'Rekap per jenis pekerjaan', 'by_posko' => 'Rekap per Posko', 'by_penyulang' => 'Rekap per penyulang'] as $key => $title)
+            <x-admin.panel flush :title="$title">
+                @if ($woStats[$key] === [])
+                    <x-admin.empty-state title="Tidak ada WO pada periode/filter ini." />
+                @else
+                    <x-admin.table min-width="min-w-[760px]">
+                        <x-slot:head>
+                            <th class="px-4 py-3">{{ $key === 'by_period' ? 'Periode' : 'Kelompok' }}</th><th class="px-4 py-3 text-right">Total</th><th class="px-4 py-3 text-right">Aktif</th><th class="px-4 py-3 text-right">Selesai</th><th class="px-4 py-3 text-right">Tepat waktu</th><th class="px-4 py-3 text-right">Terlambat aktif</th><th class="px-4 py-3 text-right">Ketepatan</th><th class="px-4 py-3 text-right">Rata-rata jam</th>
+                        </x-slot:head>
+                        @foreach ($woStats[$key] as $label => $m)
+                            <tr>
+                                <td class="px-4 py-2 text-xs font-semibold">{{ $label }}</td>
+                                <td class="px-4 py-2 text-right text-xs">{{ $m['total'] }}</td>
+                                <td class="px-4 py-2 text-right text-xs">{{ $m['active'] }}</td>
+                                <td class="px-4 py-2 text-right text-xs">{{ $m['completed'] }}</td>
+                                <td class="px-4 py-2 text-right text-xs">{{ $m['on_time'] }}</td>
+                                <td class="px-4 py-2 text-right text-xs {{ $m['overdue_active'] > 0 ? 'text-red-600 font-semibold' : '' }}">{{ $m['overdue_active'] }}</td>
+                                <td class="px-4 py-2 text-right text-xs">{{ $m['on_time_rate'] === null ? '—' : number_format($m['on_time_rate'], 1, ',', '.').'%' }}</td>
+                                <td class="px-4 py-2 text-right text-xs">{{ $m['avg_hours'] === null ? '—' : number_format($m['avg_hours'], 1, ',', '.') }}</td>
+                            </tr>
+                        @endforeach
+                    </x-admin.table>
+                @endif
+            </x-admin.panel>
+        @endforeach
+    @endif
 
     <x-admin.panel flush title="Work Order per tim dan status" description="Jumlah WO dengan tanggal kerja dalam periode. Kolom bernilai 0 berarti memang tidak ada WO dengan status tersebut.">
         @if ($load->failed('work_orders'))

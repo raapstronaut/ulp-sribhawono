@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Schema;
 
 class ControlModulesTest extends FoundationTestCase
 {
-    public function test_review_lists_only_pending_queues_with_disabled_decisions(): void
+    public function test_review_lists_only_pending_queues_with_decision_forms(): void
     {
         $posko = Posko::create(['kode_posko' => 'PUGUNG', 'nama_posko' => 'PUGUNG']);
         $pending = $this->makeWorkOrder(['code' => 'WO-VERIFIKASI', 'posko_id' => $posko->id, 'status' => WorkOrderStatus::MenungguVerifikasi]);
@@ -49,18 +49,18 @@ class ControlModulesTest extends FoundationTestCase
             ->get(route('admin.reviews.index'))
             ->assertOk()
             ->assertSee('WO-VERIFIKASI')
-            ->assertSee('TEMUAN_SUDAH_LENGKAP')
-            ->assertSee(route('admin.work-orders.show', $pending).'#laporan', false)
+            ->assertSee('Temuan: APKUK sudah lengkap')
+            ->assertSee(route('admin.work-orders.show', $pending), false)
             ->assertSee('WO-RESCHEDULE')
             ->assertSee('Hujan lebat sejak siang')
             ->assertDontSee('Sudah diputuskan')
-            ->assertSee('P0 SYSTEM menunggu ACC')
-            ->assertSee('Keputusan ACC/Tolak belum diaktifkan')
+            ->assertDontSee('WO-SUDAH-ACC')
             ->getContent();
 
-        // Dua antrean × (ACC + Tolak) dan tidak ada form tulis selain logout.
-        $this->assertSame(4, substr_count($html, 'disabled aria-disabled="true" title="Keputusan ACC/Tolak'));
-        $this->assertSame(1, substr_count($html, 'method="POST"'));
+        // Dua antrean × (ACC + Tolak) ditambah logout; tolak wajib alasan.
+        $this->assertSame(5, substr_count($html, 'method="POST"'));
+        $this->assertStringContainsString(route('admin.reviews.reports.approve', $pending->reports()->first()), $html);
+        $this->assertSame(2, substr_count($html, 'placeholder="Alasan penolakan (wajib)"'));
     }
 
     public function test_review_filters_by_category_and_posko(): void
@@ -82,13 +82,13 @@ class ControlModulesTest extends FoundationTestCase
             ->assertOk()
             ->assertSee('WO-PUGUNG')
             ->assertDontSee('WO-JABUNG')
-            ->assertDontSee('Pengajuan Reschedule</h2>', false);
+            ->assertDontSee('Pengajuan reschedule</h2>', false);
 
         $this->actingAs($this->admin)
             ->get(route('admin.reviews.index', ['category' => 'reschedules']))
             ->assertOk()
-            ->assertSee('Tidak ada pengajuan reschedule.')
-            ->assertDontSee('Laporan Menunggu Verifikasi</h2>', false);
+            ->assertSee('Tidak ada pengajuan reschedule yang menunggu.')
+            ->assertDontSee('Laporan menunggu verifikasi</h2>', false);
     }
 
     public function test_special_case_groups_raw_frequency_within_period_without_flagging(): void
@@ -103,7 +103,7 @@ class ControlModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.special-case.index'))
             ->assertOk()
-            ->assertSee('Metode Special Case belum final')
+            ->assertSee('Metode Special Case gangguan belum final')
             ->assertSeeInOrder(['REOG', '2', '75', '15/10/2026', 'MERAPI', '1'])
             ->assertSee('(kosong)')
             ->assertDontSee('>LAMA<', false)
@@ -150,7 +150,7 @@ class ControlModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.reviews.index', ['reports_page' => 1, 'reschedules_page' => 5]))
             ->assertOk()
-            ->assertSee('Tidak ada pengajuan reschedule.');
+            ->assertSee('Tidak ada pengajuan reschedule yang menunggu.');
     }
 
     public function test_special_case_detail_lists_events_and_supports_empty_key(): void

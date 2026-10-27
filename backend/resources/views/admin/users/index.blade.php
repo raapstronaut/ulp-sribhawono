@@ -10,16 +10,16 @@
     <x-admin.page-header
         section="Data & Admin"
         title="User & Hak Akses"
-        state="partial"
-        description="Akun login dan pembagian hak akses lima role. Web Admin hanya untuk ADMIN; empat tim lapangan memakai aplikasi Android."
+        state="live"
+        description="Akun login dan pembagian hak akses lima role. Web Admin hanya untuk ADMIN; empat akun tim lapangan memakai aplikasi Android lewat API mobile."
     >
         <x-slot:actions>
-            <x-admin.unavailable-action label="Tambah Akun" reason="Pembuatan akun lewat Web belum tersedia. Akun ADMIN dibuat lewat perintah php artisan admin:create." />
+            <x-admin.button :href="route('admin.users.create')">Tambah akun</x-admin.button>
         </x-slot:actions>
     </x-admin.page-header>
 
-    <x-admin.notice tone="warning" title="Baca saja:">
-        Nonaktifkan akun, ubah role, dan reset password belum tersedia di Web karena membutuhkan workflow beraudit. Batas dua perangkat dan logout berkala empat jam masih TBD dan tidak diterapkan.
+    <x-admin.notice title="Pengaman akses:">
+        Akun lapangan wajib terikat tim aktif dengan role sama. Admin tidak dapat menonaktifkan atau menurunkan role akunnya sendiri, dan minimal satu ADMIN aktif harus tersisa. Menonaktifkan akun atau mereset kata sandi mencabut sesi dan token API. Batas dua perangkat dan logout berkala empat jam masih TBD dan belum diterapkan.
     </x-admin.notice>
 
     @if ($load->failed('summary'))
@@ -29,7 +29,7 @@
             <x-admin.stat-card label="Total akun login" :value="$summary['total']" hint="Tabel users" />
             <x-admin.stat-card label="ADMIN aktif" :value="$summary['active_admins']" hint="Dapat membuka Web Admin" tone="emerald" />
             <x-admin.stat-card label="Akun nonaktif" :value="$summary['inactive']" hint="Ditolak oleh middleware admin" />
-            <x-admin.stat-card label="Akun tim lapangan" :value="$summary['field_teams']" hint="field_teams; belum terhubung ke login mobile" :href="route('admin.master-data.index', ['tab' => 'tim'])" />
+            <x-admin.stat-card label="Tim lapangan" :value="$summary['field_teams']" hint="Master tim; akun lapangan terikat ke salah satu tim" :href="route('admin.master-data.index', ['tab' => 'tim'])" />
         </div>
     @endif
 
@@ -56,7 +56,7 @@
                     <tr class="hover:bg-slate-50/60">
                         <td class="px-4 py-3 font-semibold text-slate-900">{{ $account->username ?? '-' }}</td>
                         <td class="px-4 py-3"><div class="text-slate-800">{{ $account->name }}</div><div class="text-[10px] text-slate-500">{{ $account->email }}</div></td>
-                        <td class="px-4 py-3">@if ($account->role)<x-admin.status-badge :tone="$account->role === \App\Models\User::ROLE_ADMIN ? 'blue' : 'violet'">{{ $account->role }}</x-admin.status-badge>@else<span class="text-xs text-slate-400">Tanpa role</span>@endif</td>
+                        <td class="px-4 py-3">@if ($account->role)<x-admin.status-badge :tone="$account->role === \App\Models\User::ROLE_ADMIN ? 'blue' : 'violet'">{{ $account->role }}</x-admin.status-badge>@else<span class="text-xs text-slate-400">Tanpa role</span>@endif @if ($account->fieldTeam)<div class="mt-0.5 text-[10px] text-slate-500">{{ $account->fieldTeam->name }}</div>@endif</td>
                         <td class="px-4 py-3"><x-admin.status-badge :tone="$account->is_active ? 'emerald' : 'slate'">{{ $account->is_active ? 'Aktif' : 'Nonaktif' }}</x-admin.status-badge></td>
                         <td class="px-4 py-3 text-xs">{{ $account->created_at?->timezone($tz)->format('d/m/Y H:i') }} WIB</td>
                         <td class="px-4 py-3 text-center"><a href="{{ route('admin.users.show', $account) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Detail</a></td>

@@ -4,20 +4,18 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\DashboardService;
+use App\Support\QueryInput;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
-    protected DashboardService $dashboardService;
-
-    public function __construct(DashboardService $dashboardService)
-    {
-        $this->dashboardService = $dashboardService;
-    }
+    public function __construct(private readonly DashboardService $dashboardService) {}
 
     public function index(Request $request)
     {
-        $data = $this->dashboardService->getDashboardData();
+        $data = $this->dashboardService->getDashboardData(
+            QueryInput::choice($request, 'period', array_keys(DashboardService::PERIODS), 'today'),
+        );
 
         if ($request->wantsJson()) {
             return response()->json($data);

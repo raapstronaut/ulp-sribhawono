@@ -38,4 +38,19 @@ class FieldTeam extends Model
     {
         return $this->hasMany(FieldPersonnel::class);
     }
+
+    public function users(): HasMany
+    {
+        return $this->hasMany(User::class);
+    }
+
+    public function shiftAssignments(): HasMany
+    {
+        return $this->hasMany(FieldTeamShiftAssignment::class)->orderByDesc('effective_from');
+    }
+
+    public function workOrders(): HasMany
+    {
+        return $this->hasMany(WorkOrder::class);
+    }
 }

@@ -7,16 +7,16 @@
     <x-admin.page-header
         section="Pekerjaan"
         title="HARSUS"
-        state="partial"
+        state="live"
         description="WO PEKERJAAN_KHUSUS dari Admin (wajib menunjuk aset jaringan) atau limpahan lintas tim yang telah di-ACC Admin."
     >
         <x-slot:actions>
-            <x-admin.unavailable-action label="Buat Pekerjaan Khusus" reason="WO HARSUS manual wajib menunjuk aset jaringan canonical; master aset belum tersedia." />
+            <x-admin.button :href="route('admin.team-work-orders.create', 'harsus')">Buat Pekerjaan Khusus</x-admin.button>
         </x-slot:actions>
     </x-admin.page-header>
 
     <x-admin.notice title="Aturan HARSUS:">
-        HARSUS bukan pelaksana P0; P0 tetap pekerjaan POSKO dalam PASILA. Cuaca buruk atau akses terhalang bukan alasan otomatis melimpahkan ke HARSUS; gunakan pending/reschedule. Limpahan hanya dibuat setelah eskalasi di-ACC Admin, dan alur eskalasi tersebut belum dibangun.
+        HARSUS bukan pelaksana P0; P0 tetap pekerjaan POSKO dalam PASILA. Cuaca buruk atau akses terhalang bukan alasan otomatis melimpahkan ke HARSUS; gunakan pending/reschedule. Limpahan dibuat otomatis sebagai child WO setelah permintaan eskalasi di-ACC Admin di Review & Validasi. Aset target WO manual memakai data keypoint hasil sinkronisasi karena master aset canonical belum ada.
     </x-admin.notice>
 
     @if ($load->failed('summary'))

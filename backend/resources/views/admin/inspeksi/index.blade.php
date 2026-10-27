@@ -3,85 +3,85 @@
 @section('title', 'Inspeksi')
 
 @section('content')
-<div class="mx-auto max-w-7xl space-y-6">
-    <x-admin.page-header
-        section="Pekerjaan"
-        title="Inspeksi"
-        state="skeleton"
-        description="Area rekomendasi berdasarkan skor prioritas dan rotasi, hasil kunjungan termasuk Tidak Ada Temuan, serta temuan yang menunggu validasi Admin."
-    />
+@php
+    $tz = \App\Services\ShiftService::TIMEZONE;
+    $resultFilters = \App\Http\Controllers\Admin\InspectionController::RESULT_FILTERS;
+@endphp
+<div class="mx-auto max-w-7xl space-y-6 pb-12">
+    <x-admin.page-header section="Pekerjaan" title="Inspeksi" state="live"
+        description="Kunjungan tim INSPEKSI beserta temuan per titik. Hasil 'Tidak Ada Temuan' dicatat jujur dan tidak dihitung sebagai temuan. Temuan wajib divalidasi Admin sebelum menjadi dasar tindakan.">
+        <x-slot:actions>
+            <x-admin.button :href="route('admin.inspeksi.create')">Catat inspeksi</x-admin.button>
+        </x-slot:actions>
+    </x-admin.page-header>
 
-    <x-admin.notice tone="warning" title="Domain Inspeksi belum dibangun:">
-        Belum ada tabel kunjungan maupun temuan inspeksi, dan aplikasi Android tim INSPEKSI juga belum mengirim data. Target minimal satu temuan nyata per hari hanya ditampilkan sebagai target. Hasil "Tidak Ada Temuan" tetap sah dicatat dan tidak dihitung sebagai temuan.
+    <x-admin.notice title="Belum otomatis:">
+        Ranking/rotasi area kunjungan dan rekomendasi tim penerima temuan masih menunggu formula prioritas (TBD). Saran tim diisi petugas atau Admin; Admin menentukan tindak lanjut saat validasi.
     </x-admin.notice>
 
-    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <x-admin.stat-card label="Tim INSPEKSI" :value="$load->failed('teams') ? null : $teams->where('is_active', true)->count()" hint="Akun tim aktif pada master field_teams" unavailable-label="Gagal dimuat" />
-        <x-admin.stat-card label="Kunjungan hari ini" hint="Domain kunjungan belum tersedia" />
-        <x-admin.stat-card label="Temuan nyata hari ini" hint="Target ≥ 1 temuan nyata per hari" />
-        <x-admin.stat-card label="Menunggu validasi" hint="Antrean ACC/Tolak Admin" :href="route('admin.reviews.index')" />
-    </div>
+    @if ($load->failed('summary'))
+        <x-admin.error-state :inset="false" />
+    @else
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
+            <x-admin.stat-card label="Kunjungan hari ini" :value="$summary['visits_today']" />
+            <x-admin.stat-card label="Temuan nyata hari ini" :value="$summary['real_findings_today']" hint="Target minimal 1 temuan nyata per hari" :tone="$summary['real_findings_today'] > 0 ? 'emerald' : 'amber'" />
+            <x-admin.stat-card label="Tanpa temuan hari ini" :value="$summary['no_finding_today']" hint="Kunjungan sah tanpa temuan" />
+            <x-admin.stat-card label="Menunggu validasi" :value="$summary['pending']" :tone="$summary['pending'] > 0 ? 'amber' : 'slate'" :href="route('admin.reviews.index', ['category' => 'findings'])" />
+            <x-admin.stat-card label="Temuan disetujui" :value="$summary['approved']" tone="emerald" />
+        </div>
+    @endif
 
-    <x-admin.panel flush title="Temuan Menunggu Validasi" description="Sistem merekomendasikan tim penerima menurut klasifikasi; Admin memutuskan ACC/Tolak sebelum temuan memutakhirkan master aset.">
-        <x-admin.filter-bar :action="route('admin.inspeksi.index')" disabled note="Filter aktif setelah data kunjungan dan temuan tersedia.">
-            <x-admin.filter-input type="date" name="visit_date" label="Tanggal kunjungan" disabled />
-            <x-admin.filter-select name="validation_status" label="Status validasi" disabled placeholder="Semua status" />
-            <x-admin.filter-select name="section" label="Section" disabled placeholder="Semua Section" />
+    <x-admin.panel flush title="Daftar kunjungan inspeksi">
+        <x-admin.filter-bar :action="route('admin.inspeksi.index')" :reset-url="route('admin.inspeksi.index')" :active="$hasFilter">
+            <x-admin.filter-input name="q" label="Cari" :value="$filters['q']" placeholder="Kode atau Section" />
+            <x-admin.filter-select name="field_team_id" label="Tim" :options="$teamOptions" :value="$filters['field_team_id']" placeholder="Semua tim" />
+            <x-admin.filter-select name="penyulang_id" label="Penyulang" :options="$penyulangOptions" :value="$filters['penyulang_id']" placeholder="Semua penyulang" />
+            <x-admin.filter-select name="result" label="Hasil" :options="$resultFilters" :value="$filters['result']" placeholder="Semua hasil" />
+            <x-admin.filter-input type="date" name="date_from" label="Dari" :value="$filters['date_from']" />
+            <x-admin.filter-input type="date" name="date_to" label="Sampai" :value="$filters['date_to']" />
         </x-admin.filter-bar>
-        <x-admin.table min-width="min-w-[860px]">
-            <x-slot:head>
-                <th class="px-4 py-3">Temuan</th>
-                <th class="px-4 py-3">Section / Aset</th>
-                <th class="px-4 py-3">Klasifikasi</th>
-                <th class="px-4 py-3">Rekomendasi tim</th>
-                <th class="px-4 py-3">Waktu</th>
-                <th class="px-4 py-3 text-center">Keputusan</th>
-            </x-slot:head>
-            <tr>
-                <td colspan="6">
-                    <x-admin.empty-state title="Belum ada temuan inspeksi." description="Temuan akan muncul setelah tim INSPEKSI mengirim laporan melalui Android dan tabel inspection_findings tersedia.">
-                        <div class="mt-4 flex flex-wrap justify-center gap-2">
-                            <x-admin.unavailable-action label="ACC" variant="secondary" size="sm" reason="Validasi temuan membutuhkan tabel temuan, rekomendasi tim, dan workflow approval beraudit." />
-                            <x-admin.unavailable-action label="Tolak" variant="secondary" size="sm" reason="Penolakan temuan membutuhkan workflow approval beraudit." />
-                        </div>
-                    </x-admin.empty-state>
-                </td>
-            </tr>
-        </x-admin.table>
+        @if ($load->failed('inspections'))
+            <x-admin.error-state />
+        @elseif ($inspections->isEmpty())
+            <x-admin.empty-state title="Belum ada kunjungan inspeksi." description="Kunjungan masuk dari aplikasi tim INSPEKSI atau dicatat Admin melalui tombol Catat inspeksi." />
+        @else
+            <x-admin.table>
+                <x-slot:head>
+                    <th class="px-4 py-3">Kode</th><th class="px-4 py-3">Waktu kunjungan</th><th class="px-4 py-3">Tim</th><th class="px-4 py-3">Penyulang / Section</th><th class="px-4 py-3">Hasil</th><th class="px-4 py-3">Sumber</th><th class="px-4 py-3"></th>
+                </x-slot:head>
+                @foreach ($inspections as $inspection)
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-4 py-3 text-xs font-bold text-slate-800">{{ $inspection->code }}</td>
+                        <td class="px-4 py-3 text-xs">{{ $inspection->visited_at->copy()->timezone($tz)->format('d/m/Y H:i') }} WIB</td>
+                        <td class="px-4 py-3 text-xs">{{ $inspection->fieldTeam?->name ?? '-' }}</td>
+                        <td class="px-4 py-3 text-xs">{{ $inspection->penyulang?->nama_penyulang ?? '-' }}<div class="text-slate-500">{{ $inspection->section_name ?? '-' }}</div></td>
+                        <td class="px-4 py-3 text-xs">
+                            @if ($inspection->has_finding)
+                                <x-admin.status-badge tone="blue">{{ $inspection->findings_count }} temuan</x-admin.status-badge>
+                                @if ($inspection->pending_count > 0)<x-admin.status-badge tone="amber">{{ $inspection->pending_count }} menunggu</x-admin.status-badge>@endif
+                            @else
+                                <x-admin.status-badge>Tidak ada temuan</x-admin.status-badge>
+                            @endif
+                        </td>
+                        <td class="px-4 py-3 text-xs">{{ $inspection->source === 'ADMIN' ? 'Input Admin' : 'Aplikasi' }}</td>
+                        <td class="px-4 py-3 text-right"><a href="{{ route('admin.inspeksi.show', $inspection) }}" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Detail</a></td>
+                    </tr>
+                @endforeach
+            </x-admin.table>
+            <x-admin.pagination :paginator="$inspections" label="kunjungan" />
+        @endif
     </x-admin.panel>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <x-admin.unavailable-panel
-            title="Area Rekomendasi & Rotasi"
-            description="Sistem mengarahkan tim ke Section berisiko tanpa terus mengulang area yang sama. Setelah hasil Tidak Ada Temuan, tim diarahkan ke area ranking berikutnya."
-            :requirements="['Section canonical tervalidasi', 'Formula skor prioritas dan rotasi (TBD)', 'Riwayat kunjungan per Section']"
-        />
-        <x-admin.unavailable-panel
-            title="Hasil Kunjungan"
-            description="Setiap kunjungan mencatat ada atau tidaknya temuan. Kunjungan tanpa temuan tersimpan apa adanya sebagai catatan jujur."
-            :requirements="['Tabel inspections dengan has_finding / no_finding_record', 'API mobile tim INSPEKSI']"
-        />
-    </div>
-
-    <x-admin.panel title="Tim INSPEKSI pada master" description="Akun tim terpisah dari petugas; petugas aktual dipilih saat melapor.">
-        <x-slot:actions>
-            <a href="{{ route('admin.master-data.index', ['tab' => 'tim', 'role' => 'INSPEKSI']) }}" class="text-xs font-semibold text-blue-600 hover:text-blue-800">Buka Master Data →</a>
-        </x-slot:actions>
+    <x-admin.panel title="Tim INSPEKSI" description="Roster dari Master Data.">
         @if ($load->failed('teams'))
-            <x-admin.error-state :inset="false" />
+            <x-admin.error-state />
+        @elseif ($teams->isEmpty())
+            <x-admin.empty-state title="Belum ada tim INSPEKSI." description="Tambahkan tim dan petugas di Master Data." />
         @else
-            <ul class="space-y-2 text-sm">
-                @forelse ($teams as $team)
-                    <li class="flex items-center justify-between gap-2">
-                        <span class="font-semibold text-slate-800">{{ $team->name }} <span class="text-[10px] font-normal text-slate-500">{{ $team->code }}</span></span>
-                        <span class="flex items-center gap-2 text-xs text-slate-500">
-                            {{ $team->personnel_count }} petugas aktif
-                            <x-admin.status-badge :tone="$team->is_active ? 'emerald' : 'slate'">{{ $team->is_active ? 'Aktif' : 'Nonaktif' }}</x-admin.status-badge>
-                        </span>
-                    </li>
-                @empty
-                    <li class="text-xs text-slate-500">Belum ada akun tim INSPEKSI pada master field_teams.</li>
-                @endforelse
+            <ul class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                @foreach ($teams as $team)
+                    <li class="rounded-lg border border-slate-200 p-3 text-sm"><strong>{{ $team->name }}</strong><div class="text-xs text-slate-500">{{ $team->code }} · {{ $team->personnel_count }} petugas aktif · {{ $team->is_active ? 'Aktif' : 'Nonaktif' }}</div></li>
+                @endforeach
             </ul>
         @endif
     </x-admin.panel>

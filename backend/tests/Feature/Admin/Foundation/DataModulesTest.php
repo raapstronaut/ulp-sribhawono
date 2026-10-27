@@ -51,7 +51,12 @@ class DataModulesTest extends FoundationTestCase
             foreach ($texts as $text) {
                 $response->assertSee($text);
             }
-            $response->assertSee('Tambah / Ubah Master');
+            // Tim/petugas/kode dapat dikelola; Posko/Penyulang/Keypoint master resmi baca saja.
+            if (in_array($tab, ['tim', 'petugas', 'kode'], true)) {
+                $response->assertSee(route('admin.master-data.manage.create', $tab), false);
+            } elseif ($tab !== 'sumber') {
+                $response->assertSee('Master resmi')->assertDontSee(route('admin.master-data.manage.create', 'tim'), false);
+            }
         }
 
         $this->actingAs($this->admin)
@@ -63,7 +68,7 @@ class DataModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.master-data.index', ['tab' => 'tim', 'role' => 'INSPEKSI']))
             ->assertOk()
-            ->assertSee('Belum ada akun tim lapangan.');
+            ->assertSee('Belum ada tim lapangan.');
     }
 
     public function test_master_data_detail_pages_show_relations_and_text_matched_source_counts(): void
@@ -129,8 +134,8 @@ class DataModulesTest extends FoundationTestCase
             ->assertOk()
             ->assertSee('FOUNDATION_ADMIN')
             ->assertSee('POSKO_PUGUNG')
-            ->assertSee('Login mobile belum dibangun')
-            ->assertSee('Tambah Akun')
+            ->assertSee('API mobile v1')
+            ->assertSee(route('admin.users.create'), false)
             ->getContent();
         $this->assertStringNotContainsString($field->getAuthPassword(), $html);
         $this->assertStringNotContainsString((string) $field->remember_token, $html);

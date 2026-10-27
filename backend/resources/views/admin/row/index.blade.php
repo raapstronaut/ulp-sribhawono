@@ -11,12 +11,12 @@
         description="WO vegetasi RABAS, PANGKAS, dan TEBANG untuk tim ROW. WO ROW otomatis aktif tanpa ACC Admin dan dapat berjumlah banyak per hari."
     >
         <x-slot:actions>
-            <x-admin.unavailable-action label="Buat WO ROW" reason="Pembuatan WO ROW manual membutuhkan data vegetasi canonical dan validasi lokasi; belum dibangun." />
+            <x-admin.button :href="route('admin.team-work-orders.create', 'row')">Buat WO ROW</x-admin.button>
         </x-slot:actions>
     </x-admin.page-header>
 
     <x-admin.notice title="Status modul:">
-        Daftar di bawah membaca tabel <code>work_orders</code> (team_type ROW) secara langsung. Generator WO ROW otomatis, formula risiko/siklus vegetasi, aturan duplikasi, dan paket rute harian masih TBD sehingga belum ada WO ROW yang dibuat sistem.
+        WO ROW manual dapat dibuat Admin dengan target titik vegetasi dari data sumber (staging, belum canonical); satu titik hanya boleh punya satu WO aktif per jenis. Generator WO ROW otomatis, formula risiko/siklus vegetasi, dan paket rute harian masih TBD sehingga belum ada WO ROW yang dibuat sistem.
     </x-admin.notice>
 
     @if ($load->failed('summary'))
@@ -31,7 +31,7 @@
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <x-admin.stat-card label="Selesai hari ini" :value="$summary['completed_today']" hint="Status SELESAI pada tanggal WIB berjalan" tone="emerald" />
             <x-admin.stat-card label="Terlambat" :value="$summary['overdue']" hint="WO aktif melewati batas waktu" :tone="$summary['overdue'] > 0 ? 'red' : 'slate'" />
-            <x-admin.stat-card label="Baris vegetasi sumber" :value="$load->failed('vegetation') ? null : $vegetationSourceRows" hint="Staging mentah vegetasi_source_rows, belum canonical; tidak dipakai sebagai target WO." :href="route('admin.master-data.index', ['tab' => 'sumber'])" />
+            <x-admin.stat-card label="Baris vegetasi sumber" :value="$load->failed('vegetation') ? null : $vegetationSourceRows" hint="Staging mentah vegetasi_source_rows, belum canonical; dipakai sebagai target WO ROW manual (snapshot)." :href="route('admin.master-data.index', ['tab' => 'sumber'])" />
         </div>
     @endif
 

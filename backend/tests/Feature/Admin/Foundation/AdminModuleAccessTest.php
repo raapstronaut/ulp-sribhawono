@@ -13,19 +13,6 @@ use Illuminate\Support\Facades\Route;
 
 class AdminModuleAccessTest extends FoundationTestCase
 {
-    private const FOUNDATION_ROUTE_PREFIXES = [
-        'admin.pasila.',
-        'admin.inspeksi.',
-        'admin.row.',
-        'admin.harsus.',
-        'admin.reviews.',
-        'admin.special-case.',
-        'admin.master-data.',
-        'admin.analytics.',
-        'admin.users.',
-        'admin.audit-logs.',
-    ];
-
     public function test_guests_are_redirected_to_login_for_every_module_page(): void
     {
         foreach ($this->moduleUrls() as $url) {
@@ -49,6 +36,7 @@ class AdminModuleAccessTest extends FoundationTestCase
     public function test_active_admin_can_open_every_module_page_with_title_and_state_badge(): void
     {
         $expectations = [
+            '/admin/apkuk' => 'APKUK',
             '/admin/pasila' => 'PASILA Monitor',
             '/admin/inspeksi' => 'Inspeksi',
             '/admin/row' => 'ROW',
@@ -83,7 +71,7 @@ class AdminModuleAccessTest extends FoundationTestCase
         $this->assertStringNotContainsString('modul belum tersedia', $html);
         $this->assertStringNotContainsString('Modul lainnya belum tersedia', $html);
         $this->assertStringContainsString('id="mobile-sidebar"', $html);
-        $this->assertCount(15, AdminNavigation::routeNames());
+        $this->assertCount(16, AdminNavigation::routeNames());
     }
 
     public function test_current_module_is_marked_active_in_navigation(): void
@@ -98,21 +86,44 @@ class AdminModuleAccessTest extends FoundationTestCase
         $this->assertStringContainsString('<title>Special Case - ULP Sribhawono</title>', $html);
     }
 
-    public function test_foundation_routes_are_read_only_and_inside_admin_middleware(): void
+    public function test_every_admin_route_including_write_actions_is_inside_admin_middleware(): void
     {
         $routes = collect(Route::getRoutes()->getRoutes())
-            ->filter(fn ($route) => collect(self::FOUNDATION_ROUTE_PREFIXES)->contains(fn ($prefix) => str_starts_with((string) $route->getName(), $prefix)));
+            ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'admin.'));
 
-        $this->assertCount(17, $routes);
+        $writes = $routes->filter(fn ($route) => array_intersect(['POST', 'PUT', 'PATCH', 'DELETE'], $route->methods()) !== []);
+        $this->assertGreaterThan(20, $writes->count(), 'Modul operasional harus memiliki tindakan tulis.');
 
         foreach ($routes as $route) {
-            $this->assertSame(['GET', 'HEAD'], $route->methods(), "{$route->getName()} harus baca saja.");
             $this->assertContains('auth', $route->gatherMiddleware(), "{$route->getName()} wajib auth.");
             $this->assertContains('admin', $route->gatherMiddleware(), "{$route->getName()} wajib admin.");
         }
 
+        // Modul yang domainnya belum dibangun tetap tanpa tindakan tulis.
         $this->actingAs($this->admin)->post('/admin/pasila')->assertMethodNotAllowed();
         $this->actingAs($this->admin)->post('/admin/review')->assertMethodNotAllowed();
+    }
+
+    public function test_guests_and_non_admins_cannot_call_write_actions(): void
+    {
+        $wo = $this->makeWorkOrder();
+        $posts = [
+            '/admin/work-orders/'.$wo->id.'/cancel',
+            '/admin/work-orders/'.$wo->id.'/start',
+            '/admin/review/laporan/00000000-0000-0000-0000-000000000000/approve',
+            '/admin/master-data/tim',
+            '/admin/users',
+            '/admin/inspeksi',
+            '/admin/harsus',
+        ];
+        $fieldAccount = User::factory()->create(['username' => 'POSKO_WRITE', 'role' => 'POSKO', 'is_active' => true]);
+
+        foreach ($posts as $url) {
+            $this->post($url)->assertRedirect(route('login'));
+            $this->actingAs($fieldAccount)->post($url)->assertForbidden();
+            auth()->logout();
+        }
+        $this->assertSame('DITUGASKAN', $wo->fresh()->status->value);
     }
 
     public function test_opening_every_module_page_does_not_write_any_data(): void
@@ -148,22 +159,31 @@ class AdminModuleAccessTest extends FoundationTestCase
         ]);
 
         return [
+            '/admin/apkuk',
             '/admin/pasila',
             '/admin/pasila/'.$posko->id,
             '/admin/inspeksi',
+            '/admin/inspeksi/create',
             '/admin/inspeksi/INS-001',
             '/admin/row',
+            '/admin/row/create',
             '/admin/harsus',
+            '/admin/harsus/create',
             '/admin/review',
             '/admin/special-case',
             '/admin/special-case/detail?dimension=penyulang&key=REOG',
             '/admin/master-data',
             '/admin/master-data/posko/'.$posko->id,
             '/admin/master-data/penyulang/'.$penyulang->id,
+            '/admin/master-data/tim/create',
             '/admin/analitik',
+            '/admin/analitik/export',
             '/admin/users',
+            '/admin/users/create',
             '/admin/users/'.$this->admin->id,
+            '/admin/users/'.$this->admin->id.'/edit',
             '/admin/audit-log',
+            '/admin/audit-log/umum',
             '/admin/audit-log/'.$log->id,
         ];
     }

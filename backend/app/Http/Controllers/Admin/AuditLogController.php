@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AuditLog;
 use App\Models\WorkOrderStatusLog;
 use App\Services\ShiftService;
 use App\Support\DataLoader;
@@ -19,11 +20,7 @@ class AuditLogController extends Controller
 {
     private const PER_PAGE = 25;
 
-    public const ACTIONS = [
-        WorkOrderStatusLog::ACTION_CREATED => 'Dibuat',
-        WorkOrderStatusLog::ACTION_STATUS_CHANGED => 'Status berubah',
-        WorkOrderStatusLog::ACTION_CANCELLED => 'Dibatalkan',
-    ];
+    public const ACTIONS = WorkOrderStatusLog::ACTION_LABELS;
 
     public const TEAM_TYPES = ['POSKO' => 'POSKO', 'HARSUS' => 'HARSUS', 'ROW' => 'ROW'];
 
@@ -82,6 +79,50 @@ class AuditLogController extends Controller
             'payloadJson' => $auditLog->payload === null
                 ? null
                 : json_encode($auditLog->payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+        ]);
+    }
+
+    /**
+     * Audit umum: master data, akun & hak akses, keputusan limpahan/temuan/kendala.
+     */
+    public function general(Request $request, DataLoader $load): View
+    {
+        $filters = [
+            'entity_type' => QueryInput::choice($request, 'entity_type', array_keys(AuditLog::ENTITY_LABELS)),
+            'action' => QueryInput::choice($request, 'action', array_keys(AuditLog::ACTION_LABELS)),
+            'date_from' => QueryInput::date($request, 'date_from'),
+            'date_to' => QueryInput::date($request, 'date_to'),
+            'q' => QueryInput::text($request, 'q'),
+        ];
+
+        return view('admin.audit-logs.general', [
+            'filters' => $filters,
+            'hasFilter' => collect($filters)->contains(fn ($value) => $value !== ''),
+            'logs' => $load->attempt('logs', fn () => AuditLog::query()
+                ->with(['actor:id,username,name', 'actorFieldTeam:id,name'])
+                ->when($filters['entity_type'] !== '', fn ($q) => $q->where('entity_type', $filters['entity_type']))
+                ->when($filters['action'] !== '', fn ($q) => $q->where('action', $filters['action']))
+                ->when($filters['q'] !== '', fn ($q) => $q->where(DB::raw('upper(entity_label)'), 'like', '%'.mb_strtoupper($filters['q']).'%'))
+                ->when($filters['date_from'] !== '', fn ($q) => $q->where('created_at', '>=', $this->dayStart($filters['date_from'])))
+                ->when($filters['date_to'] !== '', fn ($q) => $q->where('created_at', '<', $this->dayStart($filters['date_to'])->addDay()))
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->paginate(self::PER_PAGE)
+                ->withQueryString()
+                ->tap(DataLoader::withinRange(...)), DataLoader::emptyPage(self::PER_PAGE)),
+            'load' => $load,
+        ]);
+    }
+
+    public function showGeneral(AuditLog $auditLog): View
+    {
+        $auditLog->load(['actor:id,username,name', 'actorFieldTeam:id,name,code']);
+        $json = fn (?array $value) => $value === null ? null : json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        return view('admin.audit-logs.general-show', [
+            'log' => $auditLog,
+            'beforeJson' => $json($auditLog->before),
+            'afterJson' => $json($auditLog->after),
         ]);
     }
 

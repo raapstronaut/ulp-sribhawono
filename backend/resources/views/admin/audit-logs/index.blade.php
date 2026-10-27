@@ -10,13 +10,11 @@
     <x-admin.page-header
         section="Data & Admin"
         title="Audit Log & Histori"
-        state="partial"
-        description="Jejak append-only perubahan Work Order: pembuatan, perubahan status, dan pembatalan beserta pelaku, waktu, dan alasan."
+        state="live"
+        description="Jejak append-only: pelaku, waktu, tindakan, objek, nilai sebelum/sesudah, dan alasan. Tidak dapat diubah atau dihapus dari aplikasi."
     />
 
-    <x-admin.notice title="Cakupan audit:">
-        Audit saat ini hanya mencakup Work Order. Koreksi histori aset (nilai sebelum/sesudah dengan alasan wajib), keputusan approval, eskalasi, dan sinkronisasi mobile akan tercatat setelah domainnya dibangun. Histori tidak dapat diubah atau dihapus dari aplikasi.
-    </x-admin.notice>
+    @include('admin.audit-logs.partials.tabs', ['active' => 'wo'])
 
     @if ($load->failed('summary'))
         <x-admin.error-state :inset="false" />

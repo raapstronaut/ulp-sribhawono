@@ -6,12 +6,17 @@ use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CancelWorkOrderRequest;
 use App\Http\Requests\Admin\StoreApkukWorkOrderRequest;
+use App\Models\FieldTeam;
 use App\Models\Penyulang;
 use App\Models\Posko;
+use App\Models\ReferenceCode;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderIssue;
+use App\Models\WorkOrderReport;
 use App\Services\ApkukCandidateService;
 use App\Services\ApkukWorkOrderService;
 use App\Services\ShiftService;
+use App\Services\Work\WorkOrderExecutionService;
 use App\Services\WorkOrderLifecycleService;
 use App\Support\DataLoader;
 use App\Support\QueryInput;
@@ -182,7 +187,7 @@ class WorkOrderController extends Controller
 
         return redirect()
             ->route('admin.work-orders.show', $workOrder)
-            ->with('status', 'work-order-created');
+            ->with('flash', "WO APKUK {$workOrder->code} berhasil dibuat.");
     }
 
     public function show(WorkOrder $workOrder, ShiftService $shiftService): View
@@ -190,21 +195,46 @@ class WorkOrderController extends Controller
         $workOrder->load([
             'posko',
             'penyulang',
+            'fieldTeam',
             'apkukTarget',
+            'locationTarget',
+            'parent',
+            'children',
             'createdBy',
             'cancelledBy',
             'statusLogs.actor',
             'reschedules.reviewedBy',
+            'reschedules.requestedByTeam',
             'reports.personnel',
             'reports.media',
+            'reports.verifiedBy',
+            'reports.submittedByTeam',
+            'escalations.reviewedBy',
+            'escalations.childWorkOrder',
+            'sourceEscalation.sourceWorkOrder',
+            'issues.resolvedBy',
             'media',
         ]);
 
         $shift = $workOrder->shift_code ? $shiftService->describe($workOrder->shift_code) : null;
+        $teams = FieldTeam::query()->where('role', $workOrder->team_type)->where('is_active', true)
+            ->when($workOrder->team_type === WorkOrder::TEAM_POSKO && $workOrder->posko_id, fn ($q) => $q->where('posko_id', $workOrder->posko_id))
+            ->with(['personnel' => fn ($q) => $q->where('is_active', true)->orderBy('name')])
+            ->orderBy('name')
+            ->get();
 
         return view('admin.work-orders.show', [
             'wo' => $workOrder,
             'shift' => $shift,
+            'teams' => $teams,
+            'reportTypes' => array_intersect_key(WorkOrderReport::TYPE_LABELS, array_flip(WorkOrderExecutionService::reportTypesFor($workOrder))),
+            'escalationReasons' => ReferenceCode::options(ReferenceCode::CATEGORY_ESCALATION_REASON, $workOrder->team_type),
+            'escalationTargets' => collect([WorkOrder::TEAM_HARSUS, WorkOrder::TEAM_ROW])
+                ->reject(fn ($team) => $team === $workOrder->team_type)
+                ->flatMap(fn ($team) => collect(WorkOrder::WORK_TYPES_BY_TEAM[$team])->mapWithKeys(fn ($type) => [$team.'|'.$type => $team.' — '.WorkOrder::WORK_TYPE_LABELS[$type]]))
+                ->all(),
+            'issueTypes' => WorkOrderIssue::TYPE_LABELS,
+            'nowWib' => now(ShiftService::TIMEZONE)->format('Y-m-d\TH:i'),
         ]);
     }
 
@@ -214,6 +244,6 @@ class WorkOrderController extends Controller
 
         return redirect()
             ->route('admin.work-orders.show', $workOrder)
-            ->with('status', 'work-order-cancelled');
+            ->with('flash', 'WO dibatalkan dan tercatat di riwayat audit. Lokasi dapat dibuatkan WO baru.');
     }
 }

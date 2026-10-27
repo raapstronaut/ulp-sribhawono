@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderApkukTarget;
 use App\Models\WorkOrderStatusLog;
+use App\Services\Work\WorkOrderCodeGenerator;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class ApkukWorkOrderService
         private readonly ApkukCandidateService $candidates,
         private readonly ShiftService $shifts,
         private readonly WorkOrderLifecycleService $lifecycle,
+        private readonly WorkOrderCodeGenerator $codes,
     ) {}
 
     /**
@@ -89,7 +91,7 @@ class ApkukWorkOrderService
         $appTimezone = config('app.timezone');
 
         $workOrder = WorkOrder::create([
-            'code' => $this->nextCode($now),
+            'code' => $this->codes->next(WorkOrderCodeGenerator::KIND_APKUK, $now),
             'team_type' => WorkOrder::TEAM_POSKO,
             'work_type' => WorkOrder::TYPE_PEMASANGAN_APKUK,
             'source' => WorkOrder::SOURCE_ADMIN_MANUAL,
@@ -143,18 +145,6 @@ class ApkukWorkOrderService
         );
 
         return $workOrder;
-    }
-
-    /**
-     * Format: WO-APKUK-YYYYMMDD-NNNN (tanggal pembuatan WIB, nomor urut harian).
-     */
-    private function nextCode(CarbonImmutable $now): string
-    {
-        $prefix = 'WO-APKUK-'.$now->setTimezone(ShiftService::TIMEZONE)->format('Ymd').'-';
-        $last = WorkOrder::query()->where('code', 'like', $prefix.'%')->max('code');
-        $next = $last === null ? 1 : ((int) substr($last, strlen($prefix))) + 1;
-
-        return $prefix.str_pad((string) $next, 4, '0', STR_PAD_LEFT);
     }
 
     private function duplicateException(string $code): ValidationException

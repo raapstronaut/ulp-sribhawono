@@ -170,6 +170,7 @@
         </div>
 
         <div class="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-5">
+            <x-admin.flash />
             @yield('content')
         </div>
     </main>
@@ -278,6 +279,27 @@
                 });
             });
             document.querySelectorAll('a[data-loading-link]').forEach((link) => link.addEventListener('click', showLoading));
+
+            // Tindakan tulis: konfirmasi untuk tindakan sensitif dan cegah kirim ganda.
+            document.querySelectorAll('form[method="post" i]').forEach((form) => {
+                form.addEventListener('submit', (event) => {
+                    const message = form.dataset.confirm;
+                    if (message && !window.confirm(message)) {
+                        event.preventDefault();
+                        return;
+                    }
+                    if (form.dataset.submitting === 'true') {
+                        event.preventDefault();
+                        return;
+                    }
+                    form.dataset.submitting = 'true';
+                    form.querySelectorAll('button[type="submit"]').forEach((button) => {
+                        button.disabled = true;
+                        button.classList.add('opacity-70', 'cursor-wait');
+                    });
+                    showLoading();
+                });
+            });
             window.addEventListener('pageshow', (event) => {
                 if (!event.persisted) return;
                 pageLoading?.classList.add('hidden');
