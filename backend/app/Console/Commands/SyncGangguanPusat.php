@@ -2,17 +2,19 @@
 
 namespace App\Console\Commands;
 
-use Google\Client;
-use Google\Service\Sheets;
+use App\Console\Commands\Concerns\ReportsSyncResult;
+use App\Services\GoogleSheetValues;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class SyncGangguanPusat extends Command
 {
+    use ReportsSyncResult;
+
     protected $signature = 'gangguan:sync {--dry-run : Periksa data tanpa menulis ke PostgreSQL}';
     protected $description = 'Sinkronkan gangguan PLN pusat dari Google Sheets ke PostgreSQL';
 
-    public function handle(): int
+    public function handle(GoogleSheetValues $sheets): int
     {
         $credentials = config('services.google_sheets.credentials_path');
         $spreadsheetId = config('services.google_sheets.spreadsheet_id');
@@ -23,11 +25,8 @@ class SyncGangguanPusat extends Command
         }
 
         try {
-            $client = new Client();
-            $client->setAuthConfig($credentials);
-            $client->setScopes([Sheets::SPREADSHEETS_READONLY]);
-            $service = new Sheets($client);
-            $response = $service->spreadsheets_values->get(
+            $rows = $sheets->get(
+                $credentials,
                 $spreadsheetId,
                 "'GANGGUAN_PUSAT_IMPORT'!A1:CY",
                 [
@@ -35,7 +34,6 @@ class SyncGangguanPusat extends Command
                     'dateTimeRenderOption' => 'SERIAL_NUMBER',
                 ]
             );
-            $rows = $response->getValues() ?? [];
         } catch (\Throwable $e) {
             $this->error('Gagal membaca Google Sheets: ' . $e->getMessage());
             return self::FAILURE;
@@ -140,14 +138,17 @@ class SyncGangguanPusat extends Command
         if ($withoutId) {
             $this->warn('Tanpa ID APKT (dilewati; akan dicoba lagi saat sync berikutnya):');
             $this->table(['Baris', 'Tanggal', 'Penyulang', 'Peralatan'], array_slice($withoutId, 0, 10));
+            $this->noteHiddenRows(count($withoutId), 10);
         }
         if ($badDates) {
             $this->warn('Tanggal tidak valid (baris dilewati):');
             $this->table(['Baris', 'ID APKT', 'Tanggal'], array_slice($badDates, 0, 10));
+            $this->noteHiddenRows(count($badDates), 10);
         }
         if ($badNumbers) {
             $this->warn('Angka tidak valid (nilai numeriknya menjadi NULL, sumber tidak diubah):');
             $this->table(['Baris', 'Kolom', 'Nilai asli'], array_slice($badNumbers, 0, 10));
+            $this->noteHiddenRows(count($badNumbers), 10);
         }
 
         if ($total === 0 || $records === []) {
@@ -178,6 +179,13 @@ class SyncGangguanPusat extends Command
         } catch (\Throwable $e) {
             $this->error('Sync gagal; transaksi database dibatalkan: ' . $e->getMessage());
             return self::FAILURE;
+        }
+    }
+
+    private function noteHiddenRows(int $total, int $shown): void
+    {
+        if ($total > $shown) {
+            $this->line(' … dan ' . ($total - $shown) . ' baris lainnya (tidak ditampilkan)');
         }
     }
 

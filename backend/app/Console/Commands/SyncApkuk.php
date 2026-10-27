@@ -2,15 +2,17 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Commands\Concerns\ReportsSyncResult;
+use App\Services\GoogleSheetValues;
 use DateTimeImmutable;
 use DateTimeZone;
-use Google\Client;
-use Google\Service\Sheets;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class SyncApkuk extends Command
 {
+    use ReportsSyncResult;
+
     protected $signature = 'apkuk:sync {--dry-run : Validasi saja, tanpa menyimpan ke PostgreSQL}';
 
     protected $description = 'Sinkronisasi APKUK_RAW dari MASTER_DATA ke tabel apkuks';
@@ -19,7 +21,7 @@ class SyncApkuk extends Command
     // Audit pertama membuktikan 3.005 laporan, sehingga < 2.800 dianggap tidak lengkap.
     private const MIN_EXPECTED_ROWS = 2800;
 
-    public function handle(): int
+    public function handle(GoogleSheetValues $sheets): int
     {
         $credentialsPath = config('services.google_sheets.credentials_path');
         $spreadsheetId = config('services.google_sheets.spreadsheet_id');
@@ -30,12 +32,8 @@ class SyncApkuk extends Command
         }
 
         try {
-            $client = new Client();
-            $client->setAuthConfig($credentialsPath);
-            $client->setScopes([Sheets::SPREADSHEETS_READONLY]);
-            $sheets = new Sheets($client);
-
-            $response = $sheets->spreadsheets_values->get(
+            $rows = $sheets->get(
+                $credentialsPath,
                 $spreadsheetId,
                 "'APKUK_RAW'!A1:L",
                 [
@@ -43,7 +41,6 @@ class SyncApkuk extends Command
                     'dateTimeRenderOption' => 'SERIAL_NUMBER',
                 ]
             );
-            $rows = $response->getValues() ?? [];
         } catch (\Throwable $e) {
             $this->error('Google Sheets gagal dibaca: ' . $e->getMessage());
             return self::FAILURE;
@@ -178,19 +175,17 @@ class SyncApkuk extends Command
         ]);
 
         if ($duplicatedSourceIds !== []) {
-            $this->warn('ID AppSheet yang digunakan pada beberapa laporan: ' . implode(', ', array_keys($duplicatedSourceIds)));
+            $ids = array_keys($duplicatedSourceIds);
+            $extra = count($ids) > 20 ? ' … dan ' . (count($ids) - 20) . ' lainnya' : '';
+            $this->warn('ID AppSheet yang digunakan pada beberapa laporan: ' . implode(', ', array_slice($ids, 0, 20)) . $extra);
         }
         if ($negativeCounts !== []) {
             $this->warn('Ada nilai jumlah negatif di sumber. Nilai aslinya dipertahankan:');
-            foreach (array_slice($negativeCounts, 0, 10) as $item) {
-                $this->line(' - ' . $item);
-            }
+            $this->listLimited($negativeCounts, 10);
         }
         if ($issues !== []) {
             $this->error('Ada data tidak valid; seluruh proses dibatalkan supaya tidak ada laporan terlewat atau ditimpa:');
-            foreach (array_slice($issues, 0, 20) as $issue) {
-                $this->line(' - ' . $issue);
-            }
+            $this->listLimited($issues);
             return self::FAILURE;
         }
         if ($reportCount < self::MIN_EXPECTED_ROWS || count($records) !== $reportCount) {
@@ -215,12 +210,11 @@ class SyncApkuk extends Command
             if ($missing->isNotEmpty()) {
                 $this->error($missing->count() . ' identitas lama di PostgreSQL tidak ditemukan di sumber terbaru.');
 
-                foreach ($missing as $old) {
-                    $this->line(
-                        ' - ID: ' . ($old->source_id ?? '(kosong)') .
-                        ' | Tiang: ' . ($old->no_tiang ?? '(kosong)')
-                    );
-                }
+                // Dulu dicetak satu baris per identitas tanpa batas: ratusan baris sekaligus
+                // melampaui batas log Railway sehingga pesan penyebab gagal ikut dibuang.
+                $this->listLimited($missing->map(
+                    fn ($old) => 'ID: ' . ($old->source_id ?? '(kosong)') . ' | Tiang: ' . ($old->no_tiang ?? '(kosong)')
+                ));
 
                 $this->error('Sync dibatalkan demi mencegah duplikat.');
                 return self::FAILURE;
