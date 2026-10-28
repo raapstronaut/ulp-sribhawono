@@ -14,7 +14,8 @@
 - **Laravel Filesystem:** file foto lokal saat dev, object storage S3-compatible saat prod; PostgreSQL menyimpan metadata/path/hash.
 - **Maps ADMIN:** Leaflet + OSM tiles untuk peta dan layer. **Google Maps eksternal Android** untuk navigasi petugas melalui koordinat; bukan Leaflet untuk seluruh mobile.
 - **Scheduler/Queue:** shift generation, prioritization, ROW WO, upload processing, notification retries, cleanup terkendali.
-- **No legacy Next.js/Supabase/PowerSync**, tidak wajib websocket/realtime/ML. Polling atau refresh berskala wajar.
+- **No legacy Next.js/Supabase/PowerSync**, tidak wajib websocket/realtime. Polling atau refresh berskala wajar.
+- **ML (keputusan 28 Okt 2026):** model prioritas/pemilihan WO otomatis wajib tervalidasi dan terintegrasi pada generator sebelum go-live. Aturan keras (pending APKUK, WO aktif ganda, kelayakan) tetap di luar model, dan rule-based menjadi fallback. Lihat `OPERATIONAL_SPEC_GAP_AUDIT.md` §10.
 
 # 2. Status kode yang terverifikasi melalui GitHub
 
@@ -45,7 +46,7 @@ Hanya role: ADMIN / POSKO / HARSUS / INSPEKSI / ROW. Account = tim login; petuga
 
 # 5. Shift generation & business services
 
-Shift aktif A 08:00–16:00, B 16:00–00:00, C 00:00–08:00 **mengikuti konfigurasi lama sampai disahkan ulang**; simpan parametrik di app_configs. Gunakan Asia/Jakarta dan identitas shift-instance (tanggal kerja + kode + Posko) agar aman pada pergantian tengah malam.
+Shift A 08:00–16:00, B 16:00–00:00, C 00:00–08:00 **FINAL (dikonfirmasi 28 Okt 2026)**; tiga shift berurutan 24 jam tanpa jeda. Gunakan Asia/Jakarta dan identitas shift-instance (tanggal kerja + kode + Posko) agar aman pada pergantian tengah malam.
 
 **Shift scheduler (idempotent):** saat awal tiap shift per Posko ciptakan PASILA dengan rekomendasi Section dan enam tugas WO APKUK sistem yang didukung data, tanpa membuat duplikasi pada rerun; Admin bisa membuat manual. PASILA tidak menunggu enam WO beres untuk dibuat. Route WO berdasarkan titik/Section dan jarak; kecocokan GPS dan rute jalan perlu dibedakan.
 

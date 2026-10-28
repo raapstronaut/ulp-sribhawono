@@ -105,4 +105,4 @@ Koreksi oleh ADMIN wajib reason; catat old/new/actor/timestamp dan jangan hard-d
 
 API belum tersedia saat audit; rute Web Admin lama belum auth guard. Langkah aman: implementasi identity/role + server authorization, canonical masters, WO/PASILA/P0 workflows, admin review, ROW, Maps dan photo history, baru mobile online/offline end-to-end. Uji bahwa seluruh endpoint forbidden untuk role yang salah dan duplicate request tidak membuat transaksi ganda.
 
-**TBD:** payload detail P0 dari atasan, kode dropdown, formula prioritas, status reschedule approval, ROW dedupe policy, bentuk GIS, shift config final, foto khusus per work_type, frekuensi special-case.
+**TBD:** payload detail P0 dari atasan, kode dropdown, formula prioritas, status reschedule approval, ROW dedupe policy, bentuk GIS, foto khusus per work_type, frekuensi special-case. Jam shift sudah final 28 Okt 2026 (A 08–16, B 16–00, C 00–08 WIB).

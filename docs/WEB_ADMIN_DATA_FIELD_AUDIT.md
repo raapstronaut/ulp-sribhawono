@@ -860,6 +860,17 @@ Kontrak detail mobile tidak mengirim field `allowed_actions`; klien harus mengin
 
 Tidak ada nilai default baru yang direkomendasikan untuk butir berikut; semuanya harus diputuskan owner bisnis/data.
 
+> **Pembaruan 28 Okt 2026:** butir berikut sudah diputuskan pengguna (lihat `PROJECT_STATUS.md` §3a dan `OPERATIONAL_SPEC_GAP_AUDIT.md` §2.2):
+> - 12 — jam shift final; tanggal kerja Shift C masih terbuka;
+> - 17 — `TANGGAMUS` = `TANGGAMUS 2`;
+> - 18 — Posko resmi SRIBHAWONO; PSK001–006 tidak ditampilkan;
+> - 19 — Section dilengkapi Admin lewat data internal ber-audit;
+> - 22 — DUMMY dipertahankan;
+> - 23 — ROW memakai `ID POHON`;
+> - 24 — semua data asli tampil di Detail APKUK.
+>
+> Butir lain tetap terbuka.
+
 1. **P0:** definisi, trigger, severity, status, SLA, bukti, kebutuhan padam/material/K3, dan hubungan dengan PASILA/WO.
 2. **PASILA:** definisi sesi, grain posko/shift, checklist/finding, target formula, closing rule, dan relasi P0.
 3. **Section:** primary key, hierarchy feeder–section–asset, alias, owner, dan sumber canonical.

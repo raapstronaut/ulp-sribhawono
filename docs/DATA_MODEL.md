@@ -105,6 +105,7 @@ Tabel polimorfik di atas **desain logis**, bukan nama final yang memaksa impleme
 **WO status proposal:** BARU / DITUGASKAN / DIKERJAKAN / RESCHEDULED / SELESAI / SELESAI_DITERUSKAN / DIBATALKAN. State machine final dan hak mutasi perlu tes.
 **P0 proposal:** MENUNGGU_ACC / DITOLAK / DISETUJUI lalu executable states; Admin manual aktif sesuai validasi. Reject SYSTEM mensyaratkan pengganti manual.
 **Sync local:** QUEUED / SENDING / ACKNOWLEDGED / RETRYABLE_ERROR / ACTION_REQUIRED dengan request_id/idempotency_key.
+**Identitas sumber (keputusan 28 Okt 2026):** target ROW memakai **ID POHON** (unik 16.983/16.983 pada snapshot 28 Okt), bukan ID baris staging. Laporan APKUK yang hilang dari snapshot SPS BOS valid berstatus pending/histori (`source_missing_at`), tidak dihapus.
 **Uniqueness:** shift_instance unik posko+work_date+shift; generator PASILA/WO dan ROW harus idempotent terhadap job retry. Aturan carryover mengurangi kuota WO berikutnya **TBD**. Aturan persis deduplikasi satu vegetasi/multi siklus juga **TBD**, walaupun banyak titik dan WO per hari diperbolehkan.
 
 # 8. Index & query

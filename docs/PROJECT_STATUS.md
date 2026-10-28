@@ -42,6 +42,21 @@ Satu akun tim per Posko (enam), satu akun untuk ROW/HARSUS/INSPEKSI, pilihan pet
 - History tidak dihapus, koreksi hanya Admin dengan old/new/actor/waktu/alasan.
 - Special case berbasis **frekuensi gangguan**, bukan fixed >3 trip. Metode/ambang masih TBD.
 
+# 3a. Keputusan pengguna 28 Oktober 2026 (mengungguli v3 bila bertentangan)
+
+- **Jam shift FINAL** (WIB, berurutan 24 jam): A 08.00–16.00, B 16.00–00.00, C 00.00–08.00. Target tetap **enam WO PEMASANGAN_APKUK per Posko per shift** (enam pekerjaan, jumlah fisik dicatat terpisah). Definisi tanggal kerja Shift C masih TBD.
+- **Machine learning untuk pemilihan/prioritas WO otomatis wajib siap, tervalidasi, dan terintegrasi sebelum sistem dipakai operasional.** Ini menggantikan pernyataan v3 "model ML bukan prasyarat". Ranking rule-based tetap dipakai sebagai baseline pembanding dan fallback, dan tidak boleh disebut ML.
+- **APKUK source-state:** laporan yang tidak ada pada snapshot SPS BOS valid otomatis keluar dari laporan aktif. Histori Neon tetap disimpan tanpa hard-delete. Laporan yang muncul kembali dipulihkan. Pembacaan sumber gagal/tidak lengkap bukan penghapusan (PR #11, `docs/APKUK_RESILIENT_SYNC.md`). Semua data asli laporan harus tersedia di Detail APKUK.
+- **Normalisasi sumber** hanya untuk typo, ejaan, kapitalisasi, format, dan alias yang terbukti sama. Fakta lapangan (koordinat, foto, status, jumlah fisik, kondisi, pengukuran, histori) tidak diubah. Ketentuan yang sudah dikonfirmasi:
+  - Posko resmi **SRIBHAWONO**;
+  - penyulang **TANGGAMUS 2**;
+  - PSK001–PSK006 hanya kode spreadsheet dan tidak ditampilkan;
+  - Posko operasional memakai nama;
+  - data DUMMY dari SPS BOS dipertahankan;
+  - Section kosong/DUMMY boleh dilengkapi Admin lewat data internal ber-audit tanpa menimpa nilai sumber.
+- **ROW mengacu ID POHON.** `ASSET_REVIEW_RAW` bukan acuan aset permanen; spreadsheet aset penyulang lengkap dari pemilik SPS BOS menjadi referensi berikutnya.
+- Hasil audit spesifikasi vs implementasi beserta daftar TBD terbaru ada di `docs/OPERATIONAL_SPEC_GAP_AUDIT.md`.
+
 # 4. Arsitektur yang dipertahankan
 
 Laravel backend/API/Admin Web, PostgreSQL authoritative, Flutter Android, SQLite cache/outbox ringan, Laravel Filesystem local dev/S3-ready prod, Leaflet/OSM Web, Google Maps external mobile navigation, scheduler/queue dan polling. Tidak menggunakan Next.js/Supabase/PowerSync/full offline basemap.
@@ -59,7 +74,7 @@ Laravel backend/API/Admin Web, PostgreSQL authoritative, Flutter Android, SQLite
 | Canonical Section/Asset & data master Petugas | Belum dibangun |
 | Auth Web ADMIN | Ada: login username, middleware `auth`+`admin` pada `/admin/*`, pengaturan akun, `CreateAdminUser` |
 | Auth role mobile (POSKO/HARSUS/INSPEKSI/ROW) | Belum dibangun |
-| Shift A/B/C | `ShiftService` tunggal (jam sementara 08–16 / 16–00 / 00–08 WIB), dipakai Dashboard dan WO |
+| Shift A/B/C | `ShiftService` tunggal (jam **final** 08–16 / 16–00 / 00–08 WIB sejak 28 Okt), dipakai Dashboard, WO, PASILA, dan API. Belum ada `shift_instances` maupun job awal shift |
 | Dashboard Admin | UI v3, angka master asli, KPI transaksi "Data belum tersedia" |
 | P0 Admin Monitor+Detail | UI empty state, belum domain |
 | WO APKUK Tahap 1 (branch `feat/workflows-v3-foundation`, 20 Okt) | Migration `2026_10_20_000001_create_work_order_foundations` (work_orders generik + target APKUK, audit log, reschedule, laporan, petugas, media); Admin Web daftar/buat manual/detail/batal; validasi kandidat `apkuks` (laporan terbaru per tiang, `kurang_bh` > 0, status BELUM EKSEKUSI/KURANG, penyulang cocok master); cegah WO aktif ganda per tiang (unique `active_target_key`). Sudah dijalankan di Neon branch `dev-workflows-v3` (`--env=workflows`); belum di shared dev. Laporan/reschedule/foto baru struktur data + status, belum ada API/UI |
@@ -72,6 +87,8 @@ Laravel backend/API/Admin Web, PostgreSQL authoritative, Flutter Android, SQLite
 | API mobile + offline sync | Belum dibangun |
 
 `main` sudah di-fast-forward dari v2 ke baseline v3 pada 8 Oktober 2026. Branch fitur lama adalah histori; belum otomatis terhapus dari remote.
+
+**Tes (28 Okt 2026, audit spesifikasi v3, HEAD `e10a85d`):** `php artisan test` → **259 passed / 2283 assertions**; Flutter `flutter analyze` bersih dan `flutter test` 4/4 (hanya layar login, belum terhubung API).
 
 **Tes (28 Okt 2026, Batch A operasional):** `php artisan test` → **231 passed / 1864 assertions** (SQLite in-memory). Uji browser Microsoft Edge (Playwright) terhadap server lokal dengan PostgreSQL 18 schema sementara berisi data UJI: **40/40 halaman** (desktop + seluler) dan **18/18 alur** (login, buat WO HARSUS, laporan + foto, ACC/Tolak, reschedule, limpahan, inspeksi, kendala, master data, akun, ekspor CSV, akses ditolak) lulus; schema dihapus setelahnya. `npm run build` sukses, Pint lulus untuk semua file PHP yang berubah.
 
@@ -99,7 +116,7 @@ Laravel backend/API/Admin Web, PostgreSQL authoritative, Flutter Android, SQLite
 
 **Butuh pusat/atasan:** kepastian Section/batas, ID dan koordinat aset/cross references, histori maintenance, foto historis, GIS optional, gangguan affected assets, master petugas/kode temuan resmi, formula prioritas & vegetasi, detail form P0, kebijakan sesi perangkat, approval reschedule, aturan carryover, duplicate vegetation WO dan formula frekuensi special-case.
 
-**Butuh keputusan tim:** jam shift A/B/C final; kapan migration `create_field_team_foundations` dijalankan di Neon shared dev; peran data `apkuks` hasil sync (sumber WO atau histori).
+**Butuh keputusan tim:** tanggal kerja Shift C (jam shift sudah final 28 Okt); kapan migration `create_field_team_foundations` dijalankan di Neon shared dev; peran data `apkuks` hasil sync (sumber WO atau histori).
 
 **Tidak blocked:** dokumen, RBAC role mobile dan tests, migration additive berdasarkan schema pasti, kode reference/master, API contracts, desain dan UI admin halaman berikutnya, peta dengan empty state/lazy filtering, offline worker design.
 
