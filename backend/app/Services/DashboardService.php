@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\WorkOrderStatus;
+use App\Models\ApkukSyncRun;
 use App\Models\Inspection;
 use App\Models\InspectionFinding;
 use App\Models\Penyulang;
@@ -13,6 +14,7 @@ use App\Models\WorkOrderIssue;
 use App\Models\WorkOrderReport;
 use App\Models\WorkOrderReschedule;
 use App\Models\WorkOrderStatusLog;
+use App\Services\Apkuk\ApkukSourceState;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -229,9 +231,12 @@ class DashboardService
     private function apkuk(CarbonImmutable $from): array
     {
         return [
-            'active_reports' => DB::table('apkuks')->whereNull('source_missing_at')->count(),
-            'history_reports' => DB::table('apkuks')->whereNotNull('source_missing_at')->count(),
+            // Pending (tidak ada di snapshot SPS BOS terakhir) tidak dihitung sebagai laporan aktif.
+            'active_reports' => ApkukSourceState::active(DB::table('apkuks'))->count(),
+            'pending_reports' => ApkukSourceState::pending(DB::table('apkuks'))->count(),
+            'history_reports' => ApkukSourceState::history(DB::table('apkuks'))->count(),
             'last_synced_at' => DB::table('apkuks')->max('last_synced_at'),
+            'last_run_status' => ApkukSyncRun::query()->latest('id')->first()?->statusLabel(),
             'wo_active' => WorkOrder::query()->apkuk()->active()->count(),
             'installed_period' => (int) DB::table('work_order_apkuk_targets as t')
                 ->join('work_orders as w', 'w.id', '=', 't.work_order_id')

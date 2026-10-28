@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderApkukTarget;
 use App\Models\WorkOrderStatusLog;
+use App\Services\Apkuk\ApkukSyncLock;
 use App\Services\Work\WorkOrderCodeGenerator;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -62,7 +63,7 @@ class ApkukWorkOrderService
     {
         // Menunggu apkuk:sync yang sedang menulis, agar laporan yang baru masuk antrean
         // rekonsiliasi tidak lolos sebagai target WO.
-        \App\Services\Apkuk\ApkukSyncLock::shared();
+        ApkukSyncLock::shared();
 
         $candidate = $this->candidates->find((int) $input['apkuk_id']);
         if ($candidate === null) {

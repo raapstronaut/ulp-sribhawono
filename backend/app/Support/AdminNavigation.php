@@ -48,6 +48,7 @@ final class AdminNavigation
                 'items' => [
                     ['label' => 'Peta Jaringan', 'route' => 'admin.maps.index', 'active' => 'admin.maps.*', 'icon' => 'PJ'],
                     ['label' => 'Review & Validasi', 'route' => 'admin.reviews.index', 'active' => 'admin.reviews.*', 'icon' => 'RV'],
+                    ['label' => 'Rekonsiliasi APKUK', 'route' => 'admin.apkuk-reconciliation.index', 'active' => 'admin.apkuk-reconciliation.*', 'icon' => 'RK'],
                     ['label' => 'Special Case', 'route' => 'admin.special-case.index', 'active' => 'admin.special-case.*', 'icon' => 'SC'],
                 ],
             ],

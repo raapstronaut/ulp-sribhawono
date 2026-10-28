@@ -8,6 +8,7 @@ use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\WorkOrder;
 use App\Services\Admin\WorkOrderAnalyticsService;
+use App\Services\Apkuk\ApkukSourceState;
 use App\Services\ShiftService;
 use App\Support\DataLoader;
 use App\Support\QueryInput;
@@ -76,8 +77,7 @@ class AnalyticsController extends Controller
                 ->orderBy('penyebab')
                 ->limit(self::TOP_LIMIT)
                 ->get(), collect()),
-            'apkukStatus' => $load->attempt('apkuks', fn () => DB::table('apkuks')
-                ->whereNull('source_missing_at')
+            'apkukStatus' => $load->attempt('apkuks', fn () => ApkukSourceState::active(DB::table('apkuks'))
                 ->select('status', DB::raw('count(*) as total'), DB::raw('sum(kurang_bh) as kurang'))
                 ->groupBy('status')
                 ->orderByDesc('total')

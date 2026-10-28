@@ -36,7 +36,8 @@
         <x-admin.stat-card label="Terlambat" :value="$kpis['terlambat']" hint="WO aktif melewati batas waktu" :tone="$kpis['terlambat'] > 0 ? 'red' : 'slate'" :href="route('admin.special-case.index')" />
         <x-admin.stat-card label="Menunggu keputusan Admin" :value="$pendingTotal" :hint="$pending['reports'].' laporan · '.$pending['reschedules'].' reschedule · '.$pending['escalations'].' limpahan · '.$pending['findings'].' temuan'" :tone="$pendingTotal > 0 ? 'amber' : 'slate'" :href="route('admin.reviews.index')" />
         <x-admin.stat-card label="Kendala terbuka" :value="$pending['issues']" hint="Special case pelaksanaan" :tone="$pending['issues'] > 0 ? 'amber' : 'slate'" :href="route('admin.special-case.index')" />
-        <x-admin.stat-card label="Laporan APKUK aktif" :value="$apkuk['active_reports']" :hint="$apkuk['history_reports'].' histori bertanda · sinkron '.$syncLabel($apkuk['last_synced_at'])" :href="route('admin.apkuk.index')" />
+        <x-admin.stat-card label="Laporan APKUK aktif" :value="$apkuk['active_reports']" :hint="$apkuk['history_reports'].' histori (diarsipkan) · sinkron '.$syncLabel($apkuk['last_synced_at'])" :href="route('admin.apkuk.index')" />
+        <x-admin.stat-card label="APKUK menunggu rekonsiliasi" :value="$apkuk['pending_reports']" :hint="'Tidak ada di SPS BOS terbaru; tidak dihitung aktif · sync terakhir: '.($apkuk['last_run_status'] ?? 'belum ada')" :tone="$apkuk['pending_reports'] > 0 ? 'amber' : 'slate'" :href="route('admin.apkuk-reconciliation.index')" />
         <x-admin.stat-card label="Gangguan 7 hari" :value="$gangguan['last_7_days']" :hint="$gangguan['last_30_days'].' dalam 30 hari · sinkron '.$syncLabel($gangguan['last_synced_at'])" :href="route('admin.special-case.index')" />
     </div>
 

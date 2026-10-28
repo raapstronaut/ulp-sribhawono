@@ -37,6 +37,7 @@ class AdminModuleAccessTest extends FoundationTestCase
     {
         $expectations = [
             '/admin/apkuk' => 'APKUK',
+            '/admin/apkuk-rekonsiliasi' => 'Antrean Rekonsiliasi APKUK',
             '/admin/pasila' => 'PASILA Monitor',
             '/admin/inspeksi' => 'Inspeksi',
             '/admin/row' => 'ROW',
@@ -71,19 +72,24 @@ class AdminModuleAccessTest extends FoundationTestCase
         $this->assertStringNotContainsString('modul belum tersedia', $html);
         $this->assertStringNotContainsString('Modul lainnya belum tersedia', $html);
         $this->assertStringContainsString('id="mobile-sidebar"', $html);
-        $this->assertCount(16, AdminNavigation::routeNames());
+        $this->assertCount(17, AdminNavigation::routeNames());
     }
 
     public function test_current_module_is_marked_active_in_navigation(): void
     {
         $html = $this->actingAs($this->admin)->get('/admin/special-case')->assertOk()->getContent();
-        $activeLink = fn (string $routeName) => preg_match_all('/<a href="'.preg_quote(route($routeName), '/').'"[^>]*aria-current="page"/', $html);
+        $activeLink = fn (string $content, string $routeName) => preg_match_all('/<a href="'.preg_quote(route($routeName), '/').'"[^>]*aria-current="page"/', $content);
 
         // Desktop + seluler.
-        $this->assertSame(2, $activeLink('admin.special-case.index'));
-        $this->assertSame(0, $activeLink('admin.pasila.index'));
-        $this->assertSame(0, $activeLink('admin.dashboard'));
+        $this->assertSame(2, $activeLink($html, 'admin.special-case.index'));
+        $this->assertSame(0, $activeLink($html, 'admin.pasila.index'));
+        $this->assertSame(0, $activeLink($html, 'admin.dashboard'));
         $this->assertStringContainsString('<title>Special Case - ULP Sribhawono</title>', $html);
+
+        $reconciliation = $this->actingAs($this->admin)->get('/admin/apkuk-rekonsiliasi')->assertOk()->getContent();
+        $this->assertSame(2, $activeLink($reconciliation, 'admin.apkuk-reconciliation.index'));
+        $this->assertSame(0, $activeLink($reconciliation, 'admin.special-case.index'));
+        $this->assertStringContainsString('<title>Rekonsiliasi APKUK - ULP Sribhawono</title>', $reconciliation);
     }
 
     public function test_every_admin_route_including_write_actions_is_inside_admin_middleware(): void
@@ -115,6 +121,7 @@ class AdminModuleAccessTest extends FoundationTestCase
             '/admin/users',
             '/admin/inspeksi',
             '/admin/harsus',
+            '/admin/apkuk-rekonsiliasi/1/selesaikan',
         ];
         $fieldAccount = User::factory()->create(['username' => 'POSKO_WRITE', 'role' => 'POSKO', 'is_active' => true]);
 
@@ -160,6 +167,7 @@ class AdminModuleAccessTest extends FoundationTestCase
 
         return [
             '/admin/apkuk',
+            '/admin/apkuk-rekonsiliasi',
             '/admin/pasila',
             '/admin/pasila/'.$posko->id,
             '/admin/inspeksi',

@@ -9,7 +9,7 @@
 @endphp
 <div class="mx-auto max-w-7xl space-y-6 pb-12">
     <x-admin.page-header section="Pekerjaan" title="APKUK" state="live"
-        description="Laporan APKUK dari SPS BOS hasil sinkronisasi dan rekonsiliasi. Laporan yang tidak lagi ada di sumber tetap tersimpan sebagai histori (source_missing_at) dan tidak dihitung sebagai laporan aktif. Halaman ini tidak menulis ke Google Sheets.">
+        description="Laporan APKUK dari SPS BOS hasil sinkronisasi dan rekonsiliasi. Laporan yang tidak lagi ada di sumber berstatus menunggu rekonsiliasi (tidak dihitung aktif) sampai muncul kembali atau diarsipkan Admin atas konfirmasi pemilik data; histori tidak pernah dihapus. Halaman ini tidak menulis ke Google Sheets.">
         <x-slot:actions>
             <x-admin.button :href="route('admin.work-orders.create')">Buat WO APKUK</x-admin.button>
         </x-slot:actions>
@@ -20,7 +20,8 @@
     @else
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <x-admin.stat-card label="Laporan aktif" :value="$summary['active']" :hint="'Sinkron terakhir '.($summary['last_synced_at'] ? \Illuminate\Support\Carbon::parse($summary['last_synced_at'])->timezone($tz)->format('d/m H:i').' WIB' : '-')" />
-            <x-admin.stat-card label="Histori (tidak ada di sumber)" :value="$summary['history']" hint="Ditandai source_missing_at; tidak dihapus" :href="route('admin.apkuk.index', ['tab' => 'histori'])" />
+            <x-admin.stat-card label="Menunggu rekonsiliasi" :value="$summary['pending']" hint="Tidak ada di SPS BOS terbaru; tidak dihitung aktif" tone="amber" :href="route('admin.apkuk-reconciliation.index')" />
+            <x-admin.stat-card label="Histori (diarsipkan)" :value="$summary['history']" hint="Diarsipkan Admin; tidak dihapus" :href="route('admin.apkuk.index', ['tab' => 'histori'])" />
             <x-admin.stat-card label="Lokasi layak WO" :value="$summary['eligible']" hint="Laporan terbaru per tiang, kurang > 0, status BELUM EKSEKUSI/KURANG, penyulang cocok" tone="blue" :href="route('admin.work-orders.create')" />
             <x-admin.stat-card label="Kebutuhan (bh)" :value="$summary['need_bh']" hint="Jumlah kurang_bh pada lokasi layak" tone="amber" />
             <x-admin.stat-card label="WO APKUK aktif" :value="$summary['wo_active']" :href="route('admin.work-orders.index')" />
@@ -68,7 +69,7 @@
         @else
             <x-admin.table min-width="min-w-[960px]">
                 <x-slot:head>
-                    <th class="px-4 py-3">Tiang</th><th class="px-4 py-3">ID laporan</th><th class="px-4 py-3">Tanggal</th><th class="px-4 py-3">Penyulang / Section</th><th class="px-4 py-3 text-right">Terpasang / Kurang</th><th class="px-4 py-3">Status sumber</th><th class="px-4 py-3">{{ $tab === 'aktif' ? 'Kelayakan WO' : 'Hilang dari sumber' }}</th>
+                    <th class="px-4 py-3">Tiang</th><th class="px-4 py-3">ID laporan</th><th class="px-4 py-3">Tanggal</th><th class="px-4 py-3">Penyulang / Section</th><th class="px-4 py-3 text-right">Terpasang / Kurang</th><th class="px-4 py-3">Status sumber</th><th class="px-4 py-3">{{ match ($tab) { 'aktif' => 'Kelayakan WO', 'menunggu' => 'Rekonsiliasi', default => 'Diarsipkan' } }}</th>
                 </x-slot:head>
                 @forelse ($rows as $row)
                     @php $candidate = $candidates->get($row->id); @endphp
@@ -80,7 +81,9 @@
                         <td class="px-4 py-3 text-right text-xs">{{ $row->terpasang_bh ?? '-' }} / {{ $row->kurang_bh ?? '-' }}</td>
                         <td class="px-4 py-3 text-xs">{{ $row->status ?? '-' }}</td>
                         <td class="px-4 py-3 text-xs">
-                            @if ($tab === 'histori')
+                            @if ($tab === 'menunggu')
+                                <a href="{{ route('admin.apkuk-reconciliation.index') }}" class="font-semibold text-amber-700 hover:text-amber-900">Menunggu keputusan — tinjau</a>
+                            @elseif ($tab === 'histori')
                                 {{ \Illuminate\Support\Carbon::parse($row->source_missing_at)->timezone($tz)->format('d/m/Y H:i') }} WIB
                             @elseif ($candidate?->isEligible())
                                 <a href="{{ route('admin.work-orders.create', ['apkuk_id' => $row->id]) }}" class="font-semibold text-emerald-700 hover:text-emerald-900">Layak — buat WO</a>
@@ -93,7 +96,7 @@
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="7"><x-admin.empty-state :title="$tab === 'aktif' ? 'Tidak ada laporan aktif yang cocok.' : 'Tidak ada laporan histori.'" /></td></tr>
+                    <tr><td colspan="7"><x-admin.empty-state :title="match ($tab) { 'aktif' => 'Tidak ada laporan aktif yang cocok.', 'menunggu' => 'Tidak ada laporan yang menunggu rekonsiliasi.', default => 'Tidak ada laporan histori.' }" /></td></tr>
                 @endforelse
             </x-admin.table>
             <x-admin.pagination :paginator="$rows" label="laporan" />

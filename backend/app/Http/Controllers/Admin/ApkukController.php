@@ -6,6 +6,7 @@ use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Penyulang;
 use App\Models\WorkOrder;
+use App\Services\Apkuk\ApkukSourceState;
 use App\Services\ApkukCandidateService;
 use App\Support\DataLoader;
 use App\Support\QueryInput;
@@ -22,7 +23,7 @@ class ApkukController extends Controller
 {
     private const PER_PAGE = 25;
 
-    public const TABS = ['aktif' => 'Laporan aktif', 'histori' => 'Histori (tidak ada di sumber)', 'progres' => 'Progres pemasangan WO'];
+    public const TABS = ['aktif' => 'Laporan aktif', 'menunggu' => 'Menunggu rekonsiliasi', 'histori' => 'Histori (diarsipkan)', 'progres' => 'Progres pemasangan WO'];
 
     public function index(Request $request, ApkukCandidateService $candidates, DataLoader $load): View
     {
@@ -36,8 +37,9 @@ class ApkukController extends Controller
 
         $evaluated = $load->attempt('candidates', fn () => $candidates->evaluate(), collect());
         $summary = $load->attempt('summary', fn () => [
-            'active' => DB::table('apkuks')->whereNull('source_missing_at')->count(),
-            'history' => DB::table('apkuks')->whereNotNull('source_missing_at')->count(),
+            'active' => ApkukSourceState::active(DB::table('apkuks'))->count(),
+            'pending' => ApkukSourceState::pending(DB::table('apkuks'))->count(),
+            'history' => ApkukSourceState::history(DB::table('apkuks'))->count(),
             'last_synced_at' => DB::table('apkuks')->max('last_synced_at'),
             'eligible' => $evaluated->filter->isEligible()->count(),
             'need_bh' => (int) $evaluated->filter->isEligible()->sum(fn ($c) => $c->targetQuantity()),
@@ -48,8 +50,11 @@ class ApkukController extends Controller
 
         $rows = null;
         if ($tab !== 'progres') {
-            $rows = $load->attempt('rows', fn () => DB::table('apkuks')
-                ->when($tab === 'aktif', fn ($q) => $q->whereNull('source_missing_at'), fn ($q) => $q->whereNotNull('source_missing_at'))
+            $rows = $load->attempt('rows', fn () => (match ($tab) {
+                'aktif' => ApkukSourceState::active(DB::table('apkuks')),
+                'menunggu' => ApkukSourceState::pending(DB::table('apkuks')),
+                default => ApkukSourceState::history(DB::table('apkuks')),
+            })
                 ->when($filters['penyulang'] !== '', fn ($q) => $q->where('penyulang', $filters['penyulang']))
                 ->when($filters['status'] !== '', fn ($q) => $q->where('status', $filters['status']))
                 ->when($filters['q'] !== '', fn ($q) => $q->where(fn ($inner) => $inner

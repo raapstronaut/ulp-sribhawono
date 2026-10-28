@@ -9,6 +9,7 @@ use App\Models\FieldTeamShiftAssignment;
 use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\WorkOrder;
+use App\Services\Apkuk\ApkukSourceState;
 use App\Services\ApkukCandidateService;
 use App\Services\ShiftService;
 use App\Support\DataLoader;
@@ -238,7 +239,7 @@ class MasterDataController extends Controller
             'poskos' => $load->attempt('poskos', fn () => $penyulang->poskos()->orderBy('nama_posko')->get(), collect()),
             'sourceCounts' => [
                 'keypoints' => $load->attempt('keypoints', fn () => $matching('keypoints')->count()),
-                'apkuks' => $load->attempt('apkuks', fn () => $matching('apkuks')->whereNull('source_missing_at')->count()),
+                'apkuks' => $load->attempt('apkuks', fn () => ApkukSourceState::active($matching('apkuks'))->count()),
                 'gangguans' => $load->attempt('gangguans', fn () => $matching('gangguans')->count()),
             ],
             'workOrders' => $load->attempt('work_orders', fn () => WorkOrder::query()
@@ -263,18 +264,23 @@ class MasterDataController extends Controller
             ['table' => 'section_pic_source_rows', 'label' => 'Section / PIC (SECTION_PIC_RAW)', 'kind' => 'Staging mentah', 'time' => 'imported_at', 'description' => 'Grouping visual sumber dipertahankan; tidak di-fill-down.'],
             ['table' => 'keypoint_source_rows', 'label' => 'Keypoint (staging lama)', 'kind' => 'Staging mentah', 'time' => 'imported_at', 'description' => 'Digantikan sinkron langsung ke tabel keypoints.'],
             ['table' => 'keypoints', 'label' => 'Keypoint (SPS BOS)', 'kind' => 'Sinkron sumber', 'time' => 'last_synced_at', 'description' => 'keypoint:sync; mencakup FCO/switching menurut stakeholder, tetap perlu audit.'],
-            ['table' => 'apkuks', 'label' => 'APKUK (AppSheet lama)', 'kind' => 'Sinkron sumber', 'time' => 'last_synced_at', 'description' => 'apkuk:sync; histori tidak dihapus, baris hilang dari sumber ditandai source_missing_at.'],
+            ['table' => 'apkuks', 'label' => 'APKUK (SPS BOS)', 'kind' => 'Sinkron sumber', 'time' => 'last_synced_at', 'description' => 'apkuk:sync; laporan hilang tetap menunggu rekonsiliasi sampai muncul kembali atau diarsipkan Admin atas konfirmasi pemilik data. Histori tidak dihapus.'],
             ['table' => 'gangguans', 'label' => 'Gangguan (PLN pusat)', 'kind' => 'Sinkron sumber', 'time' => 'last_synced_at', 'description' => 'gangguan:sync; belum memiliki koordinat kejadian dan aset terdampak.'],
         ];
 
         return array_map(function (array $source) use ($load): array {
             $section = 'source_'.$source['table'];
-            // Satu query per tabel; nama tabel/kolom berasal dari daftar tetap di atas.
-            $columns = ['count(*) as total', "max({$source['time']}) as last_at"];
+            // Nama tabel/kolom berasal dari daftar tetap di atas.
+            $query = DB::table($source['table'])
+                ->selectRaw("count(*) as total, max({$source['time']}) as last_at");
             if ($source['table'] === 'apkuks') {
-                $columns[] = 'count(source_missing_at) as missing';
+                // Satu round-trip dengan subquery yang memakai definisi status sumber tunggal.
+                $query
+                    ->selectSub(ApkukSourceState::active(DB::table('apkuks as apkuk_active'), 'apkuk_active')->selectRaw('count(*)'), 'active')
+                    ->selectSub(ApkukSourceState::pending(DB::table('apkuks as apkuk_pending'), 'apkuk_pending')->selectRaw('count(*)'), 'pending')
+                    ->selectSub(ApkukSourceState::history(DB::table('apkuks as apkuk_history'), 'apkuk_history')->selectRaw('count(*)'), 'history');
             }
-            $stats = $load->attempt($section, fn () => DB::table($source['table'])->selectRaw(implode(', ', $columns))->first());
+            $stats = $load->attempt($section, fn () => $query->first());
 
             return [
                 'key' => $section,
@@ -283,7 +289,9 @@ class MasterDataController extends Controller
                 'kind' => $source['kind'],
                 'description' => $source['description'],
                 'total' => $stats === null ? null : (int) $stats->total,
-                'extra' => isset($stats->missing) ? ((int) $stats->missing).' baris histori (hilang dari sumber)' : null,
+                'extra' => isset($stats->active)
+                    ? ((int) $stats->active).' aktif · '.((int) $stats->pending).' menunggu rekonsiliasi · '.((int) $stats->history).' histori'
+                    : null,
                 'last_at' => $stats?->last_at,
             ];
         }, $sources);

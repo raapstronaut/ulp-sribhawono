@@ -293,6 +293,16 @@
                         return;
                     }
                     form.dataset.submitting = 'true';
+                    // Tombol yang di-disable tidak ikut terkirim; salin name/value tombol yang
+                    // diklik (mis. decision) agar pilihan pengguna tetap sampai ke server.
+                    const submitter = event.submitter;
+                    if (submitter?.name) {
+                        const chosen = document.createElement('input');
+                        chosen.type = 'hidden';
+                        chosen.name = submitter.name;
+                        chosen.value = submitter.value;
+                        form.appendChild(chosen);
+                    }
                     form.querySelectorAll('button[type="submit"]').forEach((button) => {
                         button.disabled = true;
                         button.classList.add('opacity-70', 'cursor-wait');

@@ -31,6 +31,8 @@ class AuditLog extends Model
 
     public const ACTION_RESOLVED = 'RESOLVED';
 
+    public const ACTION_ARCHIVED = 'ARCHIVED';
+
     public const ACTION_LABELS = [
         self::ACTION_CREATED => 'Dibuat',
         self::ACTION_UPDATED => 'Diubah',
@@ -41,6 +43,7 @@ class AuditLog extends Model
         self::ACTION_APPROVED => 'Disetujui',
         self::ACTION_REJECTED => 'Ditolak',
         self::ACTION_RESOLVED => 'Ditindaklanjuti',
+        self::ACTION_ARCHIVED => 'Diarsipkan',
     ];
 
     public const ENTITY_LABELS = [
@@ -53,6 +56,8 @@ class AuditLog extends Model
         'inspection_finding' => 'Temuan inspeksi',
         'work_escalation' => 'Limpahan',
         'work_order_issue' => 'Kendala WO',
+        'apkuk_reconciliation_item' => 'Antrean rekonsiliasi APKUK',
+        'apkuk_reconciliation' => 'Rekonsiliasi APKUK massal (CLI)',
     ];
 
     protected $fillable = [

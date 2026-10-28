@@ -35,7 +35,7 @@
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <x-admin.stat-card label="Keypoint" :value="$sourceCounts['keypoints']" hint="Tabel keypoints (SPS BOS)" unavailable-label="Gagal dimuat" />
-        <x-admin.stat-card label="APKUK aktif sumber" :value="$sourceCounts['apkuks']" hint="apkuks tanpa source_missing_at" unavailable-label="Gagal dimuat" />
+        <x-admin.stat-card label="APKUK aktif sumber" :value="$sourceCounts['apkuks']" hint="Ada di snapshot SPS BOS terbaru; pending dan histori tidak dihitung" unavailable-label="Gagal dimuat" />
         <x-admin.stat-card label="Gangguan (semua periode)" :value="$sourceCounts['gangguans']" hint="Tabel gangguans" unavailable-label="Gagal dimuat" />
     </div>
 

@@ -175,7 +175,7 @@
             @endif
         </x-admin.panel>
 
-        <x-admin.panel flush title="Status APKUK sumber" description="Baris apkuks aktif (bukan histori hilang-sumber); seluruh periode. Kurang = total kurang_bh.">
+        <x-admin.panel flush title="Status APKUK sumber" description="Hanya laporan aktif yang ada di snapshot SPS BOS terbaru; pending rekonsiliasi dan histori tidak dihitung. Kurang = total kurang_bh.">
             @if ($load->failed('apkuks'))
                 <x-admin.error-state />
             @else

@@ -7,6 +7,7 @@ use App\Enums\WorkOrderStatus;
 use App\Models\Apkuk;
 use App\Models\ApkukReconciliationItem;
 use App\Models\ApkukSyncRun;
+use App\Models\AuditLog;
 use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\User;
@@ -260,6 +261,9 @@ class ApkukResilientSyncTest extends TestCase
             ApkukReconciliationItem::RESOLUTION_SUPERSEDED,
             ApkukReconciliationItem::query()->where('kind', ApkukReconciliationItem::KIND_MISSING)->where('apkuk_id', $second)->value('resolution'),
         );
+        $sibling = ApkukReconciliationItem::query()->where('kind', ApkukReconciliationItem::KIND_MISSING)->where('apkuk_id', $second)->sole();
+        $this->assertSame($this->admin->id, (int) $sibling->resolved_by_user_id);
+        $this->assertSame($identity->id, $sibling->resolution_details['resolved_via_item_id']);
         $this->assertSame([$first], ApkukReconciliationItem::query()->open()->pluck('apkuk_id')->map(fn ($id) => (int) $id)->all());
 
         [, $output] = $this->sync();
@@ -538,6 +542,10 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertSame([3], $items->map(fn (ApkukReconciliationItem $item) => $item->resolution_details['batch_size'])->unique()->values()->all());
         $this->assertSame(['Sdr. Pemilik SPS BOS — WA 28/10 10.15'], $items->pluck('owner_confirmation')->unique()->values()->all());
         $this->assertSame($workOrders, $this->workOrderTables());
+        $audit = AuditLog::query()->where('entity_type', 'apkuk_reconciliation_item')->whereIn('entity_id', array_map('strval', $ids))->get();
+        $this->assertCount(3, $audit);
+        $this->assertSame([AuditLog::ACTION_ARCHIVED], $audit->pluck('action')->unique()->values()->all());
+        $this->assertSame([$this->admin->id], $audit->pluck('actor_user_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
 
         $this->actingAs($this->admin)->from(route('admin.apkuk-reconciliation.index'))->post($url, $payload)->assertSessionHasErrors('item');
         [, $output] = $this->sync();
@@ -572,6 +580,8 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertSame([$reconciliationId], $items->pluck('reconciliation_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
         $this->assertSame([$this->admin->id], $items->pluck('resolved_by_user_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
         $this->assertSame($this->admin->id, (int) DB::table('apkuk_reconciliations')->value('approved_by_user_id'));
+        $audit = AuditLog::query()->where('entity_type', 'apkuk_reconciliation')->sole();
+        $this->assertSame([AuditLog::ACTION_ARCHIVED, $this->admin->id, 'Supervisor Har'], [$audit->action, (int) $audit->actor_user_id, $audit->after['owner_confirmation']]);
 
         [$code, $output] = $this->sync();
         $this->assertSame(0, $code, $output);

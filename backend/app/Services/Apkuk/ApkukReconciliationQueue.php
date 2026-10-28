@@ -4,7 +4,9 @@ namespace App\Services\Apkuk;
 
 use App\Enums\WorkOrderStatus;
 use App\Models\ApkukReconciliationItem;
+use App\Models\AuditLog;
 use App\Models\User;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +25,8 @@ use Illuminate\Validation\ValidationException;
  */
 class ApkukReconciliationQueue
 {
+    public function __construct(private readonly AuditLogger $audit) {}
+
     /** MISSING: pemilik data mengonfirmasi laporan tidak berlaku; diarsipkan (histori). */
     public const DECISION_CONFIRM_REMOVED = 'CONFIRM_REMOVED';
 
@@ -211,7 +215,7 @@ class ApkukReconciliationQueue
 
         $details = match ($decision) {
             self::DECISION_CONFIRM_REMOVED => $this->confirmRemoved($item, $acknowledgeActiveWorkOrders, $now),
-            self::DECISION_CONFIRM_IDENTITY => $this->confirmIdentity($item, $apkukId, $now),
+            self::DECISION_CONFIRM_IDENTITY => $this->confirmIdentity($item, $apkukId, $actor, $now),
             self::DECISION_INSERT_AS_NEW => $this->insertAsNew($item, $now),
         };
         $resolution = match ($decision) {
@@ -231,6 +235,18 @@ class ApkukReconciliationQueue
             'resolution_details' => json_encode($details + $extraDetails + ['decision' => $decision]),
             'updated_at' => $now,
         ]);
+
+        // Jejak di Audit Log umum Web Admin, dalam transaksi yang sama dengan keputusan.
+        $this->audit->record(
+            'apkuk_reconciliation_item',
+            $item->id,
+            'ID '.($item->source_id ?? '-').' · tiang '.($item->no_tiang ?? '-'),
+            $resolution === ApkukReconciliationItem::RESOLUTION_CONFIRMED_REMOVED ? AuditLog::ACTION_ARCHIVED : AuditLog::ACTION_RESOLVED,
+            ['status' => ApkukReconciliationItem::STATUS_OPEN, 'kind' => $item->kind, 'apkuk_id' => $item->apkuk_id],
+            ['status' => ApkukReconciliationItem::STATUS_RESOLVED, 'resolution' => $resolution, 'owner_confirmation' => $ownerConfirmation] + $details + $extraDetails,
+            $actor,
+            $reason,
+        );
 
         return $item->refresh();
     }
@@ -269,7 +285,7 @@ class ApkukReconciliationQueue
      *
      * @return array<string, mixed>
      */
-    private function confirmIdentity(ApkukReconciliationItem $item, ?int $apkukId, Carbon $now): array
+    private function confirmIdentity(ApkukReconciliationItem $item, ?int $apkukId, User $actor, Carbon $now): array
     {
         $targetId = $apkukId ?? ($item->apkuk_id === null ? null : (int) $item->apkuk_id);
         if ($targetId === null || ! in_array($targetId, $item->identityCandidates(), true)) {
@@ -295,7 +311,9 @@ class ApkukReconciliationQueue
                 'open_key' => null,
                 'resolution' => ApkukReconciliationItem::RESOLUTION_SUPERSEDED,
                 'resolution_reason' => "Diselesaikan bersama antrean #{$item->id} (identitas dikonfirmasi).",
+                'resolution_details' => json_encode(['resolved_via_item_id' => $item->id, 'decision' => self::DECISION_CONFIRM_IDENTITY]),
                 'resolved_at' => $now,
+                'resolved_by_user_id' => $actor->id,
                 'updated_at' => $now,
             ]);
 

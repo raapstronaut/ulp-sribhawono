@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AccountSettingsController;
 use App\Http\Controllers\Admin\AnalyticsController;
 use App\Http\Controllers\Admin\ApkukController;
+use App\Http\Controllers\Admin\ApkukReconciliationController;
 use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\HarsusController;
@@ -90,14 +91,14 @@ Route::prefix('admin')
             ->name('p0.show');
 
         // Antrean rekonsiliasi APKUK (laporan yang tidak lagi ada di APKUK_RAW)
-        Route::get('/apkuk-rekonsiliasi', [\App\Http\Controllers\Admin\ApkukReconciliationController::class, 'index'])
+        Route::get('/apkuk-rekonsiliasi', [ApkukReconciliationController::class, 'index'])
             ->name('apkuk-reconciliation.index');
 
-        Route::post('/apkuk-rekonsiliasi/{item}/selesaikan', [\App\Http\Controllers\Admin\ApkukReconciliationController::class, 'resolve'])
-            ->whereNumber('item')
+        Route::post('/apkuk-rekonsiliasi/{item}/selesaikan', [ApkukReconciliationController::class, 'resolve'])
+            ->where('item', '[0-9]{1,18}')
             ->name('apkuk-reconciliation.resolve');
 
-        Route::post('/apkuk-rekonsiliasi/konfirmasi-hapus', [\App\Http\Controllers\Admin\ApkukReconciliationController::class, 'resolveMany'])
+        Route::post('/apkuk-rekonsiliasi/konfirmasi-hapus', [ApkukReconciliationController::class, 'resolveMany'])
             ->name('apkuk-reconciliation.resolve-many');
 
         // Work Order
