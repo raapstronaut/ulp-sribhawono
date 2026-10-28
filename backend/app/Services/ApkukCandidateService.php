@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Apkuk;
+use App\Models\ApkukReconciliationItem;
 use App\Models\Penyulang;
 use App\Models\WorkOrderApkukTarget;
 use Illuminate\Support\Collection;
@@ -20,9 +21,13 @@ use Illuminate\Support\Collection;
  * - Penyulang harus cocok dengan master. Normalisasi hanya kapital, spasi, dan
  *   titik di akhir (contoh "CAKALELE." → CAKALELE); selain itu tidak ditebak.
  * - Section belum punya master canonical; nilai kosong/placeholder hanya peringatan.
+ * - Laporan yang menunggu rekonsiliasi sumber (tidak ada di snapshot APKUK_RAW terakhir)
+ *   tidak dapat dipilih, tetapi tetap ikut menentukan laporan terbaru per tiang agar
+ *   laporan lama di tiang yang sama tidak mendadak menjadi layak.
  */
 class ApkukCandidateService
 {
+    public const ISSUE_MENUNGGU_REKONSILIASI = 'MENUNGGU_REKONSILIASI_SUMBER';
     public const ISSUE_KURANG_KOSONG = 'KURANG_KOSONG';
     public const ISSUE_KURANG_NEGATIF = 'KURANG_NEGATIF';
     public const ISSUE_TIDAK_ADA_KEBUTUHAN = 'TIDAK_ADA_KEBUTUHAN';
@@ -38,6 +43,7 @@ class ApkukCandidateService
     public const WARNING_KOORDINAT_KOSONG = 'KOORDINAT_KOSONG';
 
     public const LABELS = [
+        self::ISSUE_MENUNGGU_REKONSILIASI => 'Tidak ada di sumber terbaru; menunggu rekonsiliasi APKUK',
         self::ISSUE_KURANG_KOSONG => 'Kurang bh kosong',
         self::ISSUE_KURANG_NEGATIF => 'Kurang bh bernilai negatif',
         self::ISSUE_TIDAK_ADA_KEBUTUHAN => 'Kurang bh = 0 (tidak ada kebutuhan)',
@@ -70,6 +76,7 @@ class ApkukCandidateService
     {
         $penyulangs = $this->penyulangLookup();
         $activeCodes = $this->activeWorkOrderCodes();
+        $pending = array_flip(ApkukReconciliationItem::openApkukIds());
 
         $rows = Apkuk::query()
             ->whereNull('source_missing_at')
@@ -110,11 +117,15 @@ class ApkukCandidateService
             }
         }
 
-        return $prepared->mapWithKeys(function (array $item) use ($latestByKey, $activeCodes): array {
+        return $prepared->mapWithKeys(function (array $item) use ($latestByKey, $activeCodes, $pending): array {
             /** @var Apkuk $row */
             $row = $item['row'];
             $issues = [];
             $warnings = [];
+
+            if (isset($pending[$row->id])) {
+                $issues[] = self::ISSUE_MENUNGGU_REKONSILIASI;
+            }
 
             if (in_array($item['pole'], self::PLACEHOLDERS, true)) {
                 $issues[] = self::ISSUE_NO_TIANG_TIDAK_VALID;

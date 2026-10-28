@@ -44,6 +44,7 @@ function popupFor(item) {
     if (item.tanggal) content.appendChild(detailRow('Tanggal', item.tanggal));
     if (item.kurang_bh !== null && item.kurang_bh !== undefined) content.appendChild(detailRow('Kurang bh', item.kurang_bh));
     if (item.note) content.appendChild(detailRow('Catatan', item.note));
+    if (item.reconciliation_pending) content.appendChild(detailRow('Sumber', 'Tidak ada di APKUK_RAW terbaru — menunggu rekonsiliasi'));
     content.appendChild(detailRow('Koordinat', `${item.latitude}, ${item.longitude}`));
     return content;
 }
@@ -203,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body.append(textElement('p', item.label, 'break-words text-sm font-semibold text-slate-900'));
         body.append(textElement('p', `${item.layer === 'apkuk' ? 'APKUK' : text(item.jenis)} · ${text(item.penyulang)}`, 'mt-1 text-xs text-slate-500'));
         if (item.layer === 'apkuk' && item.status) body.append(textElement('p', `Status: ${item.status}`, 'mt-1 text-xs text-slate-500'));
+        if (item.reconciliation_pending) body.append(textElement('p', 'Menunggu rekonsiliasi sumber', 'mt-1 text-xs font-semibold text-amber-700'));
         top.append(dot, body);
         button.append(top);
         button.addEventListener('click', () => {

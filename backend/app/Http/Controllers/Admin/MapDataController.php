@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApkukReconciliationItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -29,9 +30,11 @@ class MapDataController extends Controller
             ])
             ->values();
 
-        // source_missing_at menandai laporan sumber yang kini hanya menjadi histori.
+        // source_missing_at menandai laporan sumber yang kini hanya menjadi histori. Laporan yang
+        // menunggu rekonsiliasi (tidak ada di snapshot sumber terakhir) tetap tampil, bertanda.
         $apkukAktif = DB::table('apkuks')->whereNull('source_missing_at');
         $apkukTotal = (clone $apkukAktif)->count();
+        $pending = array_flip(ApkukReconciliationItem::openApkukIds());
 
         $apkuks = (clone $apkukAktif)
             ->whereNotNull('latitude')
@@ -46,6 +49,7 @@ class MapDataController extends Controller
             ])
             ->map(fn ($point): array => [
                 'id' => (string) $point->id,
+                'reconciliation_pending' => isset($pending[(int) $point->id]),
                 'source_id' => $point->source_id,
                 'tanggal' => $point->tanggal,
                 'penyulang' => $point->penyulang,
@@ -87,6 +91,7 @@ class MapDataController extends Controller
                 'apkuk_active_total' => $apkukTotal,
                 'apkuk_mapped' => $apkuks->count(),
                 'apkuk_without_coordinates' => $apkukTotal - $apkuks->count(),
+                'apkuk_pending_reconciliation' => count($pending),
                 'gangguan_total' => $gangguanTotal,
                 'gangguan_mapped' => 0,
                 'generated_at' => now('Asia/Jakarta')->format('d/m/Y H:i').' WIB',

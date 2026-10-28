@@ -58,6 +58,10 @@ class ApkukWorkOrderService
      */
     private function create(User $admin, array $input, CarbonImmutable $now): WorkOrder
     {
+        // Menunggu apkuk:sync yang sedang menulis, agar laporan yang baru masuk antrean
+        // rekonsiliasi tidak lolos sebagai target WO.
+        \App\Services\Apkuk\ApkukSyncLock::shared();
+
         $candidate = $this->candidates->find((int) $input['apkuk_id']);
         if ($candidate === null) {
             throw ValidationException::withMessages(['apkuk_id' => 'Data APKUK tidak ditemukan.']);

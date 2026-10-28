@@ -3,11 +3,13 @@
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ReportsSyncResult;
+use App\Models\ApkukReconciliationItem;
 use App\Services\Apkuk\ApkukReconciliationPlan;
 use App\Services\Apkuk\ApkukReconciliationPlanner;
 use App\Services\Apkuk\ApkukSourceException;
 use App\Services\Apkuk\ApkukSourceReader;
 use App\Services\Apkuk\ApkukSourceSnapshot;
+use App\Services\Apkuk\ApkukSyncLock;
 use App\Services\ApkukCandidateService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +25,12 @@ use Throwable;
  * Tanpa --apply: dry-run read-only (selisih, duplikasi, dampak WO, kode rencana).
  * Dengan --apply: menandai source_missing_at hanya untuk rencana yang persis sama
  * dengan yang disetujui. Tidak ada hard-delete; WO dan histori lain tidak diubah;
- * laporan yang muncul kembali dipulihkan oleh apkuk:sync.
+ * laporan yang muncul kembali dipulihkan oleh apkuk:sync. Antrean rekonsiliasi terbuka
+ * untuk laporan yang ditandai ikut diselesaikan (RECONCILED).
+ *
+ * Sejak apkuk:sync memasukkan laporan yang hilang ke antrean (tanpa gagal), keputusan
+ * per laporan dilakukan Admin di Web Admin. Perintah ini tetap tersedia untuk penandaan
+ * massal yang disetujui pemilik data.
  *
  * --approved-by dan --reason hanya metadata audit. Perintah ini tidak mengautentikasi
  * penyetuju; kewenangan apply berasal dari akses ke kredensial database produksi.
@@ -48,8 +55,6 @@ class ReconcileApkuk extends Command
     private const MAX_APPROVED_BY = 120;
 
     private const MAX_REASON = 1000;
-
-    private const LOCK_TIMEOUT = '10s';
 
     public function handle(ApkukSourceReader $reader, ApkukReconciliationPlanner $planner): int
     {
@@ -176,7 +181,7 @@ class ReconcileApkuk extends Command
         $ids = $plan->missingApkukIds();
 
         try {
-            $databaseUser = DB::transaction(function () use ($source, $planner, $plan, $ids, $markedAt, $approvedBy, $reason): ?string {
+            [$databaseUser, $resolvedItems] = DB::transaction(function () use ($source, $planner, $plan, $ids, $markedAt, $approvedBy, $reason): array {
                 $this->lockTables();
 
                 // Validasi ulang setelah tabel terkunci. Perubahan apkuks, target WO, atau status
@@ -201,7 +206,7 @@ class ReconcileApkuk extends Command
                 }
 
                 $databaseUser = DB::connection()->getDriverName() === 'pgsql' ? (string) DB::scalar('select current_user') : null;
-                DB::table('apkuk_reconciliations')->insert([
+                $reconciliationId = DB::table('apkuk_reconciliations')->insertGetId([
                     'plan_id' => $plan->id,
                     'fingerprint' => $plan->fingerprint,
                     'fingerprint_parts' => json_encode($plan->fingerprintParts),
@@ -227,7 +232,28 @@ class ReconcileApkuk extends Command
                     'created_at' => $markedAt,
                 ]);
 
-                return $databaseUser;
+                // Antrean MISSING untuk laporan yang kini ditandai selesai bersama rencana ini.
+                $resolved = 0;
+                if (Schema::hasTable('apkuk_reconciliation_items')) {
+                    foreach (array_chunk($ids, 500) as $chunk) {
+                        $resolved += DB::table('apkuk_reconciliation_items')
+                            ->where('status', ApkukReconciliationItem::STATUS_OPEN)
+                            ->where('kind', ApkukReconciliationItem::KIND_MISSING)
+                            ->whereIn('apkuk_id', $chunk)
+                            ->update([
+                                'status' => ApkukReconciliationItem::STATUS_RESOLVED,
+                                'open_key' => null,
+                                'resolution' => ApkukReconciliationItem::RESOLUTION_RECONCILED,
+                                'resolution_reason' => $reason,
+                                'resolution_details' => json_encode(['plan_id' => $plan->id, 'approved_by' => $approvedBy, 'database_user' => $databaseUser]),
+                                'reconciliation_id' => $reconciliationId,
+                                'resolved_at' => $markedAt,
+                                'updated_at' => $markedAt,
+                            ]);
+                    }
+                }
+
+                return [$databaseUser, $resolved];
             });
         } catch (Throwable $e) {
             $this->error('Rekonsiliasi dibatalkan dan transaksi di-rollback. Tidak ada perubahan. Penyebab: '.Str::limit($e->getMessage(), 500));
@@ -247,6 +273,9 @@ class ReconcileApkuk extends Command
 
         $this->info(sprintf('RECONCILE_APPLIED plan=%s marked=%d marked_at=%s', $plan->id, count($ids), $markedAt->toIso8601String()));
         $this->info('Baris tidak dihapus dan WO tidak diubah. Laporan yang muncul kembali di sumber dipulihkan otomatis oleh apkuk:sync.');
+        if ($resolvedItems > 0) {
+            $this->info("Antrean rekonsiliasi yang ikut diselesaikan: {$resolvedItems}.");
+        }
 
         return self::SUCCESS;
     }
@@ -255,15 +284,17 @@ class ReconcileApkuk extends Command
      * Mengunci tabel penentu rencana sampai commit: penulis lain (apkuk:sync, pembuatan atau
      * perubahan WO) menunggu, pembaca tetap berjalan. Urutan sama dengan alur pembuatan WO
      * (work_orders lalu target) agar tidak saling mengunci; bila kunci tidak didapat dalam
-     * LOCK_TIMEOUT, transaksi gagal tanpa perubahan. SQLite (test) tidak mengenal LOCK TABLE.
+     * ApkukSyncLock::LOCK_TIMEOUT, transaksi gagal tanpa perubahan. Kunci advisory APKUK
+     * diambil lebih dulu sehingga apkuk:sync dan keputusan antrean menunggu.
+     * SQLite (test) tidak mengenal LOCK TABLE.
      */
     private function lockTables(): void
     {
+        ApkukSyncLock::exclusive(); // juga mengatur lock_timeout transaksi ini
         if (DB::connection()->getDriverName() !== 'pgsql') {
             return;
         }
 
-        DB::statement("SET LOCAL lock_timeout = '".self::LOCK_TIMEOUT."'");
         DB::statement('LOCK TABLE work_orders, work_order_apkuk_targets IN SHARE MODE');
         DB::statement('LOCK TABLE apkuks IN SHARE ROW EXCLUSIVE MODE');
     }

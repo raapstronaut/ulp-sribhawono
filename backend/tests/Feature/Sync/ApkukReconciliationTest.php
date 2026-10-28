@@ -99,12 +99,14 @@ class ApkukReconciliationTest extends TestCase
             ApkukReconciliationPlan::CATEGORY_TIANG_MASIH_ADA => 1,         // B1 hilang, B2 di tiang sama masih ada
         ], array_count_values(array_column(array_slice($csv, 1), 0)));
 
-        // Sync rutin tetap menolak perubahan massal yang belum disetujui.
+        // Sync rutin tidak lagi gagal: laporan baru masuk, yang hilang hanya masuk antrean
+        // (tetap aktif, tidak ditandai) sampai diputuskan Admin atau lewat rekonsiliasi.
         [$code, $output] = $this->artisan2('apkuk:sync');
-        $this->assertSame(1, $code);
-        $this->assertStringContainsString('5 identitas lama di PostgreSQL tidak ditemukan di sumber terbaru.', $output);
-        $this->assertStringContainsString('php artisan apkuk:reconcile', $output);
-        $this->assertSame($before, $this->apkukTable());
+        $this->assertSame(0, $code, $output);
+        $this->assertMatchesRegularExpression('/^SYNC_RESULT command=apkuk:sync status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 .* new=3 .* pending=5 pending_new=5 /m', $output);
+        $this->assertSame((int) explode('#', $before)[1] + 3, DB::table('apkuks')->count());
+        $this->assertSame(0, DB::table('apkuks')->whereNotNull('source_missing_at')->count());
+        $this->assertSame(5, DB::table('apkuk_reconciliation_items')->where('status', 'OPEN')->where('kind', 'MISSING')->count());
     }
 
     public function test_apply_requires_complete_and_matching_approval(): void
