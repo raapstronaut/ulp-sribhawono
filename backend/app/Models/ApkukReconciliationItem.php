@@ -10,14 +10,17 @@ use Illuminate\Support\Facades\Schema;
 /**
  * Antrean rekonsiliasi APKUK.
  *
- * - MISSING: laporan aktif di apkuks yang tidak ada di snapshot sumber terakhir. Baris tetap
- *   aktif (histori dan referensi WO utuh) tetapi tidak boleh menjadi target WO baru.
+ * - MISSING: laporan di apkuks yang tidak ada di snapshot sumber terakhir (pending). Baris dan
+ *   referensi WO utuh, tetapi tidak dihitung aktif dan tidak boleh menjadi target WO baru.
+ *   Tetap pending sampai muncul kembali (otomatis) atau diarsipkan Admin atas konfirmasi
+ *   pemilik data; tidak ada pengarsipan otomatis berdasarkan jumlah siklus atau lamanya hilang.
  * - IDENTITY_CHANGE: identitas baru di sumber yang ID AppSheet-nya sama dengan laporan yang
  *   hilang (kemungkinan nomor tiang diedit). Baris sumber ditahan, tidak disisipkan, sampai
  *   Admin memutuskan apakah laporan yang sama (ganti identitas) atau laporan baru.
  *
  * Item tidak pernah dihapus. Penyelesaian otomatis (RETURNED, SUPERSEDED) dilakukan
- * apkuk:sync; penyelesaian manual hanya oleh Admin terautentikasi lewat Web Admin.
+ * apkuk:sync; keputusan lain hanya oleh Admin terautentikasi (Web Admin atau apkuk:reconcile
+ * --apply dengan --admin dan kata sandi).
  */
 class ApkukReconciliationItem extends Model
 {
@@ -41,7 +44,7 @@ class ApkukReconciliationItem extends Model
 
     public const RESOLUTION_INSERTED_AS_NEW = 'INSERTED_AS_NEW';
 
-    // Rencana apkuk:reconcile --apply yang disetujui.
+    // Rencana apkuk:reconcile --apply yang disetujui Admin terautentikasi.
     public const RESOLUTION_RECONCILED = 'RECONCILED';
 
     public const KIND_LABELS = [
@@ -52,10 +55,10 @@ class ApkukReconciliationItem extends Model
     public const RESOLUTION_LABELS = [
         self::RESOLUTION_RETURNED => 'Muncul kembali di sumber',
         self::RESOLUTION_SUPERSEDED => 'Digantikan kondisi sumber terbaru',
-        self::RESOLUTION_CONFIRMED_REMOVED => 'Dikonfirmasi dihapus (menjadi histori)',
+        self::RESOLUTION_CONFIRMED_REMOVED => 'Diarsipkan (tidak berlaku, dikonfirmasi pemilik data)',
         self::RESOLUTION_IDENTITY_CONFIRMED => 'Dikonfirmasi laporan yang sama (identitas diperbarui)',
         self::RESOLUTION_INSERTED_AS_NEW => 'Disimpan sebagai laporan baru',
-        self::RESOLUTION_RECONCILED => 'Ditandai lewat apkuk:reconcile',
+        self::RESOLUTION_RECONCILED => 'Diarsipkan lewat apkuk:reconcile',
     ];
 
     protected $guarded = ['id'];

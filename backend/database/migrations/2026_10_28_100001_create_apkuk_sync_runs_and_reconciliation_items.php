@@ -21,6 +21,7 @@ return new class extends Migration
             $table->string('identity_digest', 64)->nullable()->comment('Sidik himpunan legacy_key sumber');
             $table->json('counts')->nullable()->comment('Jumlah baru, diperbarui, pindah baris, muncul kembali, hilang, antrean');
             $table->json('guard')->nullable()->comment('Pembanding, batas, opsi manual, dan pelanggaran pengaman');
+            $table->json('details')->nullable()->comment('Rincian audit, mis. returned_apkuk_ids: histori yang dipulihkan otomatis karena muncul kembali');
             $table->string('database_user', 120)->nullable();
             $table->timestamp('started_at');
             $table->timestamp('finished_at')->nullable();
@@ -49,9 +50,12 @@ return new class extends Migration
             $table->unsignedInteger('detection_count')->default(1);
             $table->string('resolution', 32)->nullable()->comment('RETURNED | SUPERSEDED | CONFIRMED_REMOVED | IDENTITY_CONFIRMED | INSERTED_AS_NEW | RECONCILED');
             $table->timestamp('resolved_at')->nullable();
-            $table->foreignId('resolved_by_user_id')->nullable()->constrained('users')->restrictOnDelete()
-                ->comment('Admin terautentikasi yang memutuskan; null untuk penyelesaian otomatis/rekonsiliasi CLI');
+            $table->foreignId('resolved_by_user_id')->nullable()
+                ->comment('Admin terautentikasi yang memutuskan; null hanya untuk penyelesaian otomatis apkuk:sync')
+                ->constrained('users')->restrictOnDelete();
             $table->text('resolution_reason')->nullable();
+            $table->string('owner_confirmation', 255)->nullable()
+                ->comment('Konfirmasi pemilik data SPS BOS (nama/jabatan/rujukan); wajib untuk pengarsipan');
             $table->json('resolution_details')->nullable();
             $table->foreignId('resolved_run_id')->nullable()->constrained('apkuk_sync_runs')->nullOnDelete();
             $table->foreignId('reconciliation_id')->nullable()->constrained('apkuk_reconciliations')->nullOnDelete();

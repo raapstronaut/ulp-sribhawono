@@ -14,14 +14,16 @@ use Illuminate\Validation\ValidationException;
 /**
  * Penyelesaian antrean rekonsiliasi APKUK oleh Admin terautentikasi (Web Admin).
  *
- * Kewenangan berasal dari akun Admin aktif yang login, bukan dari teks "disetujui oleh";
- * ID akun, alasan, dan rincian keputusan tersimpan permanen di item antrean. Tidak ada
- * hard-delete: laporan yang dikonfirmasi dihapus di sumber hanya diberi source_missing_at,
- * dan WO beserta targetnya tidak pernah diubah.
+ * SPS BOS adalah sumber live: laporan yang hilang bisa memang tidak berlaku, atau hanya
+ * sementara (sedang diedit/dipindahkan). Karena itu pengarsipan permanen tidak pernah otomatis
+ * (bukan karena jumlah siklus atau lamanya hilang), melainkan keputusan Admin aktif yang login
+ * berdasarkan konfirmasi pemilik data. Akun, alasan, konfirmasi pemilik data, dan rincian
+ * tersimpan permanen di item antrean. Tidak ada hard-delete: laporan yang diarsipkan hanya
+ * diberi source_missing_at (dipulihkan otomatis bila muncul kembali), dan WO tidak diubah.
  */
 class ApkukReconciliationQueue
 {
-    /** MISSING: laporan memang dihapus di sumber; menjadi histori. */
+    /** MISSING: pemilik data mengonfirmasi laporan tidak berlaku; diarsipkan (histori). */
     public const DECISION_CONFIRM_REMOVED = 'CONFIRM_REMOVED';
 
     /** IDENTITY_CHANGE: laporan yang sama dengan identitas baru (mis. nomor tiang dikoreksi). */
@@ -40,6 +42,10 @@ class ApkukReconciliationQueue
 
     public const MAX_REASON = 1000;
 
+    public const MIN_OWNER_CONFIRMATION = 3;
+
+    public const MAX_OWNER_CONFIRMATION = 255;
+
     /** Batas antrean per konfirmasi massal (satu transaksi). */
     public const MAX_BATCH = 500;
 
@@ -54,17 +60,22 @@ class ApkukReconciliationQueue
         string $reason,
         ?int $apkukId = null,
         bool $acknowledgeActiveWorkOrders = false,
+        ?string $ownerConfirmation = null,
     ): ApkukReconciliationItem {
         $reason = $this->authorizeDecision($actor, $reason);
         if (! isset(self::DECISIONS[$decision])) {
             throw ValidationException::withMessages(['decision' => 'Keputusan tidak dikenal.']);
         }
+        // Wajib untuk pengarsipan; untuk keputusan identitas dicatat bila diisi.
+        $ownerConfirmation = $decision === self::DECISION_CONFIRM_REMOVED || trim((string) $ownerConfirmation) !== ''
+            ? self::ownerConfirmation($ownerConfirmation)
+            : null;
 
-        $item = DB::transaction(function () use ($actor, $itemId, $decision, $reason, $apkukId, $acknowledgeActiveWorkOrders): ApkukReconciliationItem {
+        $item = DB::transaction(function () use ($actor, $itemId, $decision, $reason, $apkukId, $acknowledgeActiveWorkOrders, $ownerConfirmation): ApkukReconciliationItem {
             // Sama dengan apkuk:sync: keputusan dan sinkronisasi tidak pernah berjalan bersamaan.
             ApkukSyncLock::exclusive();
 
-            return $this->resolveLocked($actor, $itemId, $decision, $reason, $apkukId, $acknowledgeActiveWorkOrders, Carbon::now());
+            return $this->resolveLocked($actor, $itemId, $decision, $reason, $ownerConfirmation, $apkukId, $acknowledgeActiveWorkOrders, Carbon::now());
         });
 
         Log::warning('Antrean rekonsiliasi APKUK diselesaikan Admin', [
@@ -79,29 +90,30 @@ class ApkukReconciliationQueue
     }
 
     /**
-     * Konfirmasi hapus untuk banyak laporan MISSING sekaligus dengan satu alasan. Semua atau
-     * tidak sama sekali: bila satu item gagal (sudah selesai, WO aktif tanpa konfirmasi),
-     * tidak ada yang berubah. Setiap item tetap mencatat Admin, alasan, dan rinciannya sendiri.
+     * Arsipkan banyak laporan MISSING sekaligus dengan satu alasan dan satu konfirmasi pemilik
+     * data. Semua atau tidak sama sekali: bila satu item gagal (sudah selesai, WO aktif tanpa
+     * konfirmasi), tidak ada yang berubah. Setiap item tetap mencatat Admin dan rinciannya sendiri.
      *
      * @param  array<int, int>  $itemIds
      *
      * @throws AuthorizationException
      * @throws ValidationException
      */
-    public function confirmRemovedMany(User $actor, array $itemIds, string $reason, bool $acknowledgeActiveWorkOrders = false): int
+    public function confirmRemovedMany(User $actor, array $itemIds, string $reason, ?string $ownerConfirmation, bool $acknowledgeActiveWorkOrders = false): int
     {
         $reason = $this->authorizeDecision($actor, $reason);
+        $ownerConfirmation = self::ownerConfirmation($ownerConfirmation);
         $itemIds = array_values(array_unique(array_map('intval', $itemIds)));
         if ($itemIds === [] || count($itemIds) > self::MAX_BATCH) {
             throw ValidationException::withMessages(['item_ids' => 'Pilih 1–'.self::MAX_BATCH.' antrean.']);
         }
 
-        DB::transaction(function () use ($actor, $itemIds, $reason, $acknowledgeActiveWorkOrders): void {
+        DB::transaction(function () use ($actor, $itemIds, $reason, $ownerConfirmation, $acknowledgeActiveWorkOrders): void {
             ApkukSyncLock::exclusive();
             $now = Carbon::now();
             foreach ($itemIds as $itemId) {
                 try {
-                    $this->resolveLocked($actor, $itemId, self::DECISION_CONFIRM_REMOVED, $reason, null, $acknowledgeActiveWorkOrders, $now, ['batch_size' => count($itemIds)]);
+                    $this->resolveLocked($actor, $itemId, self::DECISION_CONFIRM_REMOVED, $reason, $ownerConfirmation, null, $acknowledgeActiveWorkOrders, $now, ['batch_size' => count($itemIds)]);
                 } catch (ValidationException $e) {
                     throw ValidationException::withMessages(array_map(
                         fn (array $messages) => array_map(fn (string $message) => "Antrean #{$itemId}: {$message} Tidak ada yang diubah.", $messages),
@@ -111,7 +123,7 @@ class ApkukReconciliationQueue
             }
         });
 
-        Log::warning('Antrean rekonsiliasi APKUK dikonfirmasi dihapus secara massal oleh Admin', [
+        Log::warning('Antrean rekonsiliasi APKUK diarsipkan secara massal oleh Admin', [
             'item_ids' => $itemIds,
             'user_id' => $actor->id,
         ]);
@@ -147,6 +159,22 @@ class ApkukReconciliationQueue
     }
 
     /**
+     * Konfirmasi pemilik data SPS BOS (siapa dan rujukannya). Dicatat apa adanya; kewenangan
+     * tetap berasal dari akun Admin yang login.
+     *
+     * @throws ValidationException
+     */
+    public static function ownerConfirmation(?string $value): string
+    {
+        $value = trim((string) $value);
+        if (mb_strlen($value) < self::MIN_OWNER_CONFIRMATION || mb_strlen($value) > self::MAX_OWNER_CONFIRMATION || preg_match('/^[^\p{Cc}]*$/u', $value) !== 1) {
+            throw ValidationException::withMessages(['owner_confirmation' => 'Konfirmasi pemilik data SPS BOS wajib diisi untuk pengarsipan (nama/jabatan dan rujukan, '.self::MIN_OWNER_CONFIRMATION.'–'.self::MAX_OWNER_CONFIRMATION.' karakter, satu baris).']);
+        }
+
+        return $value;
+    }
+
+    /**
      * @throws AuthorizationException
      * @throws ValidationException
      */
@@ -168,7 +196,7 @@ class ApkukReconciliationQueue
      *
      * @param  array<string, mixed>  $extraDetails
      */
-    private function resolveLocked(User $actor, int $itemId, string $decision, string $reason, ?int $apkukId, bool $acknowledgeActiveWorkOrders, Carbon $now, array $extraDetails = []): ApkukReconciliationItem
+    private function resolveLocked(User $actor, int $itemId, string $decision, string $reason, ?string $ownerConfirmation, ?int $apkukId, bool $acknowledgeActiveWorkOrders, Carbon $now, array $extraDetails = []): ApkukReconciliationItem
     {
         $item = ApkukReconciliationItem::query()->lockForUpdate()->find($itemId);
         if ($item === null) {
@@ -199,6 +227,7 @@ class ApkukReconciliationQueue
             'resolved_at' => $now,
             'resolved_by_user_id' => $actor->id,
             'resolution_reason' => $reason,
+            'owner_confirmation' => $ownerConfirmation,
             'resolution_details' => json_encode($details + $extraDetails + ['decision' => $decision]),
             'updated_at' => $now,
         ]);

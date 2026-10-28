@@ -6,6 +6,7 @@ const COLORS = {
     LBSM: '#f59e0b',
     FCO: '#16a34a',
     APKUK: '#7c3aed',
+    APKUK_PENDING: '#db2777',
     OTHER: '#64748b',
 };
 const PAGE_SIZE = 40;
@@ -14,9 +15,8 @@ const normalize = (value) => String(value ?? '').trim().replace(/\s+/g, ' ').toL
 const text = (value) => value === null || value === undefined || value === '' ? '—' : String(value);
 
 function markerColor(item) {
-    return item.layer === 'apkuk'
-        ? COLORS.APKUK
-        : (COLORS[String(item.jenis || '').trim().toUpperCase()] || COLORS.OTHER);
+    if (item.layer === 'apkuk') return item.reconciliation_pending ? COLORS.APKUK_PENDING : COLORS.APKUK;
+    return COLORS[String(item.jenis || '').trim().toUpperCase()] || COLORS.OTHER;
 }
 
 function textElement(tag, value, className = '') {
@@ -283,7 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
             stats('maps-stat-keypoint', meta.keypoint_mapped ?? payload.keypoints.length);
             stats('maps-stat-apkuk', meta.apkuk_mapped ?? payload.apkuks.length);
             stats('maps-stat-gangguan', meta.gangguan_total ?? payload.gangguans.length);
-            updated.textContent = `Data dibaca: ${text(meta.generated_at)} · APKUK tanpa GPS: ${formatCount(meta.apkuk_without_coordinates)}`;
+            updated.textContent = `Data dibaca: ${text(meta.generated_at)} · APKUK tanpa GPS: ${formatCount(meta.apkuk_without_coordinates)}`
+                + (meta.apkuk_pending_reconciliation ? ` · APKUK menunggu rekonsiliasi (tidak dihitung aktif): ${formatCount(meta.apkuk_pending_reconciliation)}` : '');
             loaded = true;
             updateFilterOptions();
             applyFilters();

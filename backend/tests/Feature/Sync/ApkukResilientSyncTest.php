@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Sync;
 
+use App\Console\Support\ConsoleAdminAuthenticator;
 use App\Enums\WorkOrderStatus;
 use App\Models\Apkuk;
 use App\Models\ApkukReconciliationItem;
@@ -11,10 +12,12 @@ use App\Models\Posko;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\Apkuk\ApkukReconciliationQueue;
+use App\Services\Apkuk\ApkukSourceState;
 use App\Services\ApkukCandidateService;
 use App\Services\ApkukWorkOrderService;
 use App\Services\GoogleSheetValues;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
@@ -152,7 +155,10 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertSame(0, Apkuk::query()->sourceHistory()->count());
 
         $map = $this->actingAs($this->admin)->getJson(route('admin.maps.data'))->assertOk();
-        $map->assertJsonPath('meta.apkuk_pending_reconciliation', 3);
+        $map->assertJsonPath('meta.apkuk_pending_reconciliation', 3)
+            ->assertJsonPath('meta.apkuk_pending_mapped', 3)
+            ->assertJsonPath('meta.apkuk_active_total', self::INITIAL_REPORTS + 1 - 3 + 1)
+            ->assertJsonPath('meta.apkuk_mapped', self::INITIAL_REPORTS + 1 - 3 + 1);
         $pending = collect($map->json('apkuks'))->where('reconciliation_pending', true)->pluck('id')->map(fn ($id) => (int) $id)->sort()->values()->all();
         $this->assertSame($ids, $pending);
     }
@@ -282,6 +288,8 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertNull($item->resolved_by_user_id);
         $this->assertSame((int) ApkukSyncRun::query()->max('id'), (int) $item->resolved_run_id);
         $this->assertNull(DB::table('apkuks')->where('id', $a10)->value('source_missing_at'), 'Histori yang muncul kembali dipulihkan.');
+        $this->assertSame(['returned_apkuk_ids' => [$a10]], ApkukSyncRun::query()->latest('id')->first()->details, 'ID histori yang dipulihkan tercatat.');
+        $this->assertSame(ApkukReconciliationItem::RESOLUTION_CONFIRMED_REMOVED, $history->refresh()->resolution, 'Keputusan arsip lama tetap tercatat.');
         $this->assertSame(1, DB::table('apkuks')->where('source_id', 'A9')->count());
         $this->assertSame(self::INITIAL_REPORTS + 1, DB::table('apkuks')->count());
     }
@@ -461,19 +469,22 @@ class ApkukResilientSyncTest extends TestCase
         $this->sync();
         $item = ApkukReconciliationItem::query()->open()->sole();
         $url = route('admin.apkuk-reconciliation.resolve', $item->id);
-        $payload = ['decision' => ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED, 'reason' => 'Laporan ganda dihapus petugas SPS BOS.'];
+        $payload = ['decision' => ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED, 'reason' => 'Laporan ganda dihapus petugas SPS BOS.', 'owner_confirmation' => 'Sdr. Pemilik SPS BOS — WA 28/10 10.15'];
 
         $this->post($url, $payload)->assertRedirect(route('login'));
         $this->actingAs(User::factory()->create(['role' => 'POSKO', 'is_active' => true]))->post($url, $payload)->assertForbidden();
         $this->actingAs(User::factory()->inactiveAdmin()->create())->post($url, $payload)->assertForbidden();
         $this->resolve($item->id, ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED, ['reason' => 'ok'])->assertSessionHasErrors('reason');
         $this->resolve($item->id, ApkukReconciliationQueue::DECISION_INSERT_AS_NEW)->assertSessionHasErrors('decision');
+        // Pengarsipan tanpa konfirmasi pemilik data ditolak.
+        $this->resolve($item->id, ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED, ['owner_confirmation' => ''])->assertSessionHasErrors('owner_confirmation');
+        $this->resolve($item->id, ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED, ['owner_confirmation' => "Pemilik\nsisipan"])->assertSessionHasErrors('owner_confirmation');
         $this->assertTrue($item->refresh()->isOpen());
         $this->assertNull(DB::table('apkuks')->where('id', $a1)->value('source_missing_at'));
 
         // Layanan juga menolak akun non-Admin walau dipanggil di luar HTTP.
         try {
-            app(ApkukReconciliationQueue::class)->resolve(User::factory()->inactiveAdmin()->create(), $item->id, ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED, 'Alasan yang cukup panjang');
+            app(ApkukReconciliationQueue::class)->resolve(User::factory()->inactiveAdmin()->create(), $item->id, ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED, 'Alasan yang cukup panjang', ownerConfirmation: 'Pemilik SPS BOS');
             $this->fail('Akun nonaktif tidak boleh menyelesaikan antrean.');
         } catch (AuthorizationException) {
         }
@@ -485,6 +496,7 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertSame(ApkukReconciliationItem::RESOLUTION_CONFIRMED_REMOVED, $item->resolution);
         $this->assertSame($this->admin->id, (int) $item->resolved_by_user_id);
         $this->assertSame('Dikonfirmasi petugas SPS BOS, laporan memang dihapus.', $item->resolution_reason);
+        $this->assertSame('Sdr. Pemilik SPS BOS — WA 28/10 10.15', $item->owner_confirmation);
         $this->assertNotNull($item->resolved_at);
         $this->assertNull($item->open_key);
 
@@ -503,7 +515,10 @@ class ApkukResilientSyncTest extends TestCase
         $this->sync();
         $ids = ApkukReconciliationItem::query()->open()->orderBy('id')->pluck('id')->all();
         $url = route('admin.apkuk-reconciliation.resolve-many');
-        $payload = ['item_ids' => $ids, 'reason' => 'Pembersihan laporan ganda SPS BOS disetujui pemilik data.'];
+        $payload = ['item_ids' => $ids, 'reason' => 'Pembersihan laporan ganda SPS BOS disetujui pemilik data.', 'owner_confirmation' => 'Sdr. Pemilik SPS BOS — WA 28/10 10.15'];
+
+        $this->actingAs($this->admin)->from(route('admin.apkuk-reconciliation.index'))
+            ->post($url, ['owner_confirmation' => ''] + $payload + ['acknowledge_active_wo' => '1'])->assertSessionHasErrors('owner_confirmation');
 
         // Satu laporan dirujuk WO aktif tanpa konfirmasi: tidak ada satu pun yang berubah.
         $this->actingAs($this->admin)->from(route('admin.apkuk-reconciliation.index'))->post($url, $payload)->assertSessionHasErrors('acknowledge_active_wo');
@@ -514,13 +529,14 @@ class ApkukResilientSyncTest extends TestCase
         $this->actingAs($this->admin)->from(route('admin.apkuk-reconciliation.index'))
             ->post($url, $payload + ['acknowledge_active_wo' => '1'])
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', '3 laporan dikonfirmasi dihapus di sumber dan menjadi histori.');
+            ->assertSessionHas('status', '3 laporan diarsipkan atas konfirmasi pemilik data.');
 
         $this->assertSame(3, DB::table('apkuks')->whereNotNull('source_missing_at')->count());
         $items = ApkukReconciliationItem::query()->whereIn('id', $ids)->get();
         $this->assertSame([ApkukReconciliationItem::RESOLUTION_CONFIRMED_REMOVED], $items->pluck('resolution')->unique()->values()->all());
         $this->assertSame([$this->admin->id], $items->pluck('resolved_by_user_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
         $this->assertSame([3], $items->map(fn (ApkukReconciliationItem $item) => $item->resolution_details['batch_size'])->unique()->values()->all());
+        $this->assertSame(['Sdr. Pemilik SPS BOS — WA 28/10 10.15'], $items->pluck('owner_confirmation')->unique()->values()->all());
         $this->assertSame($workOrders, $this->workOrderTables());
 
         $this->actingAs($this->admin)->from(route('admin.apkuk-reconciliation.index'))->post($url, $payload)->assertSessionHasErrors('item');
@@ -536,8 +552,15 @@ class ApkukResilientSyncTest extends TestCase
 
         [, $output] = $this->artisan2('apkuk:reconcile');
         preg_match('/RECONCILE_PLAN id=([0-9a-f]{16})/', $output, $m);
+        $this->app->instance(ConsoleAdminAuthenticator::class, new class extends ConsoleAdminAuthenticator
+        {
+            protected function readPassword(Command $command, string $username): ?string
+            {
+                return 'password';
+            }
+        });
         [$code, $output] = $this->artisan2('apkuk:reconcile', [
-            '--apply' => true, '--plan' => $m[1], '--expect-missing' => '2',
+            '--apply' => true, '--plan' => $m[1], '--expect-missing' => '2', '--admin' => 'ADMIN_REKON',
             '--approved-by' => 'Supervisor Har', '--reason' => 'Penghapusan disetujui pemilik data SPS BOS.',
         ]);
 
@@ -547,10 +570,57 @@ class ApkukResilientSyncTest extends TestCase
         $items = ApkukReconciliationItem::query()->get();
         $this->assertSame([ApkukReconciliationItem::RESOLUTION_RECONCILED], $items->pluck('resolution')->unique()->values()->all());
         $this->assertSame([$reconciliationId], $items->pluck('reconciliation_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
+        $this->assertSame([$this->admin->id], $items->pluck('resolved_by_user_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
+        $this->assertSame($this->admin->id, (int) DB::table('apkuk_reconciliations')->value('approved_by_user_id'));
 
         [$code, $output] = $this->sync();
         $this->assertSame(0, $code, $output);
         $this->assertMatchesRegularExpression('/status=SUCCESS exit=0 .* pending=0 /', $output);
+    }
+
+    public function test_pending_report_is_never_archived_automatically_however_long_it_is_missing(): void
+    {
+        $a1 = $this->rowId('A1');
+        $removed = $this->reports['A1'];
+        unset($this->reports['A1']);
+
+        // Hilang lebih dari 60 hari dan puluhan siklus cron: tetap pending, tidak menjadi histori.
+        foreach (range(1, 6) as $cycle) {
+            [$code, $output] = $this->sync();
+            $this->assertSame(0, $code, $output);
+            $this->travel(12)->days();
+        }
+
+        $item = ApkukReconciliationItem::query()->open()->sole();
+        $this->assertSame([$a1, 6], [(int) $item->apkuk_id, $item->detection_count]);
+        $this->assertNull(DB::table('apkuks')->where('id', $a1)->value('source_missing_at'));
+        $this->assertSame(1, Apkuk::query()->awaitingReconciliation()->count());
+        $this->assertSame(0, Apkuk::query()->sourceHistory()->count());
+
+        // Laporan yang sedang diedit/dipindahkan lalu kembali tetap pulih tanpa duplikasi.
+        $this->reports['A1'] = $removed;
+        [, $output] = $this->sync();
+        $this->assertMatchesRegularExpression('/status=SUCCESS exit=0 .* new=0 .* pending=0 pending_new=0 pending_resolved=1 /', $output);
+        $this->assertSame(1, DB::table('apkuks')->where('source_id', 'A1')->count());
+        $this->assertSame(ApkukReconciliationItem::RESOLUTION_RETURNED, $item->refresh()->resolution);
+    }
+
+    public function test_source_state_helper_matches_model_scopes_for_query_builder_consumers(): void
+    {
+        unset($this->reports['A1'], $this->reports['A2']);
+        $this->sync();
+        $archive = ApkukReconciliationItem::query()->open()->where('apkuk_id', $this->rowId('A2'))->sole();
+        $this->resolve($archive->id, ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED)->assertSessionHasNoErrors();
+
+        // Dipakai halaman lain (dashboard, analitik) yang membaca apkuks lewat query builder.
+        $this->assertSame(self::INITIAL_REPORTS - 1, ApkukSourceState::active(DB::table('apkuks'))->count());
+        $this->assertSame(1, ApkukSourceState::pending(DB::table('apkuks'))->count());
+        $this->assertSame(1, ApkukSourceState::history(DB::table('apkuks'))->count());
+        $this->assertSame(
+            [Apkuk::query()->sourceActive()->count(), Apkuk::query()->awaitingReconciliation()->count(), Apkuk::query()->sourceHistory()->count()],
+            [self::INITIAL_REPORTS - 1, 1, 1],
+        );
+        $this->assertSame(1, ApkukSourceState::pending(DB::table('apkuks as a'), 'a')->where('a.source_id', 'A1')->count(), 'Alias tabel didukung.');
     }
 
     public function test_reconcile_plan_is_not_invalidated_by_routine_sync_timestamps(): void
@@ -622,6 +692,14 @@ class ApkukResilientSyncTest extends TestCase
         $migration->up();
         $this->assertTrue(Schema::hasTable('apkuk_reconciliation_items'));
         $this->assertTrue(Schema::hasColumn('apkuk_sync_runs', 'snapshot_accepted'));
+        $this->assertTrue(Schema::hasColumn('apkuk_reconciliation_items', 'owner_confirmation'));
+
+        $admin = require database_path('migrations/2026_10_28_100002_add_approved_by_user_id_to_apkuk_reconciliations.php');
+        $admin->down();
+        $this->assertFalse(Schema::hasColumn('apkuk_reconciliations', 'approved_by_user_id'));
+        $this->assertTrue(Schema::hasColumn('apkuk_reconciliations', 'approved_by'), 'Kolom lama tidak tersentuh.');
+        $admin->up();
+        $this->assertTrue(Schema::hasColumn('apkuk_reconciliations', 'approved_by_user_id'));
     }
 
     // ---------------------------------------------------------------- helpers
@@ -649,6 +727,7 @@ class ApkukResilientSyncTest extends TestCase
             ->post(route('admin.apkuk-reconciliation.resolve', $itemId), $extra + [
                 'decision' => $decision,
                 'reason' => 'Dikonfirmasi petugas SPS BOS, laporan memang dihapus.',
+                'owner_confirmation' => 'Sdr. Pemilik SPS BOS — WA 28/10 10.15',
             ]);
     }
 

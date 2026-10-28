@@ -6,6 +6,7 @@ use App\Models\ApkukReconciliationItem;
 use App\Models\ApkukSyncRun;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Menerapkan snapshot APKUK_RAW yang valid ke apkuks dalam satu transaksi terkunci.
@@ -27,7 +28,7 @@ class ApkukSynchronizer
      */
     public function apply(ApkukSourceSnapshot $source, ApkukSyncPolicy $policy, ApkukSyncRun $run): ApkukSyncOutcome
     {
-        return DB::transaction(function () use ($source, $policy, $run): ApkukSyncOutcome {
+        $outcome = DB::transaction(function () use ($source, $policy, $run): ApkukSyncOutcome {
             ApkukSyncLock::exclusive();
             if (DB::connection()->getDriverName() === 'pgsql') {
                 // Penulis lain (rekonsiliasi, penyelesaian antrean) menunggu; pembaca tetap jalan.
@@ -48,6 +49,9 @@ class ApkukSynchronizer
             $this->writeQueue($plan, $source, $run, $now);
 
             $status = $plan->desiredItems === [] ? ApkukSyncRun::STATUS_SUCCESS : ApkukSyncRun::STATUS_SUCCESS_WITH_PENDING;
+            // Histori yang muncul kembali dipulihkan otomatis; ID-nya dicatat karena pemulihan itu
+            // membatalkan keputusan arsip sebelumnya.
+            $returnedIds = array_column($plan->returned, 'apkuk_id');
             $run->forceFill([
                 'status' => $status,
                 'snapshot_accepted' => true,
@@ -56,12 +60,22 @@ class ApkukSynchronizer
                 'identity_digest' => $source->identityDigest(),
                 'counts' => $plan->counts(),
                 'guard' => $limits,
+                'details' => $returnedIds === [] ? null : ['returned_apkuk_ids' => $returnedIds],
                 'database_user' => DB::connection()->getDriverName() === 'pgsql' ? (string) DB::scalar('select current_user') : null,
                 'finished_at' => $now,
             ])->save();
 
             return new ApkukSyncOutcome($plan, $limits, $status);
         });
+
+        if ($outcome->plan->returned !== []) {
+            Log::warning('apkuk:sync memulihkan laporan APKUK yang diarsipkan karena muncul kembali di sumber', [
+                'run_id' => $run->id,
+                'apkuk_ids' => array_column($outcome->plan->returned, 'apkuk_id'),
+            ]);
+        }
+
+        return $outcome;
     }
 
     private function writeReports(ApkukSyncPlan $plan): void

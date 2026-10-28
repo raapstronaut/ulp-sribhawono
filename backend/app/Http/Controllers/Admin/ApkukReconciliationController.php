@@ -69,6 +69,7 @@ class ApkukReconciliationController extends Controller
             'reason' => ['required', 'string', 'min:'.ApkukReconciliationQueue::MIN_REASON, 'max:'.ApkukReconciliationQueue::MAX_REASON],
             'apkuk_id' => ['nullable', 'integer'],
             'acknowledge_active_wo' => ['nullable', 'boolean'],
+            'owner_confirmation' => ['nullable', 'string', 'max:'.ApkukReconciliationQueue::MAX_OWNER_CONFIRMATION],
         ], [
             'decision.required' => 'Pilih keputusan.',
             'decision.in' => 'Keputusan tidak dikenal.',
@@ -76,8 +77,10 @@ class ApkukReconciliationController extends Controller
             'reason.min' => 'Alasan minimal :min karakter.',
             'reason.max' => 'Alasan maksimal :max karakter.',
             'apkuk_id.integer' => 'Laporan lama tidak valid.',
+            'owner_confirmation.max' => 'Konfirmasi pemilik data maksimal :max karakter.',
         ]);
 
+        // Konfirmasi pemilik data wajib untuk pengarsipan; diperiksa layanan.
         $resolved = $queue->resolve(
             $request->user(),
             $item,
@@ -85,6 +88,7 @@ class ApkukReconciliationController extends Controller
             $data['reason'],
             isset($data['apkuk_id']) ? (int) $data['apkuk_id'] : null,
             (bool) ($data['acknowledge_active_wo'] ?? false),
+            $data['owner_confirmation'] ?? null,
         );
 
         return redirect()
@@ -99,18 +103,22 @@ class ApkukReconciliationController extends Controller
             'item_ids.*' => ['integer'],
             'reason' => ['required', 'string', 'min:'.ApkukReconciliationQueue::MIN_REASON, 'max:'.ApkukReconciliationQueue::MAX_REASON],
             'acknowledge_active_wo' => ['nullable', 'boolean'],
+            'owner_confirmation' => ['required', 'string', 'min:'.ApkukReconciliationQueue::MIN_OWNER_CONFIRMATION, 'max:'.ApkukReconciliationQueue::MAX_OWNER_CONFIRMATION],
         ], [
             'item_ids.required' => 'Pilih minimal satu laporan hilang.',
             'item_ids.max' => 'Maksimal :max antrean per konfirmasi.',
             'reason.required' => 'Alasan wajib diisi.',
             'reason.min' => 'Alasan minimal :min karakter.',
             'reason.max' => 'Alasan maksimal :max karakter.',
+            'owner_confirmation.required' => 'Konfirmasi pemilik data SPS BOS wajib diisi untuk pengarsipan.',
+            'owner_confirmation.min' => 'Konfirmasi pemilik data minimal :min karakter.',
+            'owner_confirmation.max' => 'Konfirmasi pemilik data maksimal :max karakter.',
         ]);
 
-        $count = $queue->confirmRemovedMany($request->user(), $data['item_ids'], $data['reason'], (bool) ($data['acknowledge_active_wo'] ?? false));
+        $count = $queue->confirmRemovedMany($request->user(), $data['item_ids'], $data['reason'], $data['owner_confirmation'], (bool) ($data['acknowledge_active_wo'] ?? false));
 
         return redirect()
             ->route('admin.apkuk-reconciliation.index', array_filter(['jenis' => $request->query('jenis')]))
-            ->with('status', "{$count} laporan dikonfirmasi dihapus di sumber dan menjadi histori.");
+            ->with('status', "{$count} laporan diarsipkan atas konfirmasi pemilik data.");
     }
 }

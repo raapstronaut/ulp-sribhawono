@@ -48,6 +48,7 @@ class ApkukSyncRun extends Model
             'source_report_count' => 'integer',
             'counts' => 'array',
             'guard' => 'array',
+            'details' => 'array',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
         ];

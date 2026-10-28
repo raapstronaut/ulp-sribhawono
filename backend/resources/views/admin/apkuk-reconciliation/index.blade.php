@@ -26,7 +26,7 @@
             </ol>
         </nav>
         <h1 class="text-2xl font-bold text-slate-900 leading-tight">Antrean Rekonsiliasi APKUK</h1>
-        <p class="text-xs text-slate-500 mt-1 max-w-4xl">Laporan yang tidak lagi ada di APKUK_RAW (SPS BOS) tidak dihapus dan tidak otomatis menjadi histori. Laporan tersebut tetap tersimpan, tidak dapat dipilih untuk WO baru, dan menunggu keputusan Admin di sini atau selesai sendiri bila muncul kembali di sumber. WO yang sudah ada tidak pernah diubah.</p>
+        <p class="text-xs text-slate-500 mt-1 max-w-4xl">SPS BOS adalah sumber live: laporan yang hilang bisa memang tidak berlaku, atau hanya sementara (sedang diedit/dipindahkan). Laporan yang hilang berstatus pending: tetap tersimpan, tidak dihitung sebagai laporan aktif, dan tidak dapat dipilih untuk WO baru. Pending tidak pernah diarsipkan otomatis berdasarkan lamanya hilang; laporan diarsipkan hanya oleh Admin atas konfirmasi pemilik data, atau pulih sendiri bila muncul kembali di sumber. WO yang sudah ada tidak pernah diubah.</p>
     </div>
 
     @if(session('status'))
@@ -44,7 +44,7 @@
         <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Hilang dari sumber</span>
             <div class="mt-2 text-3xl font-black {{ $summary['missing'] > 0 ? 'text-amber-600' : 'text-slate-800' }}">{{ $summary['missing'] }}</div>
-            <div class="mt-2 text-[10px] text-slate-500">Menunggu konfirmasi penghapusan</div>
+            <div class="mt-2 text-[10px] text-slate-500">Pending; tidak dihitung aktif sampai diarsipkan atau muncul kembali</div>
         </div>
         <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
             <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Dugaan perubahan identitas</span>
@@ -87,9 +87,14 @@
                     <input type="checkbox" data-bulk-toggle> Pilih semua laporan hilang di halaman ini ({{ $missingOnPage->count() }})
                 </label>
                 <div class="flex-1">
-                    <label for="bulk_reason" class="block text-xs font-semibold text-slate-600">Alasan konfirmasi massal (dicatat di setiap antrean atas nama Anda)</label>
+                    <label for="bulk_owner" class="block text-xs font-semibold text-slate-600">Konfirmasi pemilik data SPS BOS (wajib)</label>
+                    <input id="bulk_owner" type="text" name="owner_confirmation" required minlength="{{ ApkukReconciliationQueue::MIN_OWNER_CONFIRMATION }}" maxlength="{{ ApkukReconciliationQueue::MAX_OWNER_CONFIRMATION }}"
+                           placeholder="Contoh: Nama, Pemilik SPS BOS — pesan WA 28/10 10.15" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                </div>
+                <div class="flex-1">
+                    <label for="bulk_reason" class="block text-xs font-semibold text-slate-600">Alasan pengarsipan (dicatat di setiap antrean atas nama Anda)</label>
                     <input id="bulk_reason" type="text" name="reason" required minlength="{{ ApkukReconciliationQueue::MIN_REASON }}" maxlength="{{ ApkukReconciliationQueue::MAX_REASON }}"
-                           placeholder="Contoh: pembersihan laporan ganda SPS BOS 28/10 disetujui pemilik data" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                           placeholder="Contoh: laporan ganda/lama sudah tidak berlaku" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                 </div>
                 @if($missingWithActiveWo)
                     <label class="flex items-start gap-2 text-xs text-red-700 lg:pb-2">
@@ -97,7 +102,7 @@
                         <span>Termasuk laporan dengan WO aktif; WO tidak diubah.</span>
                     </label>
                 @endif
-                <button type="submit" class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">Konfirmasi dihapus untuk yang dipilih</button>
+                <button type="submit" class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">Arsipkan yang dipilih</button>
             </form>
         @endif
 
@@ -112,7 +117,7 @@
             <article class="border-b border-slate-100 p-4 last:border-b-0" id="antrean-{{ $item->id }}">
                 <div class="flex flex-wrap items-center gap-2 text-xs">
                     @if($item->kind === ApkukReconciliationItem::KIND_MISSING)
-                        <input type="checkbox" name="item_ids[]" value="{{ $item->id }}" form="bulk-confirm" data-bulk-item aria-label="Pilih antrean #{{ $item->id }} untuk konfirmasi massal">
+                        <input type="checkbox" name="item_ids[]" value="{{ $item->id }}" form="bulk-confirm" data-bulk-item aria-label="Pilih antrean #{{ $item->id }} untuk pengarsipan massal">
                     @endif
                     <span class="font-bold text-slate-900">#{{ $item->id }}</span>
                     <span class="rounded-full border px-2 py-0.5 font-semibold {{ $item->kind === ApkukReconciliationItem::KIND_MISSING ? 'border-amber-200 bg-amber-50 text-amber-700' : 'border-violet-200 bg-violet-50 text-violet-700' }}">{{ $item->kindLabel() }}</span>
@@ -176,15 +181,18 @@
                         @endif
                         <label class="block text-xs font-semibold text-slate-600" for="reason_{{ $item->id }}">Alasan keputusan (wajib, tercatat atas nama Anda)</label>
                         <input id="reason_{{ $item->id }}" type="text" name="reason" required minlength="{{ ApkukReconciliationQueue::MIN_REASON }}" maxlength="{{ ApkukReconciliationQueue::MAX_REASON }}"
-                               placeholder="Contoh: dikonfirmasi petugas SPS BOS, laporan ganda dihapus" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                               placeholder="Contoh: laporan ganda/lama sudah tidak berlaku" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                         @if($item->kind === ApkukReconciliationItem::KIND_MISSING)
+                            <label class="block text-xs font-semibold text-slate-600" for="owner_{{ $item->id }}">Konfirmasi pemilik data SPS BOS (wajib untuk pengarsipan)</label>
+                            <input id="owner_{{ $item->id }}" type="text" name="owner_confirmation" required minlength="{{ ApkukReconciliationQueue::MIN_OWNER_CONFIRMATION }}" maxlength="{{ ApkukReconciliationQueue::MAX_OWNER_CONFIRMATION }}"
+                                   placeholder="Contoh: Nama, Pemilik SPS BOS — pesan WA 28/10 10.15" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
                             @if($activeRefs !== [])
                                 <label class="flex items-start gap-2 text-xs text-red-700">
                                     <input type="checkbox" name="acknowledge_active_wo" value="1" class="mt-0.5">
                                     <span>Saya memahami ada WO aktif yang merujuk laporan ini. WO tidak diubah.</span>
                                 </label>
                             @endif
-                            <button type="submit" name="decision" value="{{ ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED }}" class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">Konfirmasi dihapus di sumber (jadikan histori)</button>
+                            <button type="submit" name="decision" value="{{ ApkukReconciliationQueue::DECISION_CONFIRM_REMOVED }}" class="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700">Arsipkan (tidak berlaku, dikonfirmasi pemilik data)</button>
                         @else
                             <div class="flex flex-wrap gap-2">
                                 <button type="submit" name="decision" value="{{ ApkukReconciliationQueue::DECISION_CONFIRM_IDENTITY }}" class="rounded-lg bg-violet-600 px-3 py-2 text-xs font-semibold text-white hover:bg-violet-700">Laporan sama — perbarui identitas</button>
@@ -207,7 +215,7 @@
         <h2 class="px-4 pt-4 font-semibold text-slate-900">Riwayat apkuk:sync</h2>
         <table class="mt-2 min-w-full text-xs">
             <thead class="bg-slate-50 text-left text-slate-500">
-                <tr><th class="px-4 py-2">#</th><th class="px-4 py-2">Mulai (WIB)</th><th class="px-4 py-2">Status</th><th class="px-4 py-2">Laporan sumber</th><th class="px-4 py-2">Baru</th><th class="px-4 py-2">Diperbarui</th><th class="px-4 py-2">Antrean</th><th class="px-4 py-2">Keterangan</th></tr>
+                <tr><th class="px-4 py-2">#</th><th class="px-4 py-2">Mulai (WIB)</th><th class="px-4 py-2">Status</th><th class="px-4 py-2">Laporan sumber</th><th class="px-4 py-2">Baru</th><th class="px-4 py-2">Diperbarui</th><th class="px-4 py-2">Muncul kembali</th><th class="px-4 py-2">Pending</th><th class="px-4 py-2">Keterangan</th></tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-slate-700">
                 @forelse($runs as $run)
@@ -218,11 +226,12 @@
                         <td class="px-4 py-2">{{ $run->source_report_count ?? '—' }}</td>
                         <td class="px-4 py-2">{{ $run->counts['inserted'] ?? '—' }}</td>
                         <td class="px-4 py-2">{{ $run->counts['updated'] ?? '—' }}</td>
+                        <td class="px-4 py-2">{{ $run->counts['returned'] ?? '—' }}</td>
                         <td class="px-4 py-2">{{ $run->counts['pending_open'] ?? '—' }}</td>
                         <td class="px-4 py-2 max-w-md">{{ $run->failure_stage ? (ApkukSyncRun::STAGE_LABELS[$run->failure_stage] ?? $run->failure_stage).': '.\Illuminate\Support\Str::limit($run->failure_reason, 160) : '' }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-4 py-4 text-center text-slate-500">Belum ada riwayat sinkronisasi.</td></tr>
+                    <tr><td colspan="9" class="px-4 py-4 text-center text-slate-500">Belum ada riwayat sinkronisasi.</td></tr>
                 @endforelse
             </tbody>
         </table>
@@ -232,7 +241,7 @@
         <h2 class="px-4 pt-4 font-semibold text-slate-900">Penyelesaian terakhir</h2>
         <table class="mt-2 min-w-full text-xs">
             <thead class="bg-slate-50 text-left text-slate-500">
-                <tr><th class="px-4 py-2">#</th><th class="px-4 py-2">Jenis</th><th class="px-4 py-2">Laporan</th><th class="px-4 py-2">Keputusan</th><th class="px-4 py-2">Oleh</th><th class="px-4 py-2">Alasan</th><th class="px-4 py-2">Waktu (WIB)</th></tr>
+                <tr><th class="px-4 py-2">#</th><th class="px-4 py-2">Jenis</th><th class="px-4 py-2">Laporan</th><th class="px-4 py-2">Keputusan</th><th class="px-4 py-2">Oleh</th><th class="px-4 py-2">Konfirmasi pemilik data</th><th class="px-4 py-2">Alasan</th><th class="px-4 py-2">Waktu (WIB)</th></tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-slate-700">
                 @forelse($resolved as $done)
@@ -241,12 +250,13 @@
                         <td class="px-4 py-2">{{ $done->kindLabel() }}</td>
                         <td class="px-4 py-2">ID {{ $done->source_id ?? '—' }} · {{ $done->no_tiang ?? '—' }}</td>
                         <td class="px-4 py-2">{{ $done->resolutionLabel() }}</td>
-                        <td class="px-4 py-2">{{ $done->resolvedBy ? $done->resolvedBy->name.' ('.$done->resolvedBy->username.')' : ($done->reconciliation_id ? 'apkuk:reconcile #'.$done->reconciliation_id : 'Otomatis (sync #'.$done->resolved_run_id.')') }}</td>
+                        <td class="px-4 py-2">{{ $done->resolvedBy ? $done->resolvedBy->name.' ('.$done->resolvedBy->username.')'.($done->reconciliation_id ? ' via apkuk:reconcile #'.$done->reconciliation_id : '') : 'Otomatis (sync #'.$done->resolved_run_id.')' }}</td>
+                        <td class="px-4 py-2 max-w-xs">{{ $done->owner_confirmation ?? '—' }}</td>
                         <td class="px-4 py-2 max-w-md">{{ \Illuminate\Support\Str::limit($done->resolution_reason, 160) }}</td>
                         <td class="px-4 py-2 whitespace-nowrap">{{ $wib($done->resolved_at) }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="7" class="px-4 py-4 text-center text-slate-500">Belum ada antrean yang diselesaikan.</td></tr>
+                    <tr><td colspan="8" class="px-4 py-4 text-center text-slate-500">Belum ada antrean yang diselesaikan.</td></tr>
                 @endforelse
             </tbody>
         </table>

@@ -69,10 +69,11 @@
             <span><span class="mr-1 inline-block h-3 w-3 rounded-full bg-amber-500 align-middle"></span>LBSM</span>
             <span><span class="mr-1 inline-block h-3 w-3 rounded-full bg-green-600 align-middle"></span>FCO</span>
             <span><span class="mr-1 inline-block h-3 w-3 rounded-full bg-violet-600 align-middle"></span>APKUK</span>
+            <span><span class="mr-1 inline-block h-3 w-3 rounded-full bg-pink-600 align-middle"></span>APKUK menunggu rekonsiliasi</span>
             <span><span class="mr-1 inline-block h-3 w-3 rounded-full bg-slate-500 align-middle"></span>Keypoint lain</span>
         </div>
         <div class="border-t border-slate-100 px-4 py-3 text-xs text-amber-800">
-            <strong>Catatan data:</strong> Gangguan belum menyimpan koordinat, jadi hanya tampil sebagai daftar, bukan marker. APKUK yang tidak mempunyai koordinat atau sudah menjadi histori juga tidak ditampilkan sebagai marker. APKUK yang tidak lagi ada di sumber terbaru tetap tampil dengan tanda "menunggu rekonsiliasi" sampai diputuskan di <a href="{{ route('admin.apkuk-reconciliation.index') }}" class="font-semibold underline">Antrean Rekonsiliasi APKUK</a>.
+            <strong>Catatan data:</strong> Gangguan belum menyimpan koordinat, jadi hanya tampil sebagai daftar, bukan marker. APKUK yang tidak mempunyai koordinat atau sudah menjadi histori juga tidak ditampilkan sebagai marker. APKUK yang tidak lagi ada di sumber terbaru tampil merah muda dengan tanda "menunggu rekonsiliasi" dan tidak dihitung sebagai APKUK aktif, sampai muncul kembali atau diarsipkan di <a href="{{ route('admin.apkuk-reconciliation.index') }}" class="font-semibold underline">Antrean Rekonsiliasi APKUK</a>.
         </div>
     </div>
 </div>
