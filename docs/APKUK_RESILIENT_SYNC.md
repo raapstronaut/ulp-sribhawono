@@ -207,6 +207,8 @@ Kedua migration bersifat additive dan belum dijalankan di lingkungan mana pun se
 
 Patch ini sudah diterapkan dan diuji pada hasil gabungan: **258/258 tes lulus**. Patch disimpan terpisah, tidak di-commit ke PR mana pun, dan diterapkan sebagai tindak lanjut setelah PR #10 dan PR #11 sama-sama masuk `main`.
 
+**Status 28 Okt (setelah PR #11 merge):** penyesuaian di atas sudah diterapkan langsung pada branch PR #10 (`feat/admin-web-foundation-v1`) setelah `main` di-merge ke branch tersebut, ditambah kartu dashboard tersendiri untuk pending, pencatatan keputusan antrean ke Audit Log umum, dan perbaikan skrip layout agar tombol keputusan terkirim. Rinciannya di `docs/WEB_ADMIN_DATA_FIELD_AUDIT.md` bagian 12.
+
 ## 6. Rencana migration dan deployment yang aman
 
 Belum ada yang dijalankan di production. Urutan migration sebelum merge itu wajib: kode baru menolak sync (`FAILED`, tanpa tulis) bila tabel belum ada, sedangkan kode lama tidak terpengaruh oleh tabel dan kolom baru.

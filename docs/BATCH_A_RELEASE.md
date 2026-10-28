@@ -49,7 +49,7 @@ Tidak ada kolom yang diubah atau dihapus. `down()` hanya menghapus tabel/kolom b
 **Prasyarat persetujuan:** PR direview dan disetujui; jadwal deploy di luar jam sibuk.
 
 1. **Backup:** buat branch Neon cadangan dari branch production (mis. `backup-before-batch-a`).
-2. **Verifikasi target (read-only):** host `.env.neon-migrate` = endpoint production, database `ulp_sribhawono_shared_dev`, role owner. `php artisan migrate:status --env=neon-migrate` harus menunjukkan **hanya** dua migration di atas yang Pending.
+2. **Verifikasi target (read-only):** host `.env.neon-migrate` = endpoint production, database `ulp_sribhawono_shared_dev`, role owner, timeline Neon sama dengan koneksi runtime Railway. `php artisan migrate:status --env=neon-migrate` harus menunjukkan **hanya** dua migration di atas yang Pending. Migration PR #11 (`2026_10_28_100001`, `2026_10_28_100002`) sudah Ran di production pada 28 Okt (batch 15–16) dan tidak boleh dijalankan ulang; Batch A tidak bergantung padanya.
 3. **Migrasi spesifik (role owner)**, satu per satu, didahului `--pretend`:
    ```
    php artisan migrate --env=neon-migrate --path=database/migrations/2026_10_28_000001_create_admin_operations_tables.php --pretend
@@ -63,7 +63,7 @@ Tidak ada kolom yang diubah atau dihapus. `down()` hanya menghapus tabel/kolom b
    - `MEDIA_DISK` ke penyimpanan **persisten** (disk S3-kompatibel atau volume Railway). Disk `local` di container Railway hilang setiap deploy — **jangan aktifkan upload foto produksi sebelum ini beres.**
 6. **Deploy kode** (merge PR → Railway build: `composer install` memasang Sanctum).
 7. **Data awal lewat UI (bukan seeder):** kode referensi (alasan reschedule, alasan limpahan, jenis temuan), tim lapangan + petugas, jadwal shift, akun lapangan.
-8. **Smoke test produksi (baca dulu):** login, Dashboard, Work Order, APKUK, Review, Audit Log; cron Railway tetap `SYNC_SUMMARY status=OK`.
+8. **Smoke test produksi (baca dulu):** login, Dashboard (kartu APKUK aktif dan menunggu rekonsiliasi), Work Order, APKUK (tab Menunggu rekonsiliasi), Rekonsiliasi APKUK, Review, Audit Log; cron Railway tetap `SYNC_SUMMARY status=OK` atau `SUCCESS_WITH_PENDING_RECONCILIATION` dengan exit 0.
 
 **Rollback:** kembalikan deploy Railway ke versi sebelumnya; tabel baru boleh tetap ada (tidak dipakai kode lama). `migrate:rollback` hanya bila tabel baru masih kosong, karena `down()` menghapus tabel tersebut.
 
