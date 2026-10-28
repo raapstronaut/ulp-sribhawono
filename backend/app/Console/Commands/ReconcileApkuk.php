@@ -3,12 +3,16 @@
 namespace App\Console\Commands;
 
 use App\Console\Commands\Concerns\ReportsSyncResult;
+use App\Console\Support\ConsoleAdminAuthenticator;
+use App\Models\ApkukReconciliationItem;
 use App\Services\Apkuk\ApkukReconciliationPlan;
 use App\Services\Apkuk\ApkukReconciliationPlanner;
 use App\Services\Apkuk\ApkukSourceException;
 use App\Services\Apkuk\ApkukSourceReader;
 use App\Services\Apkuk\ApkukSourceSnapshot;
+use App\Services\Apkuk\ApkukSyncLock;
 use App\Services\ApkukCandidateService;
+use Illuminate\Auth\AuthenticationException;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -23,10 +27,17 @@ use Throwable;
  * Tanpa --apply: dry-run read-only (selisih, duplikasi, dampak WO, kode rencana).
  * Dengan --apply: menandai source_missing_at hanya untuk rencana yang persis sama
  * dengan yang disetujui. Tidak ada hard-delete; WO dan histori lain tidak diubah;
- * laporan yang muncul kembali dipulihkan oleh apkuk:sync.
+ * laporan yang muncul kembali dipulihkan oleh apkuk:sync. Antrean rekonsiliasi terbuka
+ * untuk laporan yang ditandai ikut diselesaikan (RECONCILED).
  *
- * --approved-by dan --reason hanya metadata audit. Perintah ini tidak mengautentikasi
- * penyetuju; kewenangan apply berasal dari akses ke kredensial database produksi.
+ * Sejak apkuk:sync memasukkan laporan yang hilang ke antrean (tanpa gagal), keputusan
+ * per laporan dilakukan Admin di Web Admin. Perintah ini tetap tersedia untuk pengarsipan
+ * massal yang dikonfirmasi pemilik data.
+ *
+ * Pengarsipan permanen hanya oleh Admin terautentikasi: --apply wajib --admin=<username> dan
+ * kata sandi yang diminta secara interaktif; akunnya dicatat (approved_by_user_id).
+ * --approved-by berisi konfirmasi pemilik data SPS BOS dan --reason alasan; keduanya metadata
+ * audit yang dicatat apa adanya.
  */
 class ReconcileApkuk extends Command
 {
@@ -36,8 +47,9 @@ class ReconcileApkuk extends Command
         {--apply : Terapkan rencana yang disetujui (tanpa opsi ini: dry-run, database tidak diubah)}
         {--plan= : Kode rencana dari dry-run yang disetujui}
         {--expect-missing= : Jumlah identitas yang disetujui untuk ditandai source_missing_at}
-        {--approved-by= : Nama dan jabatan penyetuju (metadata audit; tidak diverifikasi)}
+        {--approved-by= : Konfirmasi pemilik data SPS BOS: nama, jabatan, rujukan (metadata audit)}
         {--reason= : Alasan persetujuan (metadata audit)}
+        {--admin= : Username akun ADMIN aktif yang menyetujui; kata sandi diminta secara interaktif}
         {--allow-active-wo : Izinkan penandaan walau ada WO aktif yang merujuk langsung laporan tersebut}
         {--export= : Simpan daftar identitas hilang ke file CSV}';
 
@@ -49,9 +61,7 @@ class ReconcileApkuk extends Command
 
     private const MAX_REASON = 1000;
 
-    private const LOCK_TIMEOUT = '10s';
-
-    public function handle(ApkukSourceReader $reader, ApkukReconciliationPlanner $planner): int
+    public function handle(ApkukSourceReader $reader, ApkukReconciliationPlanner $planner, ConsoleAdminAuthenticator $authenticator): int
     {
         $apply = (bool) $this->option('apply');
         $this->line($apply ? '== Rekonsiliasi APKUK (APPLY)' : '== Rekonsiliasi APKUK (DRY-RUN — database tidak diubah)');
@@ -89,7 +99,7 @@ class ReconcileApkuk extends Command
             return $this->finishDryRun($plan);
         }
 
-        return $this->apply($source, $planner, $plan);
+        return $this->apply($source, $planner, $plan, $authenticator);
     }
 
     private function finishDryRun(ApkukReconciliationPlan $plan): int
@@ -111,20 +121,20 @@ class ReconcileApkuk extends Command
         } else {
             $this->line('Setelah daftar ditinjau dan disetujui, terapkan dengan:');
             $this->line(sprintf(
-                '  php artisan apkuk:reconcile --apply --plan=%s --expect-missing=%d --approved-by="Nama, Jabatan" --reason="Alasan persetujuan"%s',
+                '  php artisan apkuk:reconcile --apply --plan=%s --expect-missing=%d --admin=USERNAME_ADMIN --approved-by="Pemilik data SPS BOS: nama, jabatan, rujukan" --reason="Alasan persetujuan"%s',
                 $plan->id,
                 count($plan->missing),
                 $plan->activeWorkOrderRefs() === [] ? '' : ' --allow-active-wo',
             ));
             $this->line('Kode rencana batal otomatis bila isi sumber, tabel apkuks, referensi WO, atau dampaknya berubah sebelum apply.');
-            $this->line('--approved-by dan --reason hanya dicatat sebagai metadata audit; identitas penyetuju tidak diverifikasi.');
+            $this->line('Kata sandi akun ADMIN diminta secara interaktif. --approved-by (konfirmasi pemilik data) dan --reason dicatat sebagai metadata audit.');
         }
         $this->info('DRY RUN REKONSILIASI SELESAI. Database tidak diubah.');
 
         return self::SUCCESS;
     }
 
-    private function apply(ApkukSourceSnapshot $source, ApkukReconciliationPlanner $planner, ApkukReconciliationPlan $plan): int
+    private function apply(ApkukSourceSnapshot $source, ApkukReconciliationPlanner $planner, ApkukReconciliationPlan $plan, ConsoleAdminAuthenticator $authenticator): int
     {
         $planId = trim((string) $this->option('plan'));
         $expected = trim((string) $this->option('expect-missing'));
@@ -141,9 +151,9 @@ class ReconcileApkuk extends Command
 
             return self::FAILURE;
         }
-        // Tidak ikut sidik persetujuan dan tidak membuktikan identitas: siapa pun yang memegang
-        // kredensial database dapat mengisinya. Role database yang sebenarnya ikut dicatat.
-        $this->line('Catatan: --approved-by dan --reason dicatat apa adanya sebagai metadata audit; identitas penyetuju tidak diverifikasi.');
+        // Tidak ikut sidik persetujuan dan tidak membuktikan identitas; kewenangan berasal dari
+        // akun Admin yang diautentikasi di bawah. Role database yang sebenarnya ikut dicatat.
+        $this->line('Catatan: --approved-by (konfirmasi pemilik data) dan --reason dicatat apa adanya sebagai metadata audit; kewenangan apply berasal dari akun Admin terautentikasi (--admin).');
 
         if (! hash_equals($plan->id, $planId) || (int) $expected !== count($plan->missing)) {
             $this->error(sprintf(
@@ -171,12 +181,26 @@ class ReconcileApkuk extends Command
 
             return self::FAILURE;
         }
+        if (! Schema::hasColumn('apkuk_reconciliations', 'approved_by_user_id')) {
+            $this->error('Kolom apkuk_reconciliations.approved_by_user_id belum ada. Jalankan migration additive 2026_10_28_100002 terlebih dahulu. Tidak ada perubahan.');
+
+            return self::FAILURE;
+        }
+
+        try {
+            $admin = $authenticator->authenticate($this, $this->option('admin'));
+        } catch (AuthenticationException $e) {
+            $this->error($e->getMessage());
+
+            return self::FAILURE;
+        }
+        $this->line("Disetujui Admin terautentikasi: {$admin->username} (akun #{$admin->id}).");
 
         $markedAt = now();
         $ids = $plan->missingApkukIds();
 
         try {
-            $databaseUser = DB::transaction(function () use ($source, $planner, $plan, $ids, $markedAt, $approvedBy, $reason): ?string {
+            [$databaseUser, $resolvedItems] = DB::transaction(function () use ($source, $planner, $plan, $ids, $markedAt, $approvedBy, $reason, $admin): array {
                 $this->lockTables();
 
                 // Validasi ulang setelah tabel terkunci. Perubahan apkuks, target WO, atau status
@@ -201,12 +225,13 @@ class ReconcileApkuk extends Command
                 }
 
                 $databaseUser = DB::connection()->getDriverName() === 'pgsql' ? (string) DB::scalar('select current_user') : null;
-                DB::table('apkuk_reconciliations')->insert([
+                $reconciliationId = DB::table('apkuk_reconciliations')->insertGetId([
                     'plan_id' => $plan->id,
                     'fingerprint' => $plan->fingerprint,
                     'fingerprint_parts' => json_encode($plan->fingerprintParts),
                     'action' => self::ACTION,
                     'approved_by' => $approvedBy,
+                    'approved_by_user_id' => $admin->id,
                     'reason' => $reason,
                     'database_user' => $databaseUser,
                     'marked_count' => $affected,
@@ -227,7 +252,30 @@ class ReconcileApkuk extends Command
                     'created_at' => $markedAt,
                 ]);
 
-                return $databaseUser;
+                // Antrean MISSING untuk laporan yang kini ditandai selesai bersama rencana ini.
+                $resolved = 0;
+                if (Schema::hasTable('apkuk_reconciliation_items')) {
+                    foreach (array_chunk($ids, 500) as $chunk) {
+                        $resolved += DB::table('apkuk_reconciliation_items')
+                            ->where('status', ApkukReconciliationItem::STATUS_OPEN)
+                            ->where('kind', ApkukReconciliationItem::KIND_MISSING)
+                            ->whereIn('apkuk_id', $chunk)
+                            ->update([
+                                'status' => ApkukReconciliationItem::STATUS_RESOLVED,
+                                'open_key' => null,
+                                'resolution' => ApkukReconciliationItem::RESOLUTION_RECONCILED,
+                                'resolution_reason' => $reason,
+                                'owner_confirmation' => mb_substr($approvedBy, 0, 255),
+                                'resolved_by_user_id' => $admin->id,
+                                'resolution_details' => json_encode(['plan_id' => $plan->id, 'database_user' => $databaseUser]),
+                                'reconciliation_id' => $reconciliationId,
+                                'resolved_at' => $markedAt,
+                                'updated_at' => $markedAt,
+                            ]);
+                    }
+                }
+
+                return [$databaseUser, $resolved];
             });
         } catch (Throwable $e) {
             $this->error('Rekonsiliasi dibatalkan dan transaksi di-rollback. Tidak ada perubahan. Penyebab: '.Str::limit($e->getMessage(), 500));
@@ -241,12 +289,16 @@ class ReconcileApkuk extends Command
             'marked_count' => count($ids),
             'marked_at' => $markedAt->toIso8601String(),
             'approved_by' => $approvedBy,
+            'approved_by_user_id' => $admin->id,
             'database_user' => $databaseUser,
             'reason' => $reason,
         ]);
 
         $this->info(sprintf('RECONCILE_APPLIED plan=%s marked=%d marked_at=%s', $plan->id, count($ids), $markedAt->toIso8601String()));
         $this->info('Baris tidak dihapus dan WO tidak diubah. Laporan yang muncul kembali di sumber dipulihkan otomatis oleh apkuk:sync.');
+        if ($resolvedItems > 0) {
+            $this->info("Antrean rekonsiliasi yang ikut diselesaikan: {$resolvedItems}.");
+        }
 
         return self::SUCCESS;
     }
@@ -255,15 +307,17 @@ class ReconcileApkuk extends Command
      * Mengunci tabel penentu rencana sampai commit: penulis lain (apkuk:sync, pembuatan atau
      * perubahan WO) menunggu, pembaca tetap berjalan. Urutan sama dengan alur pembuatan WO
      * (work_orders lalu target) agar tidak saling mengunci; bila kunci tidak didapat dalam
-     * LOCK_TIMEOUT, transaksi gagal tanpa perubahan. SQLite (test) tidak mengenal LOCK TABLE.
+     * ApkukSyncLock::LOCK_TIMEOUT, transaksi gagal tanpa perubahan. Kunci advisory APKUK
+     * diambil lebih dulu sehingga apkuk:sync dan keputusan antrean menunggu.
+     * SQLite (test) tidak mengenal LOCK TABLE.
      */
     private function lockTables(): void
     {
+        ApkukSyncLock::exclusive(); // juga mengatur lock_timeout transaksi ini
         if (DB::connection()->getDriverName() !== 'pgsql') {
             return;
         }
 
-        DB::statement("SET LOCAL lock_timeout = '".self::LOCK_TIMEOUT."'");
         DB::statement('LOCK TABLE work_orders, work_order_apkuk_targets IN SHARE MODE');
         DB::statement('LOCK TABLE apkuks IN SHARE ROW EXCLUSIVE MODE');
     }

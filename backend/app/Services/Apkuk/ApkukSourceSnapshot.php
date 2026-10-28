@@ -48,6 +48,18 @@ final class ApkukSourceSnapshot
     }
 
     /**
+     * Sidik himpunan identitas (legacy_key) tanpa urutan; berubah hanya bila laporan
+     * ditambah, dihapus, atau identitasnya (ID/tiang) diedit.
+     */
+    public function identityDigest(): string
+    {
+        $keys = array_keys($this->keyToSheetRow);
+        sort($keys);
+
+        return hash('sha256', implode("\n", $keys));
+    }
+
+    /**
      * Sidik isi seluruh laporan sumber, berurutan per baris sheet. Berubah bila laporan
      * ditambah, dihapus, dipindah baris, atau isinya diedit. Cap waktu pembacaan diabaikan.
      */

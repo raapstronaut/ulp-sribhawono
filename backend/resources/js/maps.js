@@ -6,6 +6,7 @@ const COLORS = {
     LBSM: '#f59e0b',
     FCO: '#16a34a',
     APKUK: '#7c3aed',
+    APKUK_PENDING: '#db2777',
     OTHER: '#64748b',
 };
 const PAGE_SIZE = 40;
@@ -14,9 +15,8 @@ const normalize = (value) => String(value ?? '').trim().replace(/\s+/g, ' ').toL
 const text = (value) => value === null || value === undefined || value === '' ? '—' : String(value);
 
 function markerColor(item) {
-    return item.layer === 'apkuk'
-        ? COLORS.APKUK
-        : (COLORS[String(item.jenis || '').trim().toUpperCase()] || COLORS.OTHER);
+    if (item.layer === 'apkuk') return item.reconciliation_pending ? COLORS.APKUK_PENDING : COLORS.APKUK;
+    return COLORS[String(item.jenis || '').trim().toUpperCase()] || COLORS.OTHER;
 }
 
 function textElement(tag, value, className = '') {
@@ -44,6 +44,7 @@ function popupFor(item) {
     if (item.tanggal) content.appendChild(detailRow('Tanggal', item.tanggal));
     if (item.kurang_bh !== null && item.kurang_bh !== undefined) content.appendChild(detailRow('Kurang bh', item.kurang_bh));
     if (item.note) content.appendChild(detailRow('Catatan', item.note));
+    if (item.reconciliation_pending) content.appendChild(detailRow('Sumber', 'Tidak ada di APKUK_RAW terbaru — menunggu rekonsiliasi'));
     content.appendChild(detailRow('Koordinat', `${item.latitude}, ${item.longitude}`));
     return content;
 }
@@ -203,6 +204,7 @@ document.addEventListener('DOMContentLoaded', () => {
         body.append(textElement('p', item.label, 'break-words text-sm font-semibold text-slate-900'));
         body.append(textElement('p', `${item.layer === 'apkuk' ? 'APKUK' : text(item.jenis)} · ${text(item.penyulang)}`, 'mt-1 text-xs text-slate-500'));
         if (item.layer === 'apkuk' && item.status) body.append(textElement('p', `Status: ${item.status}`, 'mt-1 text-xs text-slate-500'));
+        if (item.reconciliation_pending) body.append(textElement('p', 'Menunggu rekonsiliasi sumber', 'mt-1 text-xs font-semibold text-amber-700'));
         top.append(dot, body);
         button.append(top);
         button.addEventListener('click', () => {
@@ -281,7 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
             stats('maps-stat-keypoint', meta.keypoint_mapped ?? payload.keypoints.length);
             stats('maps-stat-apkuk', meta.apkuk_mapped ?? payload.apkuks.length);
             stats('maps-stat-gangguan', meta.gangguan_total ?? payload.gangguans.length);
-            updated.textContent = `Data dibaca: ${text(meta.generated_at)} · APKUK tanpa GPS: ${formatCount(meta.apkuk_without_coordinates)}`;
+            updated.textContent = `Data dibaca: ${text(meta.generated_at)} · APKUK tanpa GPS: ${formatCount(meta.apkuk_without_coordinates)}`
+                + (meta.apkuk_pending_reconciliation ? ` · APKUK menunggu rekonsiliasi (tidak dihitung aktif): ${formatCount(meta.apkuk_pending_reconciliation)}` : '');
             loaded = true;
             updateFilterOptions();
             applyFilters();

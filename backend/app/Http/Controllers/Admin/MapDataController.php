@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApkukReconciliationItem;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
@@ -29,11 +30,15 @@ class MapDataController extends Controller
             ])
             ->values();
 
-        // source_missing_at menandai laporan sumber yang kini hanya menjadi histori.
-        $apkukAktif = DB::table('apkuks')->whereNull('source_missing_at');
-        $apkukTotal = (clone $apkukAktif)->count();
+        // source_missing_at menandai laporan yang sudah diarsipkan (histori). Laporan yang menunggu
+        // rekonsiliasi (tidak ada di snapshot sumber terakhir) tetap tampil sebagai marker bertanda,
+        // tetapi tidak dihitung sebagai APKUK aktif.
+        $apkukTampil = DB::table('apkuks')->whereNull('source_missing_at');
+        $pending = array_flip(ApkukReconciliationItem::openApkukIds());
+        $pendingTotal = $pending === [] ? 0 : (clone $apkukTampil)->whereIn('id', array_keys($pending))->count();
+        $apkukTotal = (clone $apkukTampil)->count() - $pendingTotal;
 
-        $apkuks = (clone $apkukAktif)
+        $apkuks = (clone $apkukTampil)
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
             ->whereBetween('latitude', [-90, 90])
@@ -46,6 +51,7 @@ class MapDataController extends Controller
             ])
             ->map(fn ($point): array => [
                 'id' => (string) $point->id,
+                'reconciliation_pending' => isset($pending[(int) $point->id]),
                 'source_id' => $point->source_id,
                 'tanggal' => $point->tanggal,
                 'penyulang' => $point->penyulang,
@@ -85,8 +91,10 @@ class MapDataController extends Controller
             'meta' => [
                 'keypoint_mapped' => $keypoints->count(),
                 'apkuk_active_total' => $apkukTotal,
-                'apkuk_mapped' => $apkuks->count(),
-                'apkuk_without_coordinates' => $apkukTotal - $apkuks->count(),
+                'apkuk_mapped' => $apkukMapped = $apkuks->where('reconciliation_pending', false)->count(),
+                'apkuk_without_coordinates' => $apkukTotal - $apkukMapped,
+                'apkuk_pending_reconciliation' => $pendingTotal,
+                'apkuk_pending_mapped' => $apkuks->count() - $apkukMapped,
                 'gangguan_total' => $gangguanTotal,
                 'gangguan_mapped' => 0,
                 'generated_at' => now('Asia/Jakarta')->format('d/m/Y H:i').' WIB',
