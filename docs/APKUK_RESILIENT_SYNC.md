@@ -52,7 +52,41 @@ Ini dugaan kuat, bukan bukti bahwa penghapusannya sah. Delapan laporan yang ID d
 5. **Tidak ada pembanding.** Riwayat eksekusi dan snapshot valid terakhir tidak disimpan.
 6. **Upsert semua baris setiap 15 menit tanpa pemeriksaan.** Perubahan isi massal yang mencurigakan, misalnya rumus rusak yang mengosongkan status ribuan laporan, akan langsung menimpa data yang baik.
 
-## 2. Desain baru
+## 2. Aturan bisnis SPS BOS dan kesesuaiannya
+
+SPS BOS adalah sumber **live**. Pemilik data sering menambah, mengedit, memindahkan, dan menghapus laporan. Laporan yang hilang dari SPS BOS punya dua kemungkinan:
+
+1. memang sudah tidak berlaku dan perlu diarsipkan;
+2. hanya hilang sementara (sedang diedit atau dipindahkan) dan nanti muncul kembali.
+
+Karena itu, laporan yang hilang **tidak pernah** diarsipkan otomatis, baik berdasarkan jumlah siklus cron maupun lamanya hilang.
+
+| Aturan | Implementasi | Bukti uji |
+|---|---|---|
+| Perubahan normal tersinkron tanpa menggagalkan cron | Snapshot valid diterapkan. Laporan hilang hanya masuk antrean; status cron `SUCCESS_WITH_PENDING_RECONCILIATION` (exit 0) | `test_deleted_reports_are_queued_not_removed_while_new_reports_still_sync`, uji asap PG (pola 08.47) |
+| Laporan hilang tetap pending sampai keputusan sah atau muncul kembali | Antrean `MISSING` tetap `OPEN`. Tidak ada pengarsipan otomatis berbasis siklus atau waktu | `test_pending_report_is_never_archived_automatically_however_long_it_is_missing` (6 siklus, 72 hari) |
+| Pending tidak dihitung aktif untuk penugasan, dashboard, kandidat WO, analitik | Definisi tunggal `ApkukSourceState` (aktif / pending / histori). Kandidat WO memberi alasan `MENUNGGU_REKONSILIASI_SUMBER`. Pembuatan WO menunggu sync yang menulis. Peta tidak menghitung pending sebagai aktif dan menampilkannya dengan warna terpisah. Halaman PR #10 perlu patch integrasi kecil (bagian 5) | Tes kandidat, peta, scope, `ApkukWorkOrderService`, tes integrasi pada simulasi merge |
+| WO, relasi, dan histori utuh | WO dan target tidak pernah diubah. Konfirmasi identitas mempertahankan ID baris. FK `restrict`; tidak ada hard-delete; model `Apkuk` hanya-baca | `test_work_orders_are_never_modified_...`, `test_pole_change_is_held_...` |
+| Muncul kembali dipulihkan otomatis tanpa duplikasi | Dicocokkan lewat `legacy_key`. Antrean pending ditutup `RETURNED`; histori dipulihkan dan ID-nya dicatat di `apkuk_sync_runs.details.returned_apkuk_ids` | `test_reports_that_reappear_...`, tes 72 hari |
+| Pengarsipan permanen oleh Admin terautentikasi atas konfirmasi pemilik data, audit lengkap | Web Admin: akun Admin aktif yang login, alasan wajib, **konfirmasi pemilik data wajib** (`owner_confirmation`), per laporan atau massal. CLI `apkuk:reconcile --apply` wajib `--admin` dengan kata sandi interaktif dan tercatat di `approved_by_user_id` | `test_resolution_requires_...`, `test_admin_can_confirm_many_...`, `test_apply_requires_an_authenticated_active_admin` |
+| Pengaman sumber tidak lengkap, perubahan massal, galat database | Validasi sumber, minimum 2.800, pengaman relatif terhadap snapshot valid terakhir, transaksi + advisory lock, rollback penuh | Tes terpotong, ratusan hilang, perubahan isi massal, trigger galat DB, lock timeout PG |
+
+### Evaluasi batas pengaman untuk SPS BOS yang sering berubah
+
+Batas yang ada **tetap dipertahankan**. Pertimbangannya:
+
+- **Hanya laporan yang baru hilang yang dihitung.** Laporan yang sudah pending tidak dihitung lagi di eksekusi berikutnya. Penghapusan bertahap sepanjang hari (puluhan per 15 menit) selalu lolos. Kejadian 08.47 (78 laporan dalam sekitar 17 menit, 2% dari 3.799) berada jauh di bawah batas 150 dan penurunan 5% (190).
+- **Penolakan tidak merusak data.** Sumber yang hilang sementara dalam jumlah besar (dipindah ke tab lain, IMPORTRANGE belum lengkap) ditolak tanpa penulisan. Begitu sumber pulih, eksekusi berikutnya berjalan normal tanpa antrean palsu.
+- **Penghapusan besar yang sah memang langka dan perlu pemeriksaan manusia.** Contohnya 687 laporan pada 27 Oktober. Operator menjalankan `apkuk:sync --dry-run`, lalu satu eksekusi manual `--max-missing=N`. Laporan tetap hanya masuk antrean; pengarsipan tetap keputusan Admin.
+- **Pengaman perubahan isi tetap ketat**, max(100, 10%) per eksekusi, karena hanya kegagalan inilah yang benar-benar menimpa data baik (misalnya rumus rusak mengosongkan status). Laju normal: pagi ini 25 perubahan dalam sekitar 1,5 jam.
+- **Pengaman pertambahan max(500, 25%)** masih menampung sekitar 45 laporan baru per hari bahkan setelah cron mati sekitar 3 minggu.
+- **Yang tidak ditambahkan:**
+  - Heuristik "baris hilang di ekor sheet = terpotong" tidak ditambahkan, karena laporan terbaru yang salah input sering langsung dihapus pemiliknya, sehingga heuristik ini akan sering salah menggagalkan cron.
+  - Pencocokan identitas berdasarkan tiang saja juga tidak ditambahkan, karena 69 dari 78 laporan yang dihapus pagi ini memang laporan lama pada tiang yang masih punya laporan lain.
+
+Semua batas dapat diubah lewat env (`config/apkuk.php`) tanpa mengubah kode. Tidak ada yang perlu diubah di Railway.
+
+## 3. Desain
 
 ### Alur `apkuk:sync`
 
@@ -63,11 +97,11 @@ Ini dugaan kuat, bukan bukti bahwa penghapusannya sah. Delapan laporan yang ID d
    - kombinasi ID+tiang ganda;
    - minimum 2.800 laporan.
 
-   Bila gagal, status menjadi `FAILED` dan tidak ada data APKUK yang ditulis.
+   Bila gagal, status menjadi `FAILED` tanpa penulisan APKUK.
 3. Satu transaksi:
    - ambil advisory lock APKUK eksklusif, lalu `LOCK apkuks`;
    - hitung rencana setelah kunci didapat;
-   - periksa pengaman snapshot;
+   - periksa pengaman;
    - tulis;
    - perbarui run.
 
@@ -79,229 +113,167 @@ Ini dugaan kuat, bukan bukti bahwa penghapusannya sah. Delapan laporan yang ID d
 | Kelompok | Perlakuan |
 |---|---|
 | Baru | Disisipkan |
-| Diperbarui (isi berubah) | Diperbarui. Kolom yang dibandingkan: ID, tanggal, petugas, penyulang, section, tiang, naik dari, jumlah, status, koordinat, foto |
+| Diperbarui (isi berubah) | Diperbarui |
 | Pindah baris sheet saja | `source_row_number` diperbarui |
-| Muncul kembali (sebelumnya `source_missing_at`) | Dipulihkan (`source_missing_at = null`) |
-| Tidak berubah | Hanya `last_synced_at` yang diperbarui, maknanya "terakhir terlihat di sumber" |
-| Hilang dari sumber | Masuk antrean `MISSING`. **Tidak dihapus dan tidak diberi `source_missing_at`**. Tetap tersimpan, tetapi tidak boleh menjadi target WO baru |
-| Identitas baru yang ID AppSheet-nya sama dengan laporan yang hilang | **Ditahan**, tidak disisipkan. Masuk antrean `IDENTITY_CHANGE` dengan laporan lama sebagai kandidat. Pasangan 1:1 dicatat sebagai dugaan; bila ID dipakai beberapa laporan, semua laporan hilang ber-ID sama menjadi kandidat tanpa ditebak |
+| Muncul kembali dari histori | Dipulihkan (`source_missing_at = null`). ID tercatat di `apkuk_sync_runs.details` dan log warning |
+| Muncul kembali dari pending | Antrean ditutup `RETURNED` |
+| Tidak berubah | Hanya `last_synced_at` yang diperbarui ("terakhir terlihat di sumber") |
+| Hilang dari sumber | Antrean `MISSING`: **pending**. Tidak dihapus dan tidak diarsipkan; tidak dihitung aktif; tidak bisa menjadi target WO baru |
+| Identitas baru yang ID AppSheet-nya sama dengan laporan yang hilang (kemungkinan tiang diedit) | **Ditahan** di antrean `IDENTITY_CHANGE`, tidak disisipkan, tidak ditebak |
 
-Laporan baru dan pembaruan tetap ditulis walaupun ada laporan lain di antrean.
+### Status sumber (definisi tunggal `App\Services\Apkuk\ApkukSourceState`)
 
-### Pengaman snapshot
+| Status | Definisi | Query builder | Eloquent |
+|---|---|---|---|
+| Aktif | Ada di snapshot terakhir | `ApkukSourceState::active(DB::table('apkuks'))` | `Apkuk::sourceActive()` |
+| Pending | Tidak ada di snapshot terakhir, belum diputuskan | `ApkukSourceState::pending(...)` | `Apkuk::awaitingReconciliation()` |
+| Histori | Diarsipkan (`source_missing_at`) | `ApkukSourceState::history(...)` | `Apkuk::sourceHistory()` |
 
-Default ada di `config/apkuk.php` (env opsional; Railway tidak perlu diubah). Pembanding adalah jumlah laporan snapshot valid terakhir. Sebelum ada riwayat, pembandingnya laporan aktif di `apkuks`.
-
-| Pengaman | Batas default | Untuk produksi saat ini (pembanding 3.799) |
-|---|---|---|
-| Penurunan jumlah laporan | 5% | 190 |
-| Identitas aktif yang baru hilang per eksekusi | min(150, 5% aktif) | 150 |
-| Laporan baru + muncul kembali per eksekusi | max(500, 25%) | 950 |
-| Laporan berubah isi per eksekusi | max(100, 10% laporan cocok) | 373 |
-| Minimum absolut | 2.800 laporan | tetap |
-
-Kejadian 08.47 (78 hilang, 25 berubah) berada di bawah semua batas. Hasilnya `SUCCESS_WITH_PENDING_RECONCILIATION`, bukan kegagalan.
-
-Penghapusan massal yang memang disetujui (seperti 687 laporan pada 27 Oktober) tetap ditolak cron. Operator menjalankannya manual sekali setelah meninjau dry-run:
-
-```
-php artisan apkuk:sync --dry-run
-php artisan apkuk:sync --max-missing=N
-```
-
-Laporan yang hilang dalam eksekusi itu pun hanya masuk antrean. Opsi yang dipakai tercatat di `apkuk_sync_runs.guard`.
+- **Kandidat WO:** pending tidak bisa dipilih, tetapi tetap ikut menentukan laporan terbaru per tiang, supaya laporan lama di tiang yang sama tidak mendadak layak.
+- **Peta:** pending tampil merah muda bertanda "menunggu rekonsiliasi". `meta.apkuk_active_total` dan `meta.apkuk_mapped` hanya menghitung yang aktif; pending dihitung terpisah di `meta.apkuk_pending_reconciliation` dan `meta.apkuk_pending_mapped`.
 
 ### Status cron
 
 | Status | Exit | Arti |
 |---|---|---|
-| `SUCCESS` | 0 | Snapshot diterapkan, tidak ada antrean |
-| `SUCCESS_WITH_PENDING_RECONCILIATION` | 0 | Snapshot diterapkan; ada laporan yang menunggu keputusan. Ini bukan kegagalan teknis |
-| `FAILED` | 1 | Sumber gagal dibaca atau tidak valid (`SOURCE_READ`, `SOURCE_VALIDATION`), snapshot mencurigakan (`SNAPSHOT_GUARD`), atau database gagal termasuk lock timeout (`DATABASE`). Tidak ada data APKUK yang ditulis |
+| `SUCCESS` | 0 | Snapshot diterapkan, tanpa antrean |
+| `SUCCESS_WITH_PENDING_RECONCILIATION` | 0 | Snapshot diterapkan; ada pending. Bukan kegagalan teknis |
+| `FAILED` | 1 | Tahap `SOURCE_READ`, `SOURCE_VALIDATION`, `SNAPSHOT_GUARD`, atau `DATABASE` (termasuk lock timeout). Tidak ada penulisan APKUK |
 
-Contoh log:
+`railway-sync.sh` menulis `SYNC_SUMMARY status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 ...` bila ada pending. `FAILED` pada command mana pun tetap menghasilkan exit 1. Perilaku `gangguan:sync` dan `keypoint:sync` tidak berubah.
 
-```
-SYNC_RESULT command=apkuk:sync status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 duration=0.8s run=12 new=0 updated=25 returned=0 pending=78 pending_new=78 pending_resolved=0 identity_changes=0
-SYNC_SUMMARY status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 gangguan:sync=OK apkuk:sync=SUCCESS_WITH_PENDING_RECONCILIATION keypoint:sync=OK
-```
+### Pengaman snapshot
 
-`railway-sync.sh` tetap menjalankan ketiga command. Exit code `gangguan:sync` dan `keypoint:sync` tidak berubah. `FAILED` pada command mana pun tetap membuat eksekusi Crashed (exit 1).
+Default ada di `config/apkuk.php`. Pembandingnya adalah snapshot valid terakhir.
+
+| Pengaman | Default | Produksi saat ini (pembanding 3.799) |
+|---|---|---|
+| Penurunan jumlah laporan | 5% | 190 |
+| Identitas aktif yang baru hilang per eksekusi | min(150, 5%) | 150 |
+| Baru + muncul kembali per eksekusi | max(500, 25%) | 950 |
+| Berubah isi per eksekusi | max(100, 10%) | 373 |
+| Minimum absolut | 2.800 | tetap |
+
+Opsi manual `--max-missing`, `--max-new`, dan `--max-updated` hanya untuk satu eksekusi, dan tercatat di `apkuk_sync_runs.guard`.
 
 ### Konkurensi dan idempotensi
 
-- Penulis APKUK memakai advisory lock PostgreSQL eksklusif yang sama, dengan `lock_timeout` 10 detik:
-  - `apkuk:sync`;
-  - `apkuk:reconcile --apply`;
-  - keputusan Admin.
+- **Kunci eksklusif bersama.** `apkuk:sync`, `apkuk:reconcile --apply`, dan keputusan Admin memakai advisory lock eksklusif yang sama, dengan `lock_timeout` 10 detik. Bila kunci tidak didapat, prosesnya gagal bersih tanpa menulis ganda.
+- **Kunci bersama untuk WO.** Pembuatan WO APKUK memakai kunci bersama, sehingga menunggu sync yang sedang menulis.
+- **Tanpa antrean ganda.** `open_key` unik selama `OPEN`. Eksekusi berulang dengan sumber yang sama tidak mengubah isi dan tidak membuat antrean ganda; yang bertambah hanya `detection_count`.
 
-  Cron yang tumpang tindih menunggu, atau gagal bersih dengan pesan "Kunci data APKUK dipegang proses lain"; tidak pernah menulis ganda.
-- Pembuatan WO APKUK memakai kunci bersama. WO baru menunggu sync yang sedang menulis, sehingga laporan yang baru masuk antrean tidak lolos sebagai target.
-- Antrean memakai `open_key` unik selama `OPEN`. Eksekusi berulang dengan sumber yang sama tidak mengubah isi `apkuks`, tidak membuat antrean ganda, dan hanya menambah `detection_count`.
+### Keputusan Admin
 
-### Antrean rekonsiliasi (`apkuk_reconciliation_items`)
+| Keputusan | Jalur | Wajib | Efek |
+|---|---|---|---|
+| Arsipkan (`CONFIRMED_REMOVED`) | Web Admin, per laporan atau massal (semua-atau-tidak-sama-sekali, maks. 500) | Admin aktif yang login, alasan, **konfirmasi pemilik data**, centang bila ada WO aktif | `source_missing_at` diisi; WO tidak diubah; pulih otomatis bila muncul kembali |
+| Laporan sama, identitas diperbarui (`IDENTITY_CONFIRMED`) | Web Admin | Admin aktif, alasan, pilihan laporan lama dari kandidat | ID baris tetap, sehingga WO tetap tersambung; identitas lama tercatat di `resolution_details.previous` |
+| Laporan berbeda (`INSERTED_AS_NEW`) | Web Admin | Admin aktif, alasan | Baris yang ditahan disisipkan; laporan lama tetap pending |
+| Arsip massal lewat rencana (`RECONCILED`) | `apkuk:reconcile --apply` | `--admin` dengan **kata sandi yang diminta interaktif** (tidak lewat argumen atau env), `--approved-by` = konfirmasi pemilik data, `--reason`, rencana dan sidik yang cocok | Akun Admin dicatat di `apkuk_reconciliations.approved_by_user_id` dan di setiap item antrean |
 
-| Penyelesaian | Oleh | Efek |
-|---|---|---|
-| `RETURNED` | otomatis (sync) | Identitas muncul kembali di sumber |
-| `SUPERSEDED` | otomatis (sync) | Kondisi sumber berubah, misalnya identitas baru hilang lagi atau laporan lama kembali |
-| `CONFIRMED_REMOVED` | Admin | `source_missing_at` diisi; baris dan WO tetap utuh |
-| `IDENTITY_CONFIRMED` | Admin | Laporan lama mengambil identitas dan isi baru. **ID baris tidak berubah**, jadi semua WO tetap tersambung. Identitas lama tercatat di `resolution_details.previous` |
-| `INSERTED_AS_NEW` | Admin | Baris yang ditahan disimpan sebagai laporan baru; laporan lama tetap menunggu keputusan sendiri |
-| `RECONCILED` | `apkuk:reconcile --apply` | Ditutup bersama rencana rekonsiliasi yang disetujui |
+Setiap item menyimpan `resolved_by_user_id`, `resolution_reason`, `owner_confirmation`, `resolved_at`, dan `resolution_details` (misalnya kode WO yang merujuk, konfirmasi WO aktif, dan ukuran batch). Item tidak pernah dihapus.
 
-`legacy_key` tidak pernah diganti secara massal. Penggantian hanya terjadi per laporan, atas konfirmasi Admin, dengan jejak nilai lama.
+`apkuk:pending [--export=file.csv]` bersifat read-only, untuk ditinjau bersama pemilik data.
 
-### Keputusan Admin (autentikasi sungguhan)
+## 4. Database
 
-- Web Admin → `/admin/apkuk-rekonsiliasi`:
-  - daftar antrean dengan referensi WO;
-  - riwayat 10 eksekusi sync terakhir;
-  - 20 penyelesaian terakhir;
-  - keputusan per laporan;
-  - konfirmasi massal untuk laporan hilang.
-- Konfirmasi massal bersifat semua-atau-tidak-sama-sekali, satu alasan untuk semua, dan setiap item tetap dicatat sendiri.
-- Hanya akun ADMIN aktif yang login. Middleware memeriksanya dan layanan memeriksanya sekali lagi.
-- Setiap keputusan menyimpan `resolved_by_user_id`, alasan wajib, waktu, dan rincian, misalnya kode WO yang merujuk dan konfirmasi WO aktif.
-- Laporan yang dirujuk WO aktif hanya bisa dikonfirmasi bila kotak konfirmasi dicentang. WO tidak pernah diubah.
-- Tidak ada penyelesaian lewat CLI dengan nama yang diketik.
-- `apkuk:pending [--export=file.csv]` hanya menampilkan dan mengekspor (read-only).
-- `apkuk:reconcile` tetap ada untuk penandaan massal dengan rencana yang disetujui. Antrean terkait ikut ditutup otomatis.
+Kedua migration bersifat additive dan belum dijalankan di lingkungan mana pun selain tes lokal.
 
-Halaman Antrean ditautkan dari catatan data di Peta Jaringan. Tautan sidebar belum ada agar tidak bentrok dengan PR #10 (lihat bagian 4).
+- **`2026_10_28_100001_create_apkuk_sync_runs_and_reconciliation_items`**
+  - `apkuk_sync_runs`: status, tahap gagal, alasan, snapshot diterima, jumlah laporan, sidik isi dan identitas, `counts`, `guard`, `details`, `database_user`, waktu.
+  - `apkuk_reconciliation_items`: jenis, status, `open_key` unik, `apkuk_id` (FK restrict), identitas, baris sumber yang ditahan, kandidat, run, `resolved_by_user_id` (FK users restrict), `owner_confirmation`, `reconciliation_id`, alasan, rincian.
+- **`2026_10_28_100002_add_approved_by_user_id_to_apkuk_reconciliations`**: menambah kolom nullable `approved_by_user_id` (FK users restrict) pada tabel yang sudah ada. Baris lama tidak diubah.
 
-### Konsistensi status data
+`down()` hanya menghapus kolom atau tabel baru. Tidak ada hard-delete di mana pun.
 
-| Status | Definisi | Scope `Apkuk` |
-|---|---|---|
-| Aktif | Ada di snapshot terakhir | `sourceActive()` |
-| Menunggu rekonsiliasi | Tidak ada di snapshot terakhir, belum diputuskan | `awaitingReconciliation()` |
-| Histori | `source_missing_at` terisi | `sourceHistory()` |
+## 5. Integrasi dengan PR #10 (Web Admin Batch A)
 
-- **Kandidat WO.** Laporan yang menunggu mendapat alasan `MENUNGGU_REKONSILIASI_SUMBER` sehingga tidak dapat dipilih. Laporan itu tetap ikut menentukan laporan terbaru per tiang, supaya laporan lama di tiang yang sama tidak mendadak layak.
-- **Peta.** Laporan yang menunggu tetap tampil dengan tanda "menunggu rekonsiliasi", dan jumlahnya ada di `meta.apkuk_pending_reconciliation`.
-- **Sidik `apkuk:reconcile`.** Sidik database mengabaikan `last_synced_at`, sehingga rencana yang disetujui tidak batal hanya karena cron rutin.
+**Simulasi merge lokal.** Branch sementara dari `origin/feat/admin-web-foundation-v1` di-merge dengan branch ini. Branch itu tidak di-push dan PR #10 tidak diubah.
 
-## 3. Database
+- **Tanpa konflik git.**
+- **Seluruh tes gabungan lulus:** 257/257.
 
-Migration additive `2026_10_28_100001_create_apkuk_sync_runs_and_reconciliation_items`:
+**Penyesuaian yang dibutuhkan setelah keduanya di-merge.** Tanpa penyesuaian ini, halaman PR #10 masih menghitung pending sebagai aktif lewat `whereNull('source_missing_at')`.
 
-- `apkuk_sync_runs`: status, tahap gagal, alasan, snapshot diterima, jumlah laporan, sidik isi dan identitas, `counts`, `guard`, `database_user`, waktu.
-- `apkuk_reconciliation_items`: jenis, status, `open_key` unik, `apkuk_id` (FK restrict), identitas, baris sumber yang ditahan, kandidat, run pertama/terakhir/penyelesai, `resolved_by_user_id` (FK users, restrict), `reconciliation_id`, alasan, rincian.
+| File PR #10 | Penyesuaian |
+|---|---|
+| `app/Services/DashboardService.php` + `dashboard.blade.php` | `active_reports` memakai `ApkukSourceState::active`; tambah `pending_reports` di hint kartu |
+| `app/Http/Controllers/Admin/ApkukController.php` + `apkuk/index.blade.php` | Tab baru "Menunggu rekonsiliasi"; kartu pending (tautan ke antrean); aktif/histori memakai `ApkukSourceState` |
+| `app/Http/Controllers/Admin/AnalyticsController.php` | Distribusi status APKUK hanya laporan aktif |
+| `app/Http/Controllers/Admin/MasterDataController.php` | Jumlah APKUK per penyulang hanya laporan aktif |
+| `app/Support/AdminNavigation.php` + `AdminModuleAccessTest` | Menu "Rekonsiliasi APKUK" (jumlah menu 16 → 17) |
+| `routes/web.php`, `app/Services/ApkukWorkOrderService.php` | Nama kelas lengkap diganti `use` (sengaja ditunda agar PR #10 tidak bentrok) |
+| `tests/Feature/Operations/ApkukPendingIntegrationTest.php` (baru) | Pending tidak tampil/terhitung aktif di halaman APKUK, dashboard, analitik; tampil di tab menunggu dan antrean |
 
-Tabel yang sudah ada tidak diubah. `down()` hanya menghapus dua tabel baru. Tidak ada hard-delete di mana pun.
+Patch ini sudah diterapkan dan diuji pada hasil gabungan: **258/258 tes lulus**. Patch disimpan terpisah, tidak di-commit ke PR mana pun, dan diterapkan sebagai tindak lanjut setelah PR #10 dan PR #11 sama-sama masuk `main`.
 
-## 4. Integrasi dengan PR #10 (Web Admin Batch A, masih Open)
+## 6. Rencana migration dan deployment yang aman
 
-Perubahan dibuat supaya tidak bentrok dengan PR #10:
+Belum ada yang dijalankan di production. Urutan migration sebelum merge itu wajib: kode baru menolak sync (`FAILED`, tanpa tulis) bila tabel belum ada, sedangkan kode lama tidak terpengaruh oleh tabel dan kolom baru.
 
-- route berada di blok terpisah setelah route P0;
-- `ApkukWorkOrderService` dan `routes/web.php` memakai nama kelas lengkap, bukan menambah baris `use` di blok import yang juga diubah PR #10;
-- `ApkukCandidateService`, `MapDataController`, dan halaman peta tidak diubah oleh PR #10.
-
-Setelah keduanya di-merge, tindak lanjut kecil:
-
-1. Tambahkan tautan sidebar "Rekonsiliasi APKUK".
-2. Halaman `/admin/apkuk`, `DashboardService`, `AnalyticsController`, dan `MasterDataController` dari PR #10 menghitung aktif sebagai `whereNull('source_missing_at')`; ini termasuk laporan yang menunggu. Ganti dengan scope di atas dan tampilkan jumlah menunggu. "Sinkron terakhir" dapat membaca `apkuk_sync_runs`.
-3. Ganti nama kelas lengkap dengan `use` biasa.
-
-Migration Batch A (`2026_10_28_000001/000002`) dan migration ini tidak saling bergantung.
-
-## 5. Rencana migration dan deployment yang aman
-
-Belum ada yang dijalankan di production. Urutan migration sebelum deploy itu wajib: kode baru menolak sync (`FAILED`, tanpa tulis) bila tabel belum ada. Sebaliknya, kode lama tidak terpengaruh oleh tabel baru.
-
-1. **Review dan persetujuan PR.** Buat backup branch Neon baru, misalnya `backup-before-apkuk-resilient-sync`. Backup lama jangan dihapus.
-2. **Status migration** (owner role, dari checkout branch ini):
+1. **Review dan persetujuan PR #11.** Buat backup branch Neon baru, misalnya `backup-before-apkuk-resilient-sync`. Backup lama jangan dihapus.
+2. **Cek status migration** (owner role, dari checkout branch ini):
 
    ```
    php artisan migrate:status --env=neon-migrate
    ```
 
-   Hanya `2026_10_28_100001` yang boleh dijalankan untuk perubahan ini. Migration Batch A yang mungkin juga Pending jangan ikut.
-3. **Migration satu file saja:**
+   Migration Batch A yang mungkin Pending jangan ikut dijalankan.
+3. **Jalankan hanya dua file ini:**
 
    ```
-   php artisan migrate --env=neon-migrate --force --path=database/migrations/2026_10_28_100001_create_apkuk_sync_runs_and_reconciliation_items.php
+   php artisan migrate --env=neon-migrate --force --path=database/migrations/2026_10_28_100001_create_apkuk_sync_runs_and_reconciliation_items.php --path=database/migrations/2026_10_28_100002_add_approved_by_user_id_to_apkuk_reconciliations.php
    ```
 
-4. **Hak role runtime** (read-only):
-
-   ```
-   has_table_privilege(<runtime>, 'apkuk_sync_runs', 'INSERT')
-   ```
-
-   Periksa juga `UPDATE` untuk kedua tabel dan `USAGE` untuk kedua sequence. Pada 28 Okt sudah dicek read-only bahwa default privileges role owner memberi role runtime `arwd` pada tabel dan `rU` pada sequence baru, sehingga tidak perlu GRANT manual.
-5. **Dry-run read-only** (role runtime, dari checkout branch ini):
+4. **Hak role runtime** (read-only): `INSERT` dan `UPDATE` pada kedua tabel baru, `USAGE` pada sequence-nya, dan `UPDATE` pada `apkuk_reconciliations`. Pada 28 Okt sudah dicek read-only bahwa default privileges role owner memberi role runtime `arwd` pada tabel dan `rU` pada sequence baru, sehingga tidak perlu GRANT manual.
+5. **Dry-run read-only** (role runtime):
 
    ```
    php artisan apkuk:sync --dry-run --env=neon
    ```
 
-   Perkiraan pada 10.03 WIB: baru 0, diperbarui 25, pindah baris 2.300, hilang 78, antrean 78, tanpa pelanggaran. Angkanya mengikuti perubahan sumber.
-6. **Merge PR.** Railway men-deploy web dan cron. `RAILPACK_SKIP_MIGRATIONS=true`, jadi tidak ada migration otomatis. Tidak ada variabel Railway yang perlu diubah.
+   Perkiraan pada 10.03 WIB: baru 0, diperbarui 25, pindah baris 2.300, hilang 78, antrean 78, tanpa pelanggaran.
+6. **Merge PR #11.** Railway men-deploy web dan cron. `RAILPACK_SKIP_MIGRATIONS=true`, jadi tidak ada migration otomatis. Tidak ada variabel Railway yang perlu diubah.
+7. **Bila PR #10 di-merge setelahnya**, terapkan patch integrasi di bagian 5 sebagai PR kecil terpisah.
 
-**Rollback:** revert merge commit untuk kembali ke kode lama. Tabel baru boleh tetap ada dan aman bagi kode lama. Rollback migration hanya bila benar-benar perlu, karena riwayat run dan antrean ikut hilang:
+**Rollback:** revert merge commit. Tabel dan kolom baru aman dibiarkan. Rollback migration hanya bila benar-benar perlu, karena riwayat run dan antrean ikut hilang.
 
-```
-migrate:rollback --path=<file di atas>
-```
+## 7. Verifikasi production setelah perubahan disetujui
 
-Dengan kode lama, cron akan kembali gagal pada 78 identitas tersebut.
-
-## 6. Verifikasi production setelah perubahan disetujui
-
-1. **Cron pertama** di log Railway:
-   - `apkuk:sync` menghasilkan `SYNC_RESULT ... status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 ... pending=78 pending_new=78`;
-   - `SYNC_SUMMARY status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 gangguan:sync=OK ... keypoint:sync=OK`;
-   - eksekusi tidak lagi Crashed.
+1. **Cron pertama:** `apkuk:sync` menghasilkan `SYNC_RESULT ... status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 ... pending=78 pending_new=78`, dan `SYNC_SUMMARY ... exit=0`. Eksekusi tidak lagi Crashed.
 2. **SQL read-only:**
-   - `select status, snapshot_accepted, source_report_count, counts from apkuk_sync_runs order by id desc limit 3;`
+   - `select status, snapshot_accepted, source_report_count, counts, details from apkuk_sync_runs order by id desc limit 3;`
    - `select kind, status, count(*) from apkuk_reconciliation_items group by 1, 2;` → `MISSING/OPEN = 78`.
-   - `select count(*), count(*) filter (where source_missing_at is not null) from apkuks;` → total tetap 4.515 ditambah laporan baru bila ada; bertanda tetap **716**, karena tidak ada penandaan otomatis.
+   - `select count(*), count(*) filter (where source_missing_at is not null) from apkuks;` → total 4.515 ditambah laporan baru bila ada; diarsipkan tetap **716**, karena tidak ada pengarsipan otomatis.
    - `select legacy_key from apkuks group by 1 having count(*) > 1;` → 0 baris.
    - Jumlah `work_orders` dan `work_order_apkuk_targets` tidak berubah.
 3. **Cron kedua:** `new=0 updated=0 pending=78 pending_new=0` (idempoten).
 4. **Web Admin:**
-   - `/admin/apkuk-rekonsiliasi` menampilkan 78 antrean;
-   - peta menandai laporan yang menunggu;
-   - laporan yang menunggu tidak bisa dipilih untuk WO baru.
-5. **Keputusan.** Pemilik data SPS BOS meninjau daftar dari `php artisan apkuk:pending --export=<file di luar repo>`. Admin lalu mengonfirmasi di Web Admin, per laporan atau massal.
+   - `/admin/apkuk-rekonsiliasi` menampilkan 78 pending;
+   - peta menampilkan pending merah muda dan tidak menghitungnya aktif;
+   - pending tidak bisa dipilih untuk WO baru.
+5. **Keputusan arsip.** Pemilik data SPS BOS meninjau ekspor `php artisan apkuk:pending --export=<file di luar repo>`. Bagian 1 (diagnosis) mencatat 8 laporan yang ID dan tiangnya hilang sama sekali; laporan ini perlu dicek khusus. Admin mengarsipkan di Web Admin dengan mengisi konfirmasi pemilik data, per laporan atau massal.
 
-   Sesudahnya: `source_missing_at` bertambah 78, antrean `CONFIRMED_REMOVED` tercatat atas akun Admin, dan cron berikutnya `SUCCESS`.
+   Sesudahnya: `source_missing_at` bertambah sesuai jumlah yang diarsipkan; `resolved_by_user_id` dan `owner_confirmation` terisi; laporan yang belum dikonfirmasi tetap pending.
+6. **Laporan yang kembali.** Bila pemilik data memulihkan laporan di SPS BOS, cron berikutnya menutupnya (`RETURNED`) atau memulihkan histori (`details.returned_apkuk_ids`) tanpa baris ganda.
 
-## 7. Pengujian
+## 8. Pengujian
 
-- **`tests/Feature/Sync/ApkukResilientSyncTest.php`** (baru, 20 tes):
-  - penambahan dan pembaruan;
-  - penghapusan masuk antrean sementara laporan baru tetap masuk;
-  - perubahan nomor tiang (dikonfirmasi sama atau disimpan baru);
-  - ID AppSheet dipakai lebih dari sekali;
-  - laporan muncul kembali;
-  - sheet terpotong, kosong, atau kolom bergeser;
-  - ratusan laporan hilang (ditolak, dry-run, opsi manual);
-  - perubahan isi massal;
-  - cron berulang;
-  - database gagal di tengah transaksi (trigger);
-  - WO tidak diubah dan laporan yang menunggu tidak bisa dijadikan WO;
-  - otorisasi dan audit keputusan;
-  - konfirmasi massal;
-  - `apkuk:reconcile` menutup antrean;
-  - sidik rekonsiliasi stabil;
-  - halaman Admin, peta, dan `apkuk:pending`;
-  - tabel belum dimigrasi;
-  - migration dapat di-rollback.
-- **Diperbarui:** `SyncCommandResultTest`, `ApkukReconciliationTest`, `RailwaySyncScriptTest` (status `SUCCESS_WITH_PENDING_RECONCILIATION` dan pembersihan file sementara). Tes `gangguan:sync` dan `keypoint:sync` tidak diubah dan tetap lulus.
-- **Uji asap PostgreSQL 18 lokal** di schema sementara (dihapus setelahnya):
-  - migration;
-  - numeric/decimal tidak terbaca sebagai perubahan;
-  - pola 78 hilang + 5 baru + 2 edit + 1 ganti tiang;
-  - idempotensi;
-  - rencana rekonsiliasi stabil;
-  - advisory lock (sync dan pembuatan WO menunggu, lalu timeout bersih);
+- **`php artisan test` di branch ini:** 197 tes lulus.
+  - `ApkukResilientSyncTest` (22 tes): tambah, ubah, hapus, ganti tiang, ID ganda, muncul kembali, terpotong/kosong/kolom bergeser, ratusan hilang, perubahan isi massal, cron berulang, galat DB, WO, otorisasi dan audit, konfirmasi pemilik data, massal, reconcile, pending 72 hari tidak diarsipkan, status sumber, halaman Admin/peta/`apkuk:pending`, migration.
+  - `ApkukReconciliationTest`: termasuk autentikasi Admin untuk apply (tanpa `--admin`, kata sandi salah, akun tidak ada/nonaktif/bukan ADMIN, sesi tidak interaktif).
+  - `SyncCommandResultTest`, `RailwaySyncScriptTest`.
+  - Tes `gangguan:sync` dan `keypoint:sync` tidak diubah dan tetap lulus.
+- **Uji asap PostgreSQL 18 lokal** di schema sementara (dihapus setelahnya), 26 cek lulus:
+  - migration (termasuk FK baru pada tabel lama);
+  - idempotensi numerik;
+  - pola 08.47;
+  - advisory lock dan lock timeout (sync dan pembuatan WO);
   - rollback karena trigger;
   - penolakan massal;
-  - keputusan Admin;
-  - laporan muncul kembali.
-
-  Semua lulus.
+  - keputusan Admin dengan konfirmasi pemilik data;
+  - pemulihan dan audit `details`;
+  - status sumber `whereNotExists`;
+  - reconcile apply oleh Admin terautentikasi dan penolakan akun yang tidak ada.
+- **Simulasi merge dengan PR #10:** 257/257 tes; dengan patch integrasi 258/258.
+- **Simulasi read-only kode baru terhadap Neon** (28 Okt 10.03 WIB): `SUCCESS_WITH_PENDING_RECONCILIATION`, 78 pending, 25 pembaruan, tanpa pelanggaran pengaman.
