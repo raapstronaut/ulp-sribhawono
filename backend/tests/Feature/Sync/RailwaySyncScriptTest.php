@@ -28,7 +28,8 @@ class RailwaySyncScriptTest extends TestCase
 
         $this->binDir = sys_get_temp_dir().DIRECTORY_SEPARATOR.'railway-sync-test-'.bin2hex(random_bytes(4));
         mkdir($this->binDir);
-        // php palsu: "artisan <command>"; gagal bila command ada di FAKE_FAIL.
+        // php palsu: "artisan <command>"; gagal bila command ada di FAKE_FAIL; berhasil dengan
+        // antrean rekonsiliasi bila command ada di FAKE_PENDING.
         file_put_contents($this->binDir.DIRECTORY_SEPARATOR.'php', <<<'SH'
 #!/bin/sh
 echo "fake-php $*"
@@ -38,6 +39,10 @@ if [ "$2" != "config:clear" ] && [ ! -s "$GOOGLE_SHEETS_CREDENTIALS_PATH" ]; the
 fi
 case " ${FAKE_FAIL:-} " in
   *" $2 "*) exit "${FAKE_EXIT_CODE:-1}" ;;
+esac
+case " ${FAKE_PENDING:-} " in
+  *" $2 "*) echo "SYNC_RESULT command=$2 status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 duration=0.1s pending=78" ;;
+  *) echo "SYNC_RESULT command=$2 status=OK exit=0 duration=0.1s" ;;
 esac
 exit 0
 SH);
@@ -82,6 +87,32 @@ SH);
         );
         $this->assertStringNotContainsString('SYNC_SUMMARY', $process->getOutput());
         $this->assertCredentialsRemoved();
+    }
+
+    public function test_pending_reconciliation_is_reported_but_not_a_failure(): void
+    {
+        $process = $this->runScript(['FAKE_PENDING' => 'apkuk:sync']);
+
+        $this->assertSame(0, $process->getExitCode(), $process->getErrorOutput());
+        $this->assertCount(3, $this->syncCalls($process), 'keypoint:sync tetap dijalankan.');
+        $this->assertStringContainsString('SYNC_RESULT command=apkuk:sync status=SUCCESS_WITH_PENDING_RECONCILIATION', $process->getOutput());
+        $this->assertStringEndsWith(
+            'SYNC_SUMMARY status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 gangguan:sync=OK apkuk:sync=SUCCESS_WITH_PENDING_RECONCILIATION keypoint:sync=OK',
+            trim($process->getOutput()),
+        );
+        $this->assertStringNotContainsString('SYNC_SUMMARY', $process->getErrorOutput());
+        $this->assertCredentialsRemoved();
+    }
+
+    public function test_failure_wins_over_pending_reconciliation(): void
+    {
+        $process = $this->runScript(['FAKE_PENDING' => 'apkuk:sync', 'FAKE_FAIL' => 'keypoint:sync']);
+
+        $this->assertSame(1, $process->getExitCode());
+        $this->assertStringContainsString(
+            'SYNC_SUMMARY status=FAILED exit=1 gangguan:sync=OK apkuk:sync=SUCCESS_WITH_PENDING_RECONCILIATION keypoint:sync=FAILED(exit=1)',
+            $process->getErrorOutput(),
+        );
     }
 
     public function test_summary_keeps_original_exit_codes_of_failed_commands(): void
@@ -153,9 +184,9 @@ SH);
 
     private function assertCredentialsRemoved(): void
     {
-        $check = new Process([$this->sh, '-c', 'test ! -e /tmp/ulp-google-credentials.json']);
+        $check = new Process([$this->sh, '-c', 'test ! -e /tmp/ulp-google-credentials.json && test ! -e /tmp/ulp-sync-output.txt && test ! -e /tmp/ulp-sync-output.txt.code']);
         $check->run();
 
-        $this->assertSame(0, $check->getExitCode(), 'File kredensial sementara masih ada setelah skrip selesai.');
+        $this->assertSame(0, $check->getExitCode(), 'File kredensial/keluaran sementara masih ada setelah skrip selesai.');
     }
 }

@@ -72,6 +72,17 @@ Route::prefix('admin')
         Route::get('/p0/{p0}', [P0Controller::class, 'show'])
             ->name('p0.show');
 
+        // Antrean rekonsiliasi APKUK (laporan yang tidak lagi ada di APKUK_RAW)
+        Route::get('/apkuk-rekonsiliasi', [\App\Http\Controllers\Admin\ApkukReconciliationController::class, 'index'])
+            ->name('apkuk-reconciliation.index');
+
+        Route::post('/apkuk-rekonsiliasi/{item}/selesaikan', [\App\Http\Controllers\Admin\ApkukReconciliationController::class, 'resolve'])
+            ->whereNumber('item')
+            ->name('apkuk-reconciliation.resolve');
+
+        Route::post('/apkuk-rekonsiliasi/konfirmasi-hapus', [\App\Http\Controllers\Admin\ApkukReconciliationController::class, 'resolveMany'])
+            ->name('apkuk-reconciliation.resolve-many');
+
         // Work Order
         Route::get('/work-orders', [WorkOrderController::class, 'index'])
             ->name('work-orders.index');

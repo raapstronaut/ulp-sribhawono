@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\Sync;
 
+use App\Console\Support\ConsoleAdminAuthenticator;
 use App\Enums\WorkOrderStatus;
+use App\Models\ApkukReconciliationItem;
 use App\Models\Penyulang;
+use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\Apkuk\ApkukReconciliationPlan;
 use App\Services\Apkuk\ApkukReconciliationPlanner;
@@ -12,6 +15,7 @@ use App\Services\Apkuk\ApkukSourceSnapshot;
 use App\Services\ApkukCandidateService;
 use App\Services\GoogleSheetValues;
 use Closure;
+use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -36,9 +40,15 @@ class ApkukReconciliationTest extends TestCase
     /** @var array<int, array<int, mixed>> */
     private array $reports = [];
 
+    private User $admin;
+
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Apply wajib Admin terautentikasi; kata sandi factory = "password".
+        $this->admin = User::factory()->admin()->create(['username' => 'ADMIN_REKON']);
+        $this->typePassword('password');
 
         $this->credentialsPath = tempnam(sys_get_temp_dir(), 'apkuk-cred');
         file_put_contents($this->credentialsPath, '{}');
@@ -99,12 +109,14 @@ class ApkukReconciliationTest extends TestCase
             ApkukReconciliationPlan::CATEGORY_TIANG_MASIH_ADA => 1,         // B1 hilang, B2 di tiang sama masih ada
         ], array_count_values(array_column(array_slice($csv, 1), 0)));
 
-        // Sync rutin tetap menolak perubahan massal yang belum disetujui.
+        // Sync rutin tidak lagi gagal: laporan baru masuk, yang hilang hanya masuk antrean
+        // (tetap aktif, tidak ditandai) sampai diputuskan Admin atau lewat rekonsiliasi.
         [$code, $output] = $this->artisan2('apkuk:sync');
-        $this->assertSame(1, $code);
-        $this->assertStringContainsString('5 identitas lama di PostgreSQL tidak ditemukan di sumber terbaru.', $output);
-        $this->assertStringContainsString('php artisan apkuk:reconcile', $output);
-        $this->assertSame($before, $this->apkukTable());
+        $this->assertSame(0, $code, $output);
+        $this->assertMatchesRegularExpression('/^SYNC_RESULT command=apkuk:sync status=SUCCESS_WITH_PENDING_RECONCILIATION exit=0 .* new=3 .* pending=5 pending_new=5 /m', $output);
+        $this->assertSame((int) explode('#', $before)[1] + 3, DB::table('apkuks')->count());
+        $this->assertSame(0, DB::table('apkuks')->whereNotNull('source_missing_at')->count());
+        $this->assertSame(5, DB::table('apkuk_reconciliation_items')->where('status', 'OPEN')->where('kind', 'MISSING')->count());
     }
 
     public function test_apply_requires_complete_and_matching_approval(): void
@@ -379,14 +391,16 @@ class ApkukReconciliationTest extends TestCase
         }
         $this->assertSame(0, DB::table('apkuks')->whereNotNull('source_missing_at')->count());
 
-        // Nama penyetuju tidak memengaruhi kode rencana dan tidak dicocokkan dengan daftar mana pun:
-        // kewenangan berasal dari akses ke database, nama hanya dicatat.
+        // Konfirmasi pemilik data tidak memengaruhi kode rencana dan tidak dicocokkan dengan daftar
+        // mana pun: kewenangan berasal dari akun Admin terautentikasi, teks konfirmasi hanya dicatat.
         [$code, $output] = $this->artisan2('apkuk:reconcile', ['--approved-by' => 'Nama Bebas'] + $this->approval($plan, 1));
 
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('metadata audit; identitas penyetuju tidak diverifikasi', $output);
+        $this->assertStringContainsString('kewenangan apply berasal dari akun Admin terautentikasi (--admin)', $output);
+        $this->assertStringContainsString('Disetujui Admin terautentikasi: ADMIN_REKON (akun #'.$this->admin->id.')', $output);
         $audit = DB::table('apkuk_reconciliations')->sole();
         $this->assertSame('Nama Bebas', $audit->approved_by);
+        $this->assertSame($this->admin->id, (int) $audit->approved_by_user_id);
         $this->assertNull($audit->database_user); // SQLite; di PostgreSQL berisi current_user
         $this->assertSame($plan, $audit->plan_id);
         $this->assertStringStartsWith($plan, $audit->fingerprint);
@@ -394,6 +408,54 @@ class ApkukReconciliationTest extends TestCase
             ['source', 'missing', 'database', 'work_orders', 'impact'],
             array_keys(json_decode($audit->fingerprint_parts, true)),
         );
+    }
+
+    public function test_apply_requires_an_authenticated_active_admin(): void
+    {
+        $this->removeReports(['A1']);
+        $this->publishSource();
+        $plan = $this->planId();
+        $attempts = [
+            'tanpa --admin' => [['--admin' => ''], 'password', '--admin wajib diisi'],
+            'kata sandi salah' => [[], 'salah-sekali', 'Autentikasi Admin gagal'],
+            'username tidak ada' => [['--admin' => 'BUKAN_ADMIN'], 'password', 'Autentikasi Admin gagal'],
+            'tanpa sesi interaktif' => [[], null, 'Kata sandi Admin wajib dimasukkan secara interaktif'],
+        ];
+        User::factory()->inactiveAdmin()->create(['username' => 'ADMIN_NONAKTIF']);
+        User::factory()->create(['username' => 'POSKO_UJI', 'role' => 'POSKO', 'is_active' => true]);
+        $attempts['admin nonaktif'] = [['--admin' => 'admin_nonaktif'], 'password', 'Autentikasi Admin gagal'];
+        $attempts['bukan ADMIN'] = [['--admin' => 'POSKO_UJI'], 'password', 'Autentikasi Admin gagal'];
+
+        foreach ($attempts as $label => [$options, $password, $message]) {
+            $this->typePassword($password);
+            [$code, $output] = $this->artisan2('apkuk:reconcile', $options + $this->approval($plan, 1));
+            $this->assertSame(1, $code, $label);
+            $this->assertStringContainsString($message, $output, $label);
+            $this->assertStringContainsString('Tidak ada perubahan', $output, $label);
+        }
+        $this->assertSame(0, DB::table('apkuks')->whereNotNull('source_missing_at')->count());
+        $this->assertSame(0, DB::table('apkuk_reconciliations')->count());
+
+        // Username tidak peka huruf besar/kecil, seperti login Web Admin.
+        $this->typePassword('password');
+        [$code, $output] = $this->artisan2('apkuk:reconcile', ['--admin' => 'admin_rekon'] + $this->approval($plan, 1));
+        $this->assertSame(0, $code, $output);
+    }
+
+    public function test_apply_records_admin_and_owner_confirmation_on_queue_items(): void
+    {
+        $this->removeReports(['A1', 'A2']);
+        $this->publishSource();
+        $this->artisan2('apkuk:sync');
+        $this->assertSame(2, ApkukReconciliationItem::query()->open()->count());
+
+        [$code, $output] = $this->artisan2('apkuk:reconcile', $this->approval($this->planId(), 2));
+
+        $this->assertSame(0, $code, $output);
+        $items = ApkukReconciliationItem::query()->get();
+        $this->assertSame([ApkukReconciliationItem::RESOLUTION_RECONCILED], $items->pluck('resolution')->unique()->values()->all());
+        $this->assertSame([$this->admin->id], $items->pluck('resolved_by_user_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
+        $this->assertSame(['Supervisor Har, ULP Sribawono'], $items->pluck('owner_confirmation')->unique()->values()->all());
     }
 
     public function test_direct_and_indirect_work_order_impact_are_reported_separately(): void
@@ -488,7 +550,24 @@ class ApkukReconciliationTest extends TestCase
             '--expect-missing' => (string) $expected,
             '--approved-by' => 'Supervisor Har, ULP Sribawono',
             '--reason' => 'Laporan dihapus di SPS BOS saat pembersihan data; diverifikasi dan disetujui.',
+            '--admin' => 'ADMIN_REKON',
         ];
+    }
+
+    /**
+     * Kata sandi yang "diketik" saat apply meminta kata sandi Admin (null = sesi tidak interaktif).
+     */
+    private function typePassword(?string $password): void
+    {
+        $this->app->instance(ConsoleAdminAuthenticator::class, new class($password) extends ConsoleAdminAuthenticator
+        {
+            public function __construct(private readonly ?string $password) {}
+
+            protected function readPassword(Command $command, string $username): ?string
+            {
+                return $this->password;
+            }
+        });
     }
 
     private function planId(): string

@@ -81,7 +81,7 @@ class SyncCommandResultTest extends TestCase
         $this->assertSame(0, DB::table('keypoints')->count());
     }
 
-    public function test_apkuk_missing_identities_abort_with_bounded_log_and_no_writes(): void
+    public function test_apkuk_mass_missing_identities_are_rejected_with_bounded_log_and_no_writes(): void
     {
         $this->seedApkukIdentitiesAbsentFromSource(700);
         $before = DB::table('apkuks')->get()->map(fn ($row) => (array) $row)->all();
@@ -92,13 +92,15 @@ class SyncCommandResultTest extends TestCase
 
         $this->assertSame(1, $code);
         // Daftar identitas dibatasi; 700 baris per identitas dulu melampaui batas log Railway.
-        $this->assertLessThan(60, $lines, "Output apkuk:sync {$lines} baris.");
-        $this->assertStringContainsString('700 identitas lama di PostgreSQL tidak ditemukan di sumber terbaru.', $output);
+        $this->assertLessThan(80, $lines, "Output apkuk:sync {$lines} baris.");
+        $this->assertStringContainsString('700 identitas aktif hilang dari sumber sekaligus', $output);
         $this->assertStringContainsString('… dan 680 lainnya', $output);
-        $this->assertStringContainsString('Sync dibatalkan demi mencegah duplikat.', $output);
-        $this->assertMatchesRegularExpression('/^SYNC_RESULT command=apkuk:sync status=FAILED exit=1 .*reason="700 identitas lama di PostgreSQL tidak ditemukan di sumber terbaru\."\r?$/m', $output);
-        // Aturan perlindungan data tetap: tidak ada baris yang ditulis atau diubah.
+        $this->assertStringContainsString('Snapshot ditolak pengaman; tidak ada data APKUK yang ditulis.', $output);
+        $this->assertMatchesRegularExpression('/^SYNC_RESULT command=apkuk:sync status=FAILED exit=1 .*stage=SNAPSHOT_GUARD .*reason="700 identitas aktif hilang dari sumber sekaligus, melebihi batas 35 per eksekusi\./m', $output);
+        // Aturan perlindungan data tetap: tidak ada baris yang ditulis atau diubah, antrean kosong.
         $this->assertSame($before, DB::table('apkuks')->get()->map(fn ($row) => (array) $row)->all());
+        $this->assertSame(0, DB::table('apkuk_reconciliation_items')->count());
+        $this->assertSame('FAILED', DB::table('apkuk_sync_runs')->value('status'));
     }
 
     public function test_apkuk_sync_success_is_idempotent(): void
@@ -108,12 +110,13 @@ class SyncCommandResultTest extends TestCase
         [$code, $output] = $this->runSync('apkuk:sync');
         $this->assertSame(0, $code, $output);
         $this->assertStringContainsString('SYNC APKUK BERHASIL', $output);
-        $this->assertMatchesRegularExpression('/^SYNC_RESULT command=apkuk:sync status=OK exit=0 /m', $output);
+        $this->assertMatchesRegularExpression('/^SYNC_RESULT command=apkuk:sync status=SUCCESS exit=0 .* new=2800 updated=0 returned=0 pending=0 /m', $output);
         $this->assertSame(2800, DB::table('apkuks')->count());
 
         [$code, $output] = $this->runSync('apkuk:sync');
         $this->assertSame(0, $code, $output);
-        $this->assertStringContainsString('bertambah: 0', $output);
+        $this->assertStringContainsString('bertambah: 0; diperbarui: 0.', $output);
+        $this->assertMatchesRegularExpression('/^SYNC_RESULT command=apkuk:sync status=SUCCESS exit=0 .* new=0 updated=0 /m', $output);
         $this->assertSame(2800, DB::table('apkuks')->count());
         $this->assertSame(2800, DB::table('apkuks')->distinct()->count('legacy_key'));
     }

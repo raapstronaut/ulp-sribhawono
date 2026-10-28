@@ -14,10 +14,18 @@ use Throwable;
  *   sehingga pesan penyebab gagal bisa ikut hilang).
  * - Setiap eksekusi diakhiri satu baris SYNC_RESULT berisi status, exit code,
  *   durasi, dan alasan (pesan error pertama). Baris gagal ditulis ke stderr.
+ * - Command dapat memberi status yang lebih rinci untuk exit 0 (mis.
+ *   SUCCESS_WITH_PENDING_RECONCILIATION) dan pasangan key=value tambahan.
+ *   Exit non-zero selalu berstatus FAILED.
  */
 trait ReportsSyncResult
 {
     private ?string $firstSyncError = null;
+
+    private ?string $syncStatus = null;
+
+    /** @var array<string, int|string> */
+    private array $syncFields = [];
 
     public function error($string, $verbosity = null)
     {
@@ -29,6 +37,8 @@ trait ReportsSyncResult
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->firstSyncError = null;
+        $this->syncStatus = null;
+        $this->syncFields = [];
         $started = microtime(true);
 
         try {
@@ -42,6 +52,15 @@ trait ReportsSyncResult
         $this->writeSyncResult($code, $started, $this->firstSyncError);
 
         return $code;
+    }
+
+    /**
+     * @param  array<string, int|string>  $fields  ditambahkan ke baris SYNC_RESULT (nilai tanpa spasi)
+     */
+    protected function setSyncResult(?string $status, array $fields = []): void
+    {
+        $this->syncStatus = $status;
+        $this->syncFields = $fields;
     }
 
     /**
@@ -69,10 +88,14 @@ trait ReportsSyncResult
         $line = sprintf(
             'SYNC_RESULT command=%s status=%s exit=%d duration=%.1fs',
             $this->getName(),
-            $code === self::SUCCESS ? 'OK' : 'FAILED',
+            $code === self::SUCCESS ? ($this->syncStatus ?? 'OK') : 'FAILED',
             $code,
             microtime(true) - $started,
         );
+
+        foreach ($this->syncFields as $key => $value) {
+            $line .= ' '.$key.'='.preg_replace('/[\s"]+/u', '_', (string) $value);
+        }
 
         if ($code !== self::SUCCESS) {
             $reason = preg_replace('/\s+/u', ' ', trim($reason ?? 'tanpa pesan error'));

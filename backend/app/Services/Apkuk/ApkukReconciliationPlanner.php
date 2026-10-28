@@ -281,15 +281,18 @@ class ApkukReconciliationPlanner
     }
 
     /**
-     * Sidik seluruh isi tabel apkuks (semua kolom, urut id). Selama ada identitas hilang
-     * apkuk:sync menolak menulis, sehingga sidik ini hanya berubah oleh perubahan lain:
-     * penandaan manual, rekonsiliasi lain, atau sync yang berhasil karena sumber pulih.
+     * Sidik seluruh isi tabel apkuks (semua kolom kecuali last_synced_at, urut id). apkuk:sync
+     * memperbarui last_synced_at setiap eksekusi walau isi tidak berubah; kolom itu diabaikan
+     * agar persetujuan hanya batal oleh perubahan nyata: laporan baru/diperbarui, penandaan,
+     * keputusan antrean, atau rekonsiliasi lain.
      */
     private function databaseDigest(): string
     {
         $hash = hash_init('sha256');
         foreach (DB::table('apkuks')->orderBy('id')->cursor() as $row) {
-            hash_update($hash, serialize((array) $row)."\n");
+            $row = (array) $row;
+            unset($row['last_synced_at']);
+            hash_update($hash, serialize($row)."\n");
         }
 
         return hash_final($hash);
