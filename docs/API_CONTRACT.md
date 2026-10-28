@@ -97,7 +97,11 @@ Search global UI: pilih result → ganti dropdown Penyulang → fetch layer mark
 
 Media diunggah dengan metadata captured_at, lat/lon, media type, asset/job/finding link, file checksum. Semua histori foto lama tetap ada; latest valid image ditampilkan sebagai current. Completion default BEFORE+AFTER hingga aturan form khusus diputuskan.
 
-Server idempotent pada retry. API harus mengembalikan konflik workflow 409 dan validasi 422 secara terstruktur, termasuk petunjuk user-facing. Jika offline, tombol submit mobile menjamin **local persistence**, bukan keberhasilan server. Background worker mengirim otomatis saat memungkinkan menurut kebijakan Android.
+Server idempotent pada retry. API harus mengembalikan konflik workflow 409 dan validasi 422 secara terstruktur, termasuk petunjuk user-facing. Implementasi v1 (Batch B1):
+- **Pengiriman ulang:** request dengan `client_request_id` yang sama mengembalikan record semula dengan `meta.idempotent_replay: true`, termasuk bila dua request datang bersamaan.
+- **Kunci dipakai ulang:** kunci yang dipakai untuk WO atau tim lain, atau untuk isi yang berbeda, ditolak dengan 422 pada `client_request_id`. Isi mencakup catatan, koordinat, waktu kejadian, petugas, dan SHA-256 foto. Outbox wajib mengirim ulang payload dan file yang sama persis.
+- **Waktu kejadian:** `occurred_at` tanpa offset dibaca sebagai WIB dan disimpan sebagai UTC.
+- **Mulai pekerjaan:** `start` pada WO yang sudah DIKERJAKAN mengembalikan 200. Jika offline, tombol submit mobile menjamin **local persistence**, bukan keberhasilan server. Background worker mengirim otomatis saat memungkinkan menurut kebijakan Android.
 
 Koreksi oleh ADMIN wajib reason; catat old/new/actor/timestamp dan jangan hard-delete history. Role lain dilarang mengubah catatan canonical setelah diterima.
 

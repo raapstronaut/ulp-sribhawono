@@ -6,6 +6,7 @@ use App\Console\Support\ConsoleAdminAuthenticator;
 use App\Enums\WorkOrderStatus;
 use App\Models\Apkuk;
 use App\Models\ApkukReconciliationItem;
+use App\Models\ApkukSectionOverride;
 use App\Models\ApkukSyncRun;
 use App\Models\AuditLog;
 use App\Models\Penyulang;
@@ -710,6 +711,31 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertTrue(Schema::hasColumn('apkuk_reconciliations', 'approved_by'), 'Kolom lama tidak tersentuh.');
         $admin->up();
         $this->assertTrue(Schema::hasColumn('apkuk_reconciliations', 'approved_by_user_id'));
+    }
+
+    public function test_admin_section_correction_survives_sync_and_source_section_stays_raw(): void
+    {
+        $this->reports['A20'][4] = 'DUMMY';
+        [$code, $output] = $this->sync();
+        $this->assertSame(0, $code, $output);
+        $id = $this->rowId('A20');
+        DB::table('section_pic_source_rows')->insert(['penyulang_raw' => 'REOG', 'pemutus_raw' => 'REC BRAJA DEWA', 'posko_pic_raw' => 'PUGUNG', 'source_row_number' => 2, 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->actingAs($this->admin)->post(route('admin.apkuk.section.update', $id), [
+            'action' => 'set', 'section_name' => 'REC BRAJA DEWA', 'reason' => 'Konfirmasi petugas posko via radio',
+        ])->assertSessionHasNoErrors();
+
+        // Sinkronisasi berikutnya memperbarui kolom lain laporan yang sama tanpa menyentuh koreksi.
+        $this->travel(15)->minutes();
+        $this->reports['A20'][8] = 3;
+        [$code, $output] = $this->sync();
+
+        $this->assertSame(0, $code, $output);
+        $this->assertMatchesRegularExpression('/ updated=1 /', $output);
+        $this->assertSame('DUMMY', DB::table('apkuks')->where('id', $id)->value('section'));
+        $this->assertSame(3, (int) DB::table('apkuks')->where('id', $id)->value('kurang_bh'));
+        $this->assertSame('REC BRAJA DEWA', ApkukSectionOverride::query()->where('apkuk_id', $id)->value('section_name'));
+        $this->assertSame('REC BRAJA DEWA', app(ApkukCandidateService::class)->find($id)->sectionName);
     }
 
     // ---------------------------------------------------------------- helpers

@@ -11,6 +11,7 @@ use App\Services\Admin\WorkOrderAnalyticsService;
 use App\Services\Apkuk\ApkukSourceState;
 use App\Services\ShiftService;
 use App\Support\DataLoader;
+use App\Support\PenyulangName;
 use App\Support\QueryInput;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -63,9 +64,10 @@ class AnalyticsController extends Controller
                 ->groupBy(DB::raw($month))
                 ->orderBy('bulan')
                 ->get(), collect()),
+            // Nama canonical (alias TANGGAMUS → TANGGAMUS 2); nilai mentah gangguans tidak diubah.
             'gangguanPerPenyulang' => $load->attempt('gangguan_penyulang', fn () => $gangguanInRange()
-                ->select('penyulang', DB::raw('count(*) as total'))
-                ->groupBy('penyulang')
+                ->select(DB::raw(PenyulangName::sqlCanonical('penyulang').' as penyulang'), DB::raw('count(*) as total'))
+                ->groupBy(DB::raw(PenyulangName::sqlCanonical('penyulang')))
                 ->orderByDesc('total')
                 ->orderBy('penyulang')
                 ->limit(self::TOP_LIMIT)

@@ -4,14 +4,21 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\ApkukReconciliationItem;
+use App\Support\PenyulangName;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 
-/** Data read-only untuk Peta Jaringan Admin. Tidak melakukan geocoding/tebakan lokasi. */
+/**
+ * Data read-only untuk Peta Jaringan Admin. Tidak melakukan geocoding/tebakan lokasi.
+ * `penyulang` berisi nama canonical (filter dan dropdown satu entri per penyulang, alias
+ * TANGGAMUS → TANGGAMUS 2); `penyulang_sumber` berisi nilai mentah sumber.
+ */
 class MapDataController extends Controller
 {
     public function index(): JsonResponse
     {
+        $feeder = fn (?string $raw): array => ['penyulang' => PenyulangName::canonical($raw) ?: null, 'penyulang_sumber' => $raw];
+
         $keypoints = DB::table('keypoints')
             ->whereNotNull('latitude')
             ->whereNotNull('longitude')
@@ -21,7 +28,7 @@ class MapDataController extends Controller
             ->get(['id', 'penyulang', 'jenis', 'nama', 'latitude', 'longitude', 'note'])
             ->map(fn ($point): array => [
                 'id' => (string) $point->id,
-                'penyulang' => $point->penyulang,
+                ...$feeder($point->penyulang),
                 'jenis' => $point->jenis,
                 'nama' => $point->nama,
                 'latitude' => (float) $point->latitude,
@@ -54,7 +61,7 @@ class MapDataController extends Controller
                 'reconciliation_pending' => isset($pending[(int) $point->id]),
                 'source_id' => $point->source_id,
                 'tanggal' => $point->tanggal,
-                'penyulang' => $point->penyulang,
+                ...$feeder($point->penyulang),
                 'no_tiang' => $point->no_tiang,
                 'status' => $point->status,
                 'kurang_bh' => $point->kurang_bh,
@@ -76,7 +83,7 @@ class MapDataController extends Controller
             ->map(fn ($row): array => [
                 'id' => $row->id_gangguan,
                 'tanggal' => $row->tanggal_kejadian,
-                'penyulang' => $row->penyulang,
+                ...$feeder($row->penyulang),
                 'peralatan' => $row->peralatan,
                 'no_tiang' => $row->no_tiang,
                 'sifat' => $row->sifat_gangguan,

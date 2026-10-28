@@ -131,6 +131,8 @@ Route::prefix('admin')
 
         // APKUK: laporan sumber aktif, histori, kebutuhan, dan progres pemasangan.
         Route::get('/apkuk', [ApkukController::class, 'index'])->name('apkuk.index');
+        Route::get('/apkuk/{apkuk}', [ApkukController::class, 'show'])->where('apkuk', '[0-9]{1,18}')->name('apkuk.show');
+        Route::post('/apkuk/{apkuk}/section', [ApkukController::class, 'updateSection'])->where('apkuk', '[0-9]{1,18}')->name('apkuk.section.update');
 
         Route::get('/pasila', [PasilaController::class, 'index'])->name('pasila.index');
         Route::get('/pasila/{posko}', [PasilaController::class, 'show'])->name('pasila.show');

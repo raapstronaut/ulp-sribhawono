@@ -24,7 +24,7 @@ class WorkOrderLocationTarget extends Model
 
     public const TYPE_LABELS = [
         self::TYPE_KEYPOINT => 'Aset jaringan (keypoint)',
-        self::TYPE_VEGETASI => 'Titik vegetasi (sumber staging)',
+        self::TYPE_VEGETASI => 'Pohon (ID POHON, VEGETASI_RAW)',
         self::TYPE_WORK_ORDER => 'Lokasi WO asal (limpahan)',
         self::TYPE_INSPEKSI => 'Lokasi temuan inspeksi',
     ];
@@ -61,5 +61,20 @@ class WorkOrderLocationTarget extends Model
     public function typeLabel(): string
     {
         return self::TYPE_LABELS[$this->target_type] ?? $this->target_type;
+    }
+
+    /**
+     * Referensi sumber untuk tampilan. Target pohon memakai ID POHON; target pohon lama yang
+     * belum dimigrasikan (kunci `VEGETASI:{id baris staging}`) ditandai apa adanya.
+     */
+    public function sourceRefLabel(): string
+    {
+        if ($this->target_type === self::TYPE_VEGETASI) {
+            return str_starts_with((string) $this->target_key, 'POHON:')
+                ? 'ID POHON '.$this->source_ref
+                : 'Baris staging vegetasi #'.$this->source_ref.' (format lama)';
+        }
+
+        return $this->target_type.' #'.$this->source_ref;
     }
 }

@@ -115,11 +115,11 @@
                 <x-admin.detail-item label="Jenis">{{ $location->asset_type }}</x-admin.detail-item>
                 <x-admin.detail-item label="Penyulang (sumber)">{{ $location->penyulang_source }}</x-admin.detail-item>
                 <x-admin.detail-item label="Section (sumber)">{{ $location->section_source }}</x-admin.detail-item>
-                <x-admin.detail-item label="Referensi sumber">{{ $location->target_type }} #{{ $location->source_ref }}</x-admin.detail-item>
+                <x-admin.detail-item label="Referensi sumber">{{ $location->sourceRefLabel() }}</x-admin.detail-item>
                 <x-admin.detail-item label="Koordinat">
                     @if ($coordinates)<a class="text-blue-600 hover:text-blue-800" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query={{ $coordinates[0] }},{{ $coordinates[1] }}">{{ $coordinates[0] }}, {{ $coordinates[1] }}</a>@else Tidak tersedia @endif
                 </x-admin.detail-item>
-                @foreach (collect($location->snapshot ?? [])->only(['kondisi', 'jarak_pohon', 'tanggal_perkiraan_bahaya', 'note', 'finding_code']) as $key => $value)
+                @foreach (collect($location->snapshot ?? [])->only(['id_tiang', 'kondisi', 'jarak_pohon', 'tanggal_perkiraan_bahaya', 'note', 'finding_code']) as $key => $value)
                     @if (filled($value))
                         <x-admin.detail-item :label="ucfirst(str_replace('_', ' ', $key))">{{ $value }}</x-admin.detail-item>
                     @endif

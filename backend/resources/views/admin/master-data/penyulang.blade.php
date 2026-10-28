@@ -30,7 +30,7 @@
     </x-admin.panel>
 
     <x-admin.notice title="Pencocokan teks:">
-        Tabel keypoints, apkuks, dan gangguans menyimpan nama penyulang sebagai teks, bukan relasi canonical. Jumlah di bawah dicocokkan dengan {{ implode(' / ', $matchedNames) }} (huruf besar, spasi tepi dihapus), sehingga baris dengan penulisan berbeda tidak terhitung.
+        Tabel keypoints, apkuks, dan gangguans menyimpan nama penyulang sebagai teks, bukan relasi canonical. Jumlah di bawah dicocokkan dengan {{ implode(' / ', $matchedNames) }} (huruf besar, spasi tepi dan titik di akhir dihapus, alias terkonfirmasi), sehingga baris dengan penulisan lain tidak terhitung.
     </x-admin.notice>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">

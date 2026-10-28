@@ -7,17 +7,30 @@ use App\Models\Keypoint;
 use App\Models\Penyulang;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderLocationTarget;
-use App\Services\ApkukCandidateService;
+use App\Support\PenyulangName;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
  * Menyusun snapshot target lokasi WO dari sumber yang ada: keypoint (aset jaringan),
- * baris vegetasi staging, lokasi WO asal (limpahan), atau lokasi temuan inspeksi.
+ * pohon (ID POHON VEGETASI_RAW), lokasi WO asal (limpahan), atau lokasi temuan inspeksi.
  * Lokasi tidak ditebak: penyulang sumber harus cocok dengan penyulang WO.
  */
 class LocationTargetResolver
 {
+    /** Namespace kunci target pohon; dipisah dari format lama `VEGETASI:{id baris staging}`. */
+    public const VEGETATION_KEY_PREFIX = 'POHON:';
+
+    /** Batas kolom source_ref; ID POHON sumber saat ini 6 digit. */
+    private const ID_POHON_MAX_LENGTH = 64;
+
+    public static function vegetationTargetKey(?string $idPohon): ?string
+    {
+        $id = trim((string) $idPohon);
+
+        return $id === '' ? null : self::VEGETATION_KEY_PREFIX.$id;
+    }
+
     /**
      * @return array<string, mixed> atribut WorkOrderLocationTarget tanpa work_order_id dan active_target_key
      */
@@ -51,15 +64,32 @@ class LocationTargetResolver
     }
 
     /**
+     * Target ROW diidentifikasi dengan `ID POHON` (VEGETASI_RAW kolom AB), bukan ID baris staging
+     * yang berubah setiap import `--replace`. Baris staging dipakai untuk memilih titik dan
+     * disimpan di snapshot sebagai jejak asal.
+     *
+     * @param  string|null  $expectedIdPohon  ID POHON yang dilihat Admin saat memilih; menolak bila baris staging sudah berganti isi
      * @return array<string, mixed>
      */
-    public function vegetation(int $vegetationId, Penyulang $penyulang): array
+    public function vegetation(int $vegetationId, Penyulang $penyulang, ?string $expectedIdPohon = null): array
     {
         $row = DB::table('vegetasi_source_rows')->where('id', $vegetationId)->first();
         if ($row === null) {
             throw ValidationException::withMessages(['vegetation_id' => 'Titik vegetasi tidak ditemukan.']);
         }
+
+        $idPohon = trim((string) $row->id_pohon_raw);
+        if ($idPohon === '') {
+            throw ValidationException::withMessages(['vegetation_id' => 'Titik vegetasi ini tidak memiliki ID POHON di sumber, sehingga tidak dapat menjadi target ROW yang stabil.']);
+        }
+        if (mb_strlen($idPohon) > self::ID_POHON_MAX_LENGTH) {
+            throw ValidationException::withMessages(['vegetation_id' => 'ID POHON di sumber terlalu panjang untuk dijadikan identitas target.']);
+        }
+        if ($expectedIdPohon !== null && trim($expectedIdPohon) !== $idPohon) {
+            throw ValidationException::withMessages(['vegetation_id' => 'Data vegetasi berubah sejak halaman dibuka (ID POHON berbeda). Muat ulang halaman lalu pilih titik kembali.']);
+        }
         $this->assertPenyulang($row->penyulang_raw, $penyulang, 'vegetation_id', 'Titik vegetasi');
+        $this->assertSingleTree($idPohon);
 
         [$latitude, $longitude] = self::coordinates($row->latitude_raw, $row->longitude_raw);
         $label = collect([$row->id_pohon_raw, $row->nama_pohon_raw, $row->nama_tiang_raw])
@@ -69,16 +99,18 @@ class LocationTargetResolver
 
         return [
             'target_type' => WorkOrderLocationTarget::TYPE_VEGETASI,
-            'source_ref' => (string) $row->id,
-            'target_key' => 'VEGETASI:'.$row->id,
-            'label' => $label !== '' ? $label : 'Vegetasi #'.$row->id,
+            'source_ref' => $idPohon,
+            'target_key' => self::vegetationTargetKey($idPohon),
+            'label' => $label !== '' ? $label : 'Pohon '.$idPohon,
             'asset_type' => $row->jenis_pohon_raw,
             'penyulang_source' => $row->penyulang_raw,
             'section_source' => $row->section_raw,
             'latitude' => $latitude,
             'longitude' => $longitude,
             'snapshot' => [
+                'identity' => 'ID_POHON',
                 'vegetasi_source_row_id' => $row->id,
+                'vegetasi_source_row_number' => $row->source_row_number,
                 'id_pohon' => $row->id_pohon_raw,
                 'id_tiang' => $row->id_tiang_raw,
                 'nama_tiang' => $row->nama_tiang_raw,
@@ -190,12 +222,28 @@ class LocationTargetResolver
 
     public static function penyulangMatches(?string $sourceName, Penyulang $penyulang): bool
     {
-        $source = ApkukCandidateService::normalizePenyulang($sourceName);
+        $source = PenyulangName::normalize($sourceName);
 
-        return $source !== '' && in_array($source, [
-            ApkukCandidateService::normalizePenyulang($penyulang->kode_penyulang),
-            ApkukCandidateService::normalizePenyulang($penyulang->nama_penyulang),
-        ], true);
+        return $source !== '' && in_array($source, PenyulangName::sourceNames($penyulang), true);
+    }
+
+    /**
+     * ID POHON berulang di staging hanya sah bila semua barisnya menyatakan pohon yang sama
+     * (mis. import tanpa --replace). Bila penyulang/ID tiang berbeda, identitasnya ambigu dan
+     * tidak ditebak.
+     */
+    private function assertSingleTree(string $idPohon): void
+    {
+        $rows = DB::table('vegetasi_source_rows')
+            ->where(DB::raw('trim(id_pohon_raw)'), $idPohon)
+            ->get(['penyulang_raw', 'id_tiang_raw']);
+        $variants = $rows->map(fn ($row) => PenyulangName::canonical($row->penyulang_raw).'|'.trim((string) $row->id_tiang_raw))->unique();
+
+        if ($variants->count() > 1) {
+            throw ValidationException::withMessages([
+                'vegetation_id' => "ID POHON {$idPohon} tercatat pada {$rows->count()} baris sumber dengan penyulang/ID tiang berbeda. Klarifikasi ke pemilik data SPS BOS sebelum dibuatkan WO.",
+            ]);
+        }
     }
 
     private function assertPenyulang(?string $sourceName, Penyulang $penyulang, string $field, string $what): void

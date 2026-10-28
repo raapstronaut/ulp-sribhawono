@@ -6,6 +6,8 @@ use App\Models\Apkuk;
 use App\Models\ApkukReconciliationItem;
 use App\Models\Penyulang;
 use App\Models\WorkOrderApkukTarget;
+use App\Services\Apkuk\ApkukSectionService;
+use App\Support\PenyulangName;
 use Illuminate\Support\Collection;
 
 /**
@@ -18,9 +20,11 @@ use Illuminate\Support\Collection;
  * - Kebutuhan valid hanya bila kurang_bh > 0 dan status sumber menyatakan belum
  *   lengkap (BELUM EKSEKUSI / KURANG). Kosong, nol, negatif, atau status yang
  *   bertentangan tidak dianggap kebutuhan pemasangan.
- * - Penyulang harus cocok dengan master. Normalisasi hanya kapital, spasi, dan
- *   titik di akhir (contoh "CAKALELE." → CAKALELE); selain itu tidak ditebak.
- * - Section belum punya master canonical; nilai kosong/placeholder hanya peringatan.
+ * - Penyulang harus cocok dengan master. Normalisasi hanya kapital, spasi, titik di
+ *   akhir (contoh "CAKALELE." → CAKALELE), dan alias terkonfirmasi di PenyulangName
+ *   (TANGGAMUS → TANGGAMUS 2); selain itu tidak ditebak.
+ * - Section belum punya master canonical; nilai kosong/placeholder hanya peringatan. Section
+ *   efektif memakai koreksi Admin (ApkukSectionService) bila Section sumber kosong/DUMMY.
  * - Laporan yang menunggu rekonsiliasi sumber (tidak ada di snapshot APKUK_RAW terakhir)
  *   tidak dapat dipilih, tetapi tetap ikut menentukan laporan terbaru per tiang agar
  *   laporan lama di tiang yang sama tidak mendadak menjadi layak.
@@ -77,6 +81,7 @@ class ApkukCandidateService
         $penyulangs = $this->penyulangLookup();
         $activeCodes = $this->activeWorkOrderCodes();
         $pending = array_flip(ApkukReconciliationItem::openApkukIds());
+        $sectionOverrides = ApkukSectionService::activeOverrides();
 
         $rows = Apkuk::query()
             ->whereNull('source_missing_at')
@@ -117,7 +122,7 @@ class ApkukCandidateService
             }
         }
 
-        return $prepared->mapWithKeys(function (array $item) use ($latestByKey, $activeCodes, $pending): array {
+        return $prepared->mapWithKeys(function (array $item) use ($latestByKey, $activeCodes, $pending, $sectionOverrides): array {
             /** @var Apkuk $row */
             $row = $item['row'];
             $issues = [];
@@ -160,10 +165,10 @@ class ApkukCandidateService
                 $issues[] = self::ISSUE_WO_AKTIF;
             }
 
-            $section = trim((string) $row->section);
-            if (in_array(mb_strtoupper($section), self::PLACEHOLDERS, true)) {
+            // Section efektif: nilai sumber, atau koreksi Admin bila sumber kosong/DUMMY.
+            $section = ApkukSectionService::effective($row->section, $sectionOverrides[$row->id] ?? null);
+            if ($section['value'] === null) {
                 $warnings[] = self::WARNING_SECTION_TIDAK_DIKETAHUI;
-                $section = null;
             }
             if ($row->latitude === null || $row->longitude === null) {
                 $warnings[] = self::WARNING_KOORDINAT_KOSONG;
@@ -174,10 +179,11 @@ class ApkukCandidateService
                 targetKey: $item['key'],
                 normalizedPole: $item['pole'],
                 penyulang: $item['penyulang'],
-                sectionName: $section,
+                sectionName: $section['value'],
                 issues: $issues,
                 warnings: $warnings,
                 activeWorkOrderCode: $activeCode,
+                sectionOrigin: $section['origin'],
             )];
         });
     }
@@ -201,7 +207,8 @@ class ApkukCandidateService
             ->filter(fn (ApkukCandidate $c) => ! $eligibleOnly || $c->isEligible())
             ->filter(fn (ApkukCandidate $c) => $penyulangId === null || $c->penyulang?->id === $penyulangId)
             ->filter(fn (ApkukCandidate $c) => $search === '' || str_contains($c->normalizedPole, $search)
-                || str_contains(self::normalizeText($c->apkuk->section), $search))
+                || str_contains(self::normalizeText($c->apkuk->section), $search)
+                || str_contains(self::normalizeText($c->sectionName), $search))
             ->sortBy([
                 fn (ApkukCandidate $a, ApkukCandidate $b) => $b->isEligible() <=> $a->isEligible(),
                 fn (ApkukCandidate $a, ApkukCandidate $b) => ($b->apkuk->kurang_bh ?? PHP_INT_MIN) <=> ($a->apkuk->kurang_bh ?? PHP_INT_MIN),
@@ -244,7 +251,7 @@ class ApkukCandidateService
 
     public static function normalizePenyulang(?string $value): string
     {
-        return trim(rtrim(self::normalizeText($value), '.'));
+        return PenyulangName::normalize($value);
     }
 
     public static function targetKey(string $penyulangCode, string $pole): string
@@ -261,8 +268,9 @@ class ApkukCandidateService
     {
         $lookup = [];
         foreach (Penyulang::query()->where('is_active', true)->get() as $penyulang) {
-            $lookup[self::normalizePenyulang($penyulang->kode_penyulang)] = $penyulang;
-            $lookup[self::normalizePenyulang($penyulang->nama_penyulang)] ??= $penyulang;
+            foreach (PenyulangName::sourceNames($penyulang) as $name) {
+                $lookup[$name] ??= $penyulang;
+            }
         }
 
         return $lookup;

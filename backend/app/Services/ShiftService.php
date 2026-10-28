@@ -9,7 +9,10 @@ use Carbon\CarbonInterface;
 /**
  * Single source of truth for POSKO shift A/B/C.
  *
- * Jam shift masih SEMENTARA (belum dikunci bisnis): ubah hanya di SHIFTS.
+ * Jam shift FINAL (keputusan pengguna 28 Okt 2026), WIB, berurutan 24 jam tanpa jeda:
+ * A 08:00–16:00, B 16:00–00:00, C 00:00–08:00. Satu-satunya definisi jam ada di SHIFTS.
+ * Definisi tanggal kerja operasional Shift C masih TBD; window() memakai tanggal kalender
+ * (Shift C tanggal D = 00:00–08:00 tanggal D).
  */
 class ShiftService
 {

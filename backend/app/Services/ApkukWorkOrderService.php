@@ -145,6 +145,8 @@ class ApkukWorkOrderService
                 'posko_id' => $posko->getKey(),
                 'work_date' => $input['work_date'],
                 'shift_code' => $input['shift_code'],
+                'section_name' => $candidate->sectionName,
+                'section_origin' => $candidate->sectionOrigin,
                 'warnings' => $candidate->warnings,
             ],
         );

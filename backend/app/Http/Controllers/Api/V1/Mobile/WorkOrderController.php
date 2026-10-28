@@ -94,7 +94,7 @@ class WorkOrderController extends Controller
             'report_id' => $report->getKey(),
             'verification_status' => $report->verification_status,
             'work_order' => $this->summary($wo->fresh(['apkukTarget', 'locationTarget', 'penyulang', 'posko'])),
-        ], 201);
+        ], 201, $report->wasRecentlyCreated);
     }
 
     public function reschedule(Request $request, string $workOrder): JsonResponse
@@ -110,7 +110,7 @@ class WorkOrderController extends Controller
 
         $reschedule = $this->execution->requestReschedule($wo, FieldActor::mobile($request->user()), $data);
 
-        return $this->respond(['reschedule_id' => $reschedule->getKey(), 'status' => $reschedule->status], 201);
+        return $this->respond(['reschedule_id' => $reschedule->getKey(), 'status' => $reschedule->status], 201, $reschedule->wasRecentlyCreated);
     }
 
     public function escalate(Request $request, string $workOrder): JsonResponse
@@ -126,7 +126,7 @@ class WorkOrderController extends Controller
 
         $escalation = $this->execution->requestEscalation($wo, FieldActor::mobile($request->user()), $data);
 
-        return $this->respond(['escalation_id' => $escalation->getKey(), 'status' => $escalation->status], 201);
+        return $this->respond(['escalation_id' => $escalation->getKey(), 'status' => $escalation->status], 201, $escalation->wasRecentlyCreated);
     }
 
     public function issue(Request $request, string $workOrder): JsonResponse
@@ -140,7 +140,7 @@ class WorkOrderController extends Controller
 
         $issue = $this->execution->reportIssue($wo, FieldActor::mobile($request->user()), $data);
 
-        return $this->respond(['issue_id' => $issue->getKey(), 'status' => $issue->status], 201);
+        return $this->respond(['issue_id' => $issue->getKey(), 'status' => $issue->status], 201, $issue->wasRecentlyCreated);
     }
 
     private function scoped(Request $request, string $id): WorkOrder
@@ -153,10 +153,16 @@ class WorkOrderController extends Controller
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  bool|null  $created  untuk pengiriman ber-client_request_id: false = replay record yang sudah ada
      */
-    private function respond(array $data, int $status = 200): JsonResponse
+    private function respond(array $data, int $status = 200, ?bool $created = null): JsonResponse
     {
-        return response()->json(['data' => $data, 'meta' => ['server_time' => now()->toIso8601String()]], $status);
+        $meta = ['server_time' => now()->toIso8601String()];
+        if ($created !== null) {
+            $meta['idempotent_replay'] = ! $created;
+        }
+
+        return response()->json(['data' => $data, 'meta' => $meta], $status);
     }
 
     /**

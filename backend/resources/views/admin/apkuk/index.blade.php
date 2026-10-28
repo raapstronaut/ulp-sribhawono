@@ -72,12 +72,20 @@
                     <th class="px-4 py-3">Tiang</th><th class="px-4 py-3">ID laporan</th><th class="px-4 py-3">Tanggal</th><th class="px-4 py-3">Penyulang / Section</th><th class="px-4 py-3 text-right">Terpasang / Kurang</th><th class="px-4 py-3">Status sumber</th><th class="px-4 py-3">{{ match ($tab) { 'aktif' => 'Kelayakan WO', 'menunggu' => 'Rekonsiliasi', default => 'Diarsipkan' } }}</th>
                 </x-slot:head>
                 @forelse ($rows as $row)
-                    @php $candidate = $candidates->get($row->id); @endphp
+                    @php
+                        $candidate = $candidates->get($row->id);
+                        $section = \App\Services\Apkuk\ApkukSectionService::effective($row->section, $sectionOverrides[$row->id] ?? null);
+                    @endphp
                     <tr class="hover:bg-slate-50">
-                        <td class="px-4 py-3 text-xs font-semibold text-slate-900">{{ $row->no_tiang }}</td>
+                        <td class="px-4 py-3 text-xs font-semibold"><a class="text-blue-700 hover:text-blue-900" href="{{ route('admin.apkuk.show', $row->id) }}">{{ $row->no_tiang }}</a></td>
                         <td class="px-4 py-3 font-mono text-[11px]">{{ $row->source_id }}</td>
                         <td class="px-4 py-3 text-xs">{{ $row->tanggal ? \Illuminate\Support\Carbon::parse($row->tanggal)->format('d/m/Y') : '-' }}</td>
-                        <td class="px-4 py-3 text-xs">{{ $row->penyulang ?? '-' }}<div class="text-slate-500">{{ $row->section ?? '-' }}</div></td>
+                        <td class="px-4 py-3 text-xs">{{ $row->penyulang ?? '-' }}
+                            <div class="text-slate-500">{{ $row->section ?? '-' }}</div>
+                            @if ($section['origin'] === \App\Services\Apkuk\ApkukSectionService::ORIGIN_OVERRIDE)
+                                <div class="text-blue-700">Koreksi Admin: {{ $section['value'] }}</div>
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-right text-xs">{{ $row->terpasang_bh ?? '-' }} / {{ $row->kurang_bh ?? '-' }}</td>
                         <td class="px-4 py-3 text-xs">{{ $row->status ?? '-' }}</td>
                         <td class="px-4 py-3 text-xs">

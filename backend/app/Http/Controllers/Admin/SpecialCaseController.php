@@ -10,6 +10,7 @@ use App\Models\WorkOrderReschedule;
 use App\Services\ShiftService;
 use App\Services\Work\WorkOrderReviewService;
 use App\Support\DataLoader;
+use App\Support\PenyulangName;
 use App\Support\QueryInput;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
@@ -37,18 +38,19 @@ class SpecialCaseController extends Controller
         $filters = $this->filters($request);
         $range = $this->range($filters['period'], $shifts);
         $column = $filters['dimension'];
+        $expression = $this->dimensionExpression($column);
 
         $groups = $load->attempt('groups', fn () => $this->inRange($range)
-            ->when($filters['q'] !== '', fn (Builder $query) => $query->where(DB::raw("upper({$column})"), 'like', '%'.mb_strtoupper($filters['q']).'%'))
+            ->when($filters['q'] !== '', fn (Builder $query) => $query->where(DB::raw("upper({$expression})"), 'like', '%'.mb_strtoupper($filters['q']).'%'))
             ->select([
-                "{$column} as group_key",
+                DB::raw("{$expression} as group_key"),
                 DB::raw('count(*) as total'),
                 DB::raw('max(tanggal_kejadian) as last_at'),
                 DB::raw('sum(lama_padam_menit) as total_padam'),
             ])
-            ->groupBy($column)
+            ->groupBy(DB::raw($expression))
             ->orderByDesc('total')
-            ->orderBy($column)
+            ->orderByRaw($expression)
             ->paginate(25)
             ->withQueryString()
             ->tap(DataLoader::withinRange(...)), DataLoader::emptyPage(25));
@@ -108,7 +110,7 @@ class SpecialCaseController extends Controller
             ->when(
                 $key === '',
                 fn (Builder $query) => $query->where(fn (Builder $inner) => $inner->whereNull($column)->orWhere($column, '')),
-                fn (Builder $query) => $query->where($column, $key),
+                fn (Builder $query) => $query->where(DB::raw($this->dimensionExpression($column)), $key),
             )
             ->orderByDesc('tanggal_kejadian')
             ->orderBy('id_gangguan')
@@ -152,6 +154,15 @@ class SpecialCaseController extends Controller
             'from' => $today->subDays($period - 1)->toDateString(),
             'to' => $today->toDateString(),
         ];
+    }
+
+    /**
+     * Ekspresi SQL dimensi. Penyulang dikelompokkan dengan nama canonical (alias terkonfirmasi
+     * TANGGAMUS → TANGGAMUS 2); nilai mentah tetap tampil di daftar kejadian.
+     */
+    private function dimensionExpression(string $column): string
+    {
+        return $column === 'penyulang' ? PenyulangName::sqlCanonical('penyulang') : $column;
     }
 
     private function inRange(array $range): Builder

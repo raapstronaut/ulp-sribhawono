@@ -6,6 +6,10 @@
 - **Jenis:** audit teknis + penyelarasan spesifikasi. Tidak ada perubahan kode aplikasi, migration, data production, Railway, maupun Google Sheets.
 - **Status bukti:** kode dibaca langsung; tes dijalankan ulang pada sesi ini; data production dibaca **read-only** (lihat §2.3).
 - **Dokumen pendamping:** `docs/WEB_ADMIN_DATA_FIELD_AUDIT.md` (provenance per field, baseline audit ini).
+- **Pembaruan 29 Okt 2026 — Batch B1 (belum di-commit):**
+  - Celah yang ditutup: K-3 (target ROW kini `ID POHON`), K-7 (komentar shift), P-7 (alias TANGGAMUS pada agregat), P-10 (retry paralel API).
+  - Keputusan yang diimplementasikan: D-4 (Detail APKUK 12 kolom) dan D-8 (koreksi Section ber-audit).
+  - Rincian: `docs/BATCH_B1_IMPLEMENTATION_REPORT.md`. Bagian lain audit ini tetap berlaku.
 
 ---
 

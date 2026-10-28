@@ -89,7 +89,8 @@ class InspectionController extends Controller
                     'validation_status' => $f->validation_status,
                 ])->all(),
             ],
-            'meta' => ['server_time' => now()->toIso8601String()],
+            // Pengiriman ulang dengan client_request_id sama mengembalikan kunjungan yang sudah ada.
+            'meta' => ['server_time' => now()->toIso8601String(), 'idempotent_replay' => ! $inspection->wasRecentlyCreated],
         ], 201);
     }
 

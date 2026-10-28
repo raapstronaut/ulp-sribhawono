@@ -15,6 +15,7 @@ use App\Models\WorkOrderReport;
 use App\Models\WorkOrderReschedule;
 use App\Models\WorkOrderStatusLog;
 use App\Services\Apkuk\ApkukSourceState;
+use App\Support\PenyulangName;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -256,7 +257,8 @@ class DashboardService
             'last_7_days' => DB::table('gangguans')->where('tanggal_kejadian', '>=', $now->subDays(6)->toDateString())->count(),
             'last_30_days' => DB::table('gangguans')->where('tanggal_kejadian', '>=', $since30)->count(),
             'top_penyulang' => DB::table('gangguans')->where('tanggal_kejadian', '>=', $since30)->whereNotNull('penyulang')
-                ->select('penyulang', DB::raw('count(*) as total'))->groupBy('penyulang')->orderByDesc('total')->limit(5)->get()
+                ->select(DB::raw(PenyulangName::sqlCanonical('penyulang').' as penyulang'), DB::raw('count(*) as total'))
+                ->groupBy(DB::raw(PenyulangName::sqlCanonical('penyulang')))->orderByDesc('total')->limit(5)->get()
                 ->map(fn ($r) => ['name' => $r->penyulang, 'total' => (int) $r->total])->all(),
             'last_synced_at' => DB::table('gangguans')->max('last_synced_at'),
         ];

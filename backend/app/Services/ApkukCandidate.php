@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Apkuk;
 use App\Models\Penyulang;
+use App\Services\Apkuk\ApkukSectionService;
 
 /**
  * Hasil penilaian satu baris apkuks sebagai calon lokasi WO APKUK.
@@ -23,6 +24,8 @@ final class ApkukCandidate
         public readonly array $issues,
         public readonly array $warnings,
         public readonly ?string $activeWorkOrderCode,
+        // Asal Section: nilai sumber atau koreksi Admin (ApkukSectionService::ORIGIN_*).
+        public readonly string $sectionOrigin = ApkukSectionService::ORIGIN_SOURCE,
     ) {}
 
     public function isEligible(): bool

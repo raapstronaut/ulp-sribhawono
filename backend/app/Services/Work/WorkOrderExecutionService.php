@@ -31,7 +31,9 @@ use Throwable;
  * - PEKERJAAN_SELESAI (HARSUS/ROW): MENUNGGU_VERIFIKASI Admin (aturan sementara, belum disahkan).
  * - Penyelesaian wajib foto BEFORE + AFTER; temuan minimal satu foto; minimal satu petugas.
  * - Reschedule: alasan dropdown + catatan wajib, ACC Admin.
- * - Permintaan yang diulang dengan client_request_id sama tidak membuat data ganda.
+ * - Permintaan yang diulang dengan client_request_id sama tidak membuat data ganda, termasuk
+ *   bila dua request datang bersamaan (IdempotentSubmission); isi berbeda dengan kunci sama → 422.
+ * - Mulai pekerjaan idempoten: WO yang sudah DIKERJAKAN dikembalikan apa adanya.
  */
 class WorkOrderExecutionService
 {
@@ -55,17 +57,29 @@ class WorkOrderExecutionService
 
     public function start(WorkOrder $workOrder, FieldActor $actor): WorkOrder
     {
+        // Retry setelah timeout: WO sudah dimulai → keadaan sekarang, tanpa log ganda.
+        if ($workOrder->refresh()->status === WorkOrderStatus::Dikerjakan) {
+            return $workOrder;
+        }
         $this->assertWorkable($workOrder, [WorkOrderStatus::Ditugaskan, WorkOrderStatus::DijadwalkanUlang]);
 
-        return $this->lifecycle->transition(
-            $workOrder,
-            WorkOrderStatus::Dikerjakan,
-            $actor->user,
-            WorkOrderStatusLog::ACTION_STARTED,
-            null,
-            ['started_at' => $workOrder->started_at ?? now()],
-            $actor->payload(),
-        );
+        try {
+            return $this->lifecycle->transition(
+                $workOrder,
+                WorkOrderStatus::Dikerjakan,
+                $actor->user,
+                WorkOrderStatusLog::ACTION_STARTED,
+                null,
+                ['started_at' => $workOrder->started_at ?? now()],
+                $actor->payload(),
+            );
+        } catch (ValidationException $e) {
+            // Request bersamaan lebih dulu memulai WO yang sama.
+            if ($workOrder->refresh()->status === WorkOrderStatus::Dikerjakan) {
+                return $workOrder;
+            }
+            throw $e;
+        }
     }
 
     /**
@@ -74,11 +88,40 @@ class WorkOrderExecutionService
      */
     public function submitReport(WorkOrder $workOrder, FieldActor $actor, array $data, array $photos, string $captureSource = WorkOrderMedia::SOURCE_CAMERA): WorkOrderReport
     {
-        if (filled($data['client_request_id'] ?? null)
-            && ($existing = WorkOrderReport::query()->where('client_request_id', $data['client_request_id'])->first())) {
-            return $this->sameWorkOrder($existing, $workOrder);
+        $installed = $data['report_type'] === WorkOrderReport::TYPE_PEMASANGAN_SELESAI
+            ? filter_var($data['installed_quantity'] ?? null, FILTER_VALIDATE_INT)
+            : null;
+        // Seluruh isi yang disimpan; foto bukti (evidence) disimpan sebagai AFTER.
+        $fingerprint = [
+            'report_type' => $data['report_type'],
+            'installed_quantity' => $installed === false ? null : $installed,
+            'notes' => IdempotentSubmission::text($data['notes'] ?? null),
+            'latitude' => IdempotentSubmission::decimal($data['latitude'] ?? null, 7),
+            'longitude' => IdempotentSubmission::decimal($data['longitude'] ?? null, 7),
+            'gps_accuracy_m' => IdempotentSubmission::decimal($data['gps_accuracy_m'] ?? null, 2),
+            'personnel' => fn (WorkOrderReport $report) => IdempotentSubmission::samePersonnel($report->personnel, $data['personnel_ids'] ?? [], $data['personnel_names'] ?? []),
+            'photos' => fn (WorkOrderReport $report) => IdempotentSubmission::sameList($report->media->where('photo_type', WorkOrderMedia::PHOTO_BEFORE)->pluck('sha256')->all(), IdempotentSubmission::hashes($photos['before'] ?? []))
+                && IdempotentSubmission::sameList($report->media->where('photo_type', WorkOrderMedia::PHOTO_AFTER)->pluck('sha256')->all(), IdempotentSubmission::hashes(array_merge($photos['after'] ?? [], $photos['evidence'] ?? []))),
+        ];
+        if (filled($data['occurred_at'] ?? null)) {
+            $fingerprint['occurred_at'] = self::occurredAt($data['occurred_at']);
         }
 
+        return IdempotentSubmission::run(
+            WorkOrderReport::class,
+            $data['client_request_id'] ?? null,
+            ['work_order_id', $workOrder->getKey(), 'WO lain'],
+            $fingerprint,
+            fn () => $this->createReport($workOrder, $actor, $data, $photos, $captureSource),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array{before?: array<int, UploadedFile>, after?: array<int, UploadedFile>, evidence?: array<int, UploadedFile>}  $photos
+     */
+    private function createReport(WorkOrder $workOrder, FieldActor $actor, array $data, array $photos, string $captureSource): WorkOrderReport
+    {
         $type = $data['report_type'];
         if (! in_array($type, self::reportTypesFor($workOrder), true)) {
             throw ValidationException::withMessages(['report_type' => 'Jenis laporan tidak sesuai dengan jenis WO.']);
@@ -108,7 +151,7 @@ class WorkOrderExecutionService
         }
 
         $personnel = $this->personnel($workOrder, $actor, $data['personnel_ids'] ?? [], $data['personnel_names'] ?? []);
-        $occurredAt = filled($data['occurred_at'] ?? null) ? CarbonImmutable::parse($data['occurred_at']) : CarbonImmutable::now();
+        $occurredAt = filled($data['occurred_at'] ?? null) ? self::occurredAt($data['occurred_at']) : CarbonImmutable::now();
         if ($occurredAt->gt(CarbonImmutable::now()->addMinutes(10))) {
             throw ValidationException::withMessages(['occurred_at' => 'Waktu pelaksanaan tidak boleh di masa depan.']);
         }
@@ -199,10 +242,25 @@ class WorkOrderExecutionService
      */
     public function requestReschedule(WorkOrder $workOrder, FieldActor $actor, array $data): WorkOrderReschedule
     {
-        if (filled($data['client_request_id'] ?? null)
-            && ($existing = WorkOrderReschedule::query()->where('client_request_id', $data['client_request_id'])->first())) {
-            return $this->sameWorkOrder($existing, $workOrder);
-        }
+        return IdempotentSubmission::run(
+            WorkOrderReschedule::class,
+            $data['client_request_id'] ?? null,
+            ['work_order_id', $workOrder->getKey(), 'WO lain'],
+            [
+                'reason_code' => $data['reason_code'],
+                'note' => IdempotentSubmission::text($data['note']),
+                'proposed_work_date' => $data['proposed_work_date'],
+                'proposed_shift_code' => $workOrder->shift_code !== null ? ($data['proposed_shift_code'] ?? null) : null,
+            ],
+            fn () => $this->createReschedule($workOrder, $actor, $data),
+        );
+    }
+
+    /**
+     * @param  array{reason_code: string, note: string, proposed_work_date: string, proposed_shift_code?: ?string, client_request_id?: ?string}  $data
+     */
+    private function createReschedule(WorkOrder $workOrder, FieldActor $actor, array $data): WorkOrderReschedule
+    {
         $this->assertWorkable($workOrder, self::WORKABLE);
 
         $role = $workOrder->team_type;
@@ -265,14 +323,20 @@ class WorkOrderExecutionService
      */
     public function requestEscalation(WorkOrder $workOrder, FieldActor $actor, array $data): WorkEscalation
     {
-        if (filled($data['client_request_id'] ?? null)
-            && ($existing = WorkEscalation::query()->where('client_request_id', $data['client_request_id'])->first())) {
-            if ($existing->source_work_order_id !== $workOrder->getKey()) {
-                throw ValidationException::withMessages(['client_request_id' => 'client_request_id sudah dipakai untuk WO lain.']);
-            }
+        return IdempotentSubmission::run(
+            WorkEscalation::class,
+            $data['client_request_id'] ?? null,
+            ['source_work_order_id', $workOrder->getKey(), 'WO lain'],
+            ['target_team_type' => $data['target_team_type'], 'target_work_type' => $data['target_work_type'], 'reason_code' => $data['reason_code'], 'note' => IdempotentSubmission::text($data['note'])],
+            fn () => $this->createEscalation($workOrder, $actor, $data),
+        );
+    }
 
-            return $existing;
-        }
+    /**
+     * @param  array{target_team_type: string, target_work_type: string, reason_code: string, note: string, client_request_id?: ?string}  $data
+     */
+    private function createEscalation(WorkOrder $workOrder, FieldActor $actor, array $data): WorkEscalation
+    {
         $this->assertWorkable($workOrder, self::WORKABLE);
 
         $targetTeam = $data['target_team_type'];
@@ -325,11 +389,21 @@ class WorkOrderExecutionService
      */
     public function reportIssue(WorkOrder $workOrder, FieldActor $actor, array $data): WorkOrderIssue
     {
-        if (filled($data['client_request_id'] ?? null)
-            && ($existing = WorkOrderIssue::query()->where('client_request_id', $data['client_request_id'])->first())) {
-            return $this->sameWorkOrder($existing, $workOrder);
-        }
-        if (! $workOrder->status->isActive()) {
+        return IdempotentSubmission::run(
+            WorkOrderIssue::class,
+            $data['client_request_id'] ?? null,
+            ['work_order_id', $workOrder->getKey(), 'WO lain'],
+            ['issue_type' => $data['issue_type'], 'description' => IdempotentSubmission::text($data['description'])],
+            fn () => $this->createIssue($workOrder, $actor, $data),
+        );
+    }
+
+    /**
+     * @param  array{issue_type: string, description: string, client_request_id?: ?string}  $data
+     */
+    private function createIssue(WorkOrder $workOrder, FieldActor $actor, array $data): WorkOrderIssue
+    {
+        if (! $workOrder->refresh()->status->isActive()) {
             throw ValidationException::withMessages(['issue_type' => 'Kendala hanya dapat dilaporkan untuk WO yang masih aktif.']);
         }
         if (! array_key_exists($data['issue_type'], WorkOrderIssue::TYPE_LABELS)) {
@@ -396,6 +470,15 @@ class WorkOrderExecutionService
     }
 
     /**
+     * Waktu kejadian lapangan: tanpa offset dibaca sebagai WIB (seperti visited_at inspeksi),
+     * dengan offset/Z dihormati; disimpan dalam UTC sehingga offset tidak hilang saat disimpan.
+     */
+    private static function occurredAt(string $value): CarbonImmutable
+    {
+        return CarbonImmutable::parse($value, ShiftService::TIMEZONE)->utc();
+    }
+
+    /**
      * @param  array<int, WorkOrderStatus>  $allowed
      */
     private function assertWorkable(WorkOrder $workOrder, array $allowed): void
@@ -404,20 +487,5 @@ class WorkOrderExecutionService
         if (! in_array($workOrder->status, $allowed, true)) {
             throw new WorkflowConflictException("WO berstatus {$workOrder->status->label()}; tindakan ini tidak dapat dilakukan.");
         }
-    }
-
-    /**
-     * @template T of \Illuminate\Database\Eloquent\Model
-     *
-     * @param  T  $existing
-     * @return T
-     */
-    private function sameWorkOrder($existing, WorkOrder $workOrder)
-    {
-        if ($existing->work_order_id !== $workOrder->getKey()) {
-            throw ValidationException::withMessages(['client_request_id' => 'client_request_id sudah dipakai untuk WO lain.']);
-        }
-
-        return $existing;
     }
 }

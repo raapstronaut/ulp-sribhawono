@@ -10,9 +10,9 @@ use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\WorkOrder;
 use App\Services\Apkuk\ApkukSourceState;
-use App\Services\ApkukCandidateService;
 use App\Services\ShiftService;
 use App\Support\DataLoader;
+use App\Support\PenyulangName;
 use App\Support\QueryInput;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -227,12 +227,10 @@ class MasterDataController extends Controller
     public function showPenyulang(Penyulang $penyulang, DataLoader $load): View
     {
         // Data sinkron menyimpan penyulang sebagai teks; dicocokkan dengan kode/nama master
-        // memakai normalisasi yang sama dengan kandidat WO APKUK, bukan relasi canonical.
-        $names = array_values(array_unique(array_filter([
-            ApkukCandidateService::normalizePenyulang($penyulang->kode_penyulang),
-            ApkukCandidateService::normalizePenyulang($penyulang->nama_penyulang),
-        ])));
-        $matching = fn (string $table) => DB::table($table)->whereIn(DB::raw('upper(trim(penyulang))'), $names);
+        // memakai normalisasi yang sama dengan kandidat WO APKUK (kapital, titik di akhir, alias
+        // terkonfirmasi seperti TANGGAMUS → TANGGAMUS 2), bukan relasi canonical.
+        $names = PenyulangName::sourceNames($penyulang);
+        $matching = fn (string $table) => DB::table($table)->whereIn(DB::raw(PenyulangName::sqlNormalized('penyulang')), $names);
 
         return view('admin.master-data.penyulang', [
             'penyulang' => $penyulang,

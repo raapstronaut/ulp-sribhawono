@@ -37,7 +37,7 @@
                 </x-slot:head>
                 @foreach ($candidates as $row)
                     @php
-                        $key = ($isHarsus ? 'KEYPOINT:' : 'VEGETASI:').$row->id;
+                        $key = TeamWorkOrderController::targetKeyOf($teamType, $row);
                         $coords = TeamWorkOrderController::coordinatesOf($row);
                         $isSelected = $selected && $selected->id === $row->id;
                     @endphp
@@ -55,7 +55,7 @@
                             <td class="px-4 py-2 text-xs">{{ $coords ? $coords[0].', '.$coords[1] : 'Tidak ada' }}</td>
                         @endif
                         <td class="px-4 py-2 text-xs">
-                            @if (isset($activeKeys[$key]))
+                            @if ($key !== null && isset($activeKeys[$key]))
                                 <x-admin.status-badge tone="amber">WO aktif {{ $activeKeys[$key] }}</x-admin.status-badge>
                             @else
                                 <span class="text-slate-400">—</span>
@@ -85,6 +85,9 @@
                 @csrf
                 <input type="hidden" name="penyulang_id" value="{{ $penyulang->id }}">
                 <input type="hidden" name="target_id" value="{{ $selected->id }}">
+                @unless ($isHarsus)
+                    <input type="hidden" name="target_ref" value="{{ $selected->id_pohon_raw }}">
+                @endunless
                 <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     <x-admin.select name="work_type" label="Jenis pekerjaan" :options="$workTypeOptions" :placeholder="count($workTypeOptions) > 1 ? 'Pilih jenis' : null" required />
                     <x-admin.select name="field_team_id" label="Tim pelaksana" :options="$teamOptions" placeholder="Semua tim {{ $teamType }}" :hint="$teamOptions === [] ? 'Belum ada tim '.$teamType.' aktif di Master Data.' : null" />

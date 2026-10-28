@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\Audit\AuditLogger;
 use App\Services\ShiftService;
+use App\Services\Work\IdempotentSubmission;
 use App\Services\Work\LocationTargetResolver;
 use App\Services\Work\MediaStore;
 use App\Services\Work\TeamWorkOrderCreator;
@@ -52,11 +53,51 @@ class InspectionService
      */
     public function record(array $data, User $actor, ?FieldTeam $submittingTeam, string $source, bool $requirePhotos): Inspection
     {
-        if (filled($data['client_request_id'] ?? null)
-            && ($existing = Inspection::query()->where('client_request_id', $data['client_request_id'])->first())) {
-            return $existing;
-        }
+        // Pengiriman ulang hanya mengembalikan kunjungan milik tim yang sama dengan isi yang sama.
+        $findings = array_values($data['findings'] ?? []);
 
+        return IdempotentSubmission::run(
+            Inspection::class,
+            $data['client_request_id'] ?? null,
+            ['field_team_id', (string) $data['field_team_id'], 'tim lain'],
+            [
+                'penyulang_id' => $data['penyulang_id'],
+                'has_finding' => $findings !== [],
+                'section_name' => IdempotentSubmission::text($data['section_name'] ?? null),
+                'summary' => IdempotentSubmission::text($data['summary'] ?? null),
+                'visited_at' => CarbonImmutable::parse($data['visited_at'], ShiftService::TIMEZONE),
+                'latitude' => IdempotentSubmission::decimal($data['latitude'] ?? null, 7),
+                'longitude' => IdempotentSubmission::decimal($data['longitude'] ?? null, 7),
+                'gps_accuracy_m' => IdempotentSubmission::decimal($data['gps_accuracy_m'] ?? null, 2),
+                'personnel' => fn (Inspection $inspection) => IdempotentSubmission::samePersonnel($inspection->personnel, $data['personnel_ids'] ?? [], $data['personnel_names'] ?? []),
+                'findings' => fn (Inspection $inspection) => IdempotentSubmission::sameList(
+                    $inspection->findings()->with('media')->get()
+                        ->map(fn (InspectionFinding $finding) => self::findingSignature($finding->finding_code, $finding->description, $finding->keypoint_id, $finding->media->pluck('sha256')->all()))
+                        ->all(),
+                    array_map(fn (array $finding) => self::findingSignature($finding['finding_code'] ?? '', $finding['description'] ?? '', $finding['keypoint_id'] ?? null, IdempotentSubmission::hashes($finding['photos'] ?? [])), $findings),
+                ),
+            ],
+            fn () => $this->create($data, $actor, $submittingTeam, $source, $requirePhotos),
+        );
+    }
+
+    /**
+     * Identitas isi satu temuan untuk pembanding pengiriman ulang (urutan foto diabaikan).
+     *
+     * @param  array<int, string>  $hashes
+     */
+    private static function findingSignature(mixed $code, mixed $description, mixed $keypointId, array $hashes): string
+    {
+        sort($hashes);
+
+        return json_encode([trim((string) $code), trim((string) $description), filled($keypointId) ? (int) $keypointId : null, $hashes]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function create(array $data, User $actor, ?FieldTeam $submittingTeam, string $source, bool $requirePhotos): Inspection
+    {
         $team = FieldTeam::query()->whereKey($data['field_team_id'])->where('is_active', true)->first();
         if ($team === null || $team->role !== self::TEAM_ROLE) {
             throw ValidationException::withMessages(['field_team_id' => 'Pilih tim INSPEKSI yang aktif.']);

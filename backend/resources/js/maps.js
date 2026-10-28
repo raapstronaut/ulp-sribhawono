@@ -39,6 +39,7 @@ function popupFor(item) {
     content.appendChild(textElement('strong', item.label, 'block mb-2 text-sm'));
     content.appendChild(detailRow('Kategori', item.layer === 'apkuk' ? 'APKUK' : text(item.jenis)));
     content.appendChild(detailRow('Penyulang', item.penyulang));
+    if (item.penyulang_sumber && item.penyulang_sumber !== item.penyulang) content.appendChild(detailRow('Penyulang (sumber)', item.penyulang_sumber));
     if (item.no_tiang) content.appendChild(detailRow('No. Tiang', item.no_tiang));
     if (item.status) content.appendChild(detailRow('Status', item.status));
     if (item.tanggal) content.appendChild(detailRow('Tanggal', item.tanggal));
@@ -220,7 +221,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const container = document.createElement('div');
         container.className = 'rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5';
         container.append(textElement('p', item.peralatan || item.no_tiang || item.id, 'text-sm font-semibold text-slate-800'));
-        container.append(textElement('p', `${text(item.penyulang)} · ${text(item.tanggal)}`, 'mt-1 text-xs text-slate-500'));
+        const feederLabel = item.penyulang_sumber && item.penyulang_sumber !== item.penyulang ? `${text(item.penyulang)} (sumber: ${item.penyulang_sumber})` : text(item.penyulang);
+        container.append(textElement('p', `${feederLabel} · ${text(item.tanggal)}`, 'mt-1 text-xs text-slate-500'));
         container.append(textElement('p', `No. Tiang: ${text(item.no_tiang)} · ${text(item.sifat)}`, 'mt-1 text-xs text-slate-500'));
         return container;
     }

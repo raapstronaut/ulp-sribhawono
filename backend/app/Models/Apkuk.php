@@ -6,6 +6,7 @@ use App\Services\Apkuk\ApkukSourceState;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use LogicException;
 
 /**
@@ -55,6 +56,12 @@ class Apkuk extends Model
     public function reconciliationItems(): HasMany
     {
         return $this->hasMany(ApkukReconciliationItem::class);
+    }
+
+    /** Koreksi Section internal Admin (nilai sumber tetap di kolom section). */
+    public function sectionOverride(): HasOne
+    {
+        return $this->hasOne(ApkukSectionOverride::class);
     }
 
     /** Laporan yang ada di snapshot sumber terakhir (lihat ApkukSourceState). */

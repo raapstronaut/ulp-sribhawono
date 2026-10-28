@@ -8,10 +8,10 @@ use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderLocationTarget;
-use App\Services\ApkukCandidateService;
 use App\Services\ShiftService;
 use App\Services\Work\LocationTargetResolver;
 use App\Services\Work\TeamWorkOrderCreator;
+use App\Support\PenyulangName;
 use App\Support\QueryInput;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -43,10 +43,9 @@ class TeamWorkOrderController extends Controller
         if ($penyulang !== null) {
             $query = $teamType === WorkOrder::TEAM_HARSUS ? $this->keypointQuery($penyulang, $filters['q']) : $this->vegetationQuery($penyulang, $filters['q']);
             $candidates = $query->paginate(self::PER_PAGE)->withQueryString();
-            $prefix = $teamType === WorkOrder::TEAM_HARSUS ? 'KEYPOINT:' : 'VEGETASI:';
             $activeKeys = WorkOrderLocationTarget::query()
                 ->whereNotNull('active_target_key')
-                ->whereIn('target_key', $candidates->getCollection()->map(fn ($row) => $prefix.$row->id)->all())
+                ->whereIn('target_key', $candidates->getCollection()->map(fn ($row) => self::targetKeyOf($teamType, $row))->filter()->all())
                 ->with('workOrder:id,code')
                 ->get()
                 ->mapWithKeys(fn ($t) => [$t->target_key => $t->workOrder?->code])
@@ -80,6 +79,8 @@ class TeamWorkOrderController extends Controller
             'work_type' => ['required', Rule::in(WorkOrder::WORK_TYPES_BY_TEAM[$teamType])],
             'penyulang_id' => ['required', 'uuid'],
             'target_id' => ['required', 'integer', 'min:1'],
+            // ROW: ID POHON yang dilihat Admin; menolak bila baris staging berganti isi setelah import ulang.
+            'target_ref' => ['nullable', 'string', 'max:191'],
             'posko_id' => ['nullable', 'uuid'],
             'field_team_id' => ['nullable', 'uuid'],
             'section_name' => ['nullable', 'string', 'max:255'],
@@ -90,6 +91,9 @@ class TeamWorkOrderController extends Controller
 
         $input = $data + ['team_type' => $teamType];
         $input[$teamType === WorkOrder::TEAM_HARSUS ? 'keypoint_id' : 'vegetation_id'] = (int) $data['target_id'];
+        if ($teamType === WorkOrder::TEAM_ROW) {
+            $input['vegetation_id_pohon'] = $data['target_ref'] ?? null;
+        }
         $workOrder = $creator->createManual($request->user(), $input);
 
         return redirect()->route('admin.work-orders.show', $workOrder)->with('flash', "WO {$workOrder->teamLabel()} {$workOrder->code} berhasil dibuat.");
@@ -109,16 +113,23 @@ class TeamWorkOrderController extends Controller
      */
     private function penyulangNames(Penyulang $penyulang): array
     {
-        return array_values(array_unique([
-            ApkukCandidateService::normalizePenyulang($penyulang->kode_penyulang),
-            ApkukCandidateService::normalizePenyulang($penyulang->nama_penyulang),
-        ]));
+        return PenyulangName::sourceNames($penyulang);
+    }
+
+    /**
+     * Kunci target yang dipakai guard WO aktif (lihat LocationTargetResolver).
+     */
+    public static function targetKeyOf(string $teamType, object $row): ?string
+    {
+        return $teamType === WorkOrder::TEAM_HARSUS
+            ? 'KEYPOINT:'.$row->id
+            : LocationTargetResolver::vegetationTargetKey($row->id_pohon_raw ?? null);
     }
 
     private function keypointQuery(Penyulang $penyulang, string $q): Builder
     {
         return DB::table('keypoints')
-            ->whereIn(DB::raw("upper(rtrim(trim(penyulang), '.'))"), $this->penyulangNames($penyulang))
+            ->whereIn(DB::raw(PenyulangName::sqlNormalized('penyulang')), $this->penyulangNames($penyulang))
             ->when($q !== '', fn (Builder $query) => $query->where(fn (Builder $inner) => $inner
                 ->where(DB::raw('upper(nama)'), 'like', '%'.mb_strtoupper($q).'%')
                 ->orWhere(DB::raw('upper(jenis)'), 'like', '%'.mb_strtoupper($q).'%')))
@@ -130,7 +141,7 @@ class TeamWorkOrderController extends Controller
     private function vegetationQuery(Penyulang $penyulang, string $q): Builder
     {
         return DB::table('vegetasi_source_rows')
-            ->whereIn(DB::raw("upper(rtrim(trim(penyulang_raw), '.'))"), $this->penyulangNames($penyulang))
+            ->whereIn(DB::raw(PenyulangName::sqlNormalized('penyulang_raw')), $this->penyulangNames($penyulang))
             ->when($q !== '', fn (Builder $query) => $query->where(fn (Builder $inner) => $inner
                 ->where(DB::raw('upper(id_pohon_raw)'), 'like', '%'.mb_strtoupper($q).'%')
                 ->orWhere(DB::raw('upper(nama_pohon_raw)'), 'like', '%'.mb_strtoupper($q).'%')

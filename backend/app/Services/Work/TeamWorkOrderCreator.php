@@ -22,7 +22,9 @@ use Illuminate\Validation\ValidationException;
  * limpahan dan WO tindak lanjut temuan inspeksi.
  *
  * Penugasan ganda dicegah unique index work_order_location_targets.active_target_key:
- * satu titik hanya boleh punya satu WO aktif untuk tim + jenis pekerjaan yang sama.
+ * satu titik hanya boleh punya satu WO aktif untuk tim + jenis pekerjaan yang sama. Untuk ROW
+ * titiknya adalah pohon (`POHON:{ID POHON}`), sehingga dua pohon pada satu tiang tetap terpisah
+ * dan import ulang staging tidak membuka celah WO ganda.
  */
 class TeamWorkOrderCreator
 {
@@ -36,7 +38,7 @@ class TeamWorkOrderCreator
     ) {}
 
     /**
-     * @param  array{team_type: string, work_type: string, penyulang_id: string, posko_id?: ?string, field_team_id?: ?string, section_name?: ?string, work_date: string, due_date: string, notes?: ?string, keypoint_id?: int|string|null, vegetation_id?: int|string|null}  $input
+     * @param  array{team_type: string, work_type: string, penyulang_id: string, posko_id?: ?string, field_team_id?: ?string, section_name?: ?string, work_date: string, due_date: string, notes?: ?string, keypoint_id?: int|string|null, vegetation_id?: int|string|null, vegetation_id_pohon?: ?string}  $input
      */
     public function createManual(User $admin, array $input, ?CarbonImmutable $now = null): WorkOrder
     {
@@ -46,7 +48,7 @@ class TeamWorkOrderCreator
                 ? $this->targets->keypoint((int) $input['keypoint_id'], $penyulang)
                 : throw ValidationException::withMessages(['keypoint_id' => 'WO HARSUS manual wajib menunjuk aset jaringan.']),
             WorkOrder::TEAM_ROW => filled($input['vegetation_id'] ?? null)
-                ? $this->targets->vegetation((int) $input['vegetation_id'], $penyulang)
+                ? $this->targets->vegetation((int) $input['vegetation_id'], $penyulang, $input['vegetation_id_pohon'] ?? null)
                 : throw ValidationException::withMessages(['vegetation_id' => 'WO ROW manual wajib menunjuk titik vegetasi.']),
             default => throw ValidationException::withMessages(['team_type' => 'Tim tidak dikenal untuk WO manual ini.']),
         };
