@@ -37,6 +37,7 @@ final class AdminNavigation
                         'svg' => ['M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4'],
                     ],
                     ['label' => 'APKUK', 'route' => 'admin.apkuk.index', 'active' => 'admin.apkuk.*', 'icon' => 'AP'],
+                    ['label' => 'Kuota Shift APKUK', 'route' => 'admin.shift-quota.index', 'active' => 'admin.shift-quota.*', 'icon' => 'KS'],
                     ['label' => 'PASILA', 'route' => 'admin.pasila.index', 'active' => 'admin.pasila.*', 'icon' => 'PS'],
                     ['label' => 'Inspeksi', 'route' => 'admin.inspeksi.index', 'active' => 'admin.inspeksi.*', 'icon' => 'IN'],
                     ['label' => 'ROW', 'route' => 'admin.row.index', 'active' => 'admin.row.*', 'icon' => 'RW'],

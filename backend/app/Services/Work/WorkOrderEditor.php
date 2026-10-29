@@ -7,6 +7,7 @@ use App\Models\FieldTeam;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderStatusLog;
+use App\Services\Apkuk\Generation\ApkukShiftQuota;
 use App\Services\WorkOrderLifecycleService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,6 +16,9 @@ use Illuminate\Validation\ValidationException;
  * Koreksi data dan jadwal WO oleh Admin tanpa mengubah status (state machine WO tidak
  * mengenal "dijadwalkan ulang" tanpa pengajuan petugas). Alasan wajib; nilai sebelum
  * dan sesudah tercatat di work_order_status_logs.
+ *
+ * Memindah WO PEMASANGAN_APKUK ke shift lain menempati kuota shift tujuan seperti WO manual baru
+ * (ApkukShiftQuota); bukan limpahan sah, jadi ditolak bila shift tujuan sudah penuh.
  */
 class WorkOrderEditor
 {
@@ -23,6 +27,7 @@ class WorkOrderEditor
     public function __construct(
         private readonly WorkSchedule $schedule,
         private readonly WorkOrderLifecycleService $lifecycle,
+        private readonly ApkukShiftQuota $quota,
     ) {}
 
     public static function isEditable(WorkOrder $workOrder): bool
@@ -72,6 +77,7 @@ class WorkOrderEditor
                 $attributes['shift_code'] = $shift;
                 if ($scheduleChanged) {
                     $attributes += $this->schedule->forShift($input['work_date'], $shift);
+                    $this->guardApkukQuota($locked, $input['work_date'], $shift);
                 }
             } else {
                 $dueDate = $input['due_date'] ?? $locked->due_at?->timezone('Asia/Jakarta')->toDateString();
@@ -107,6 +113,20 @@ class WorkOrderEditor
 
             return $locked;
         });
+    }
+
+    /**
+     * Kunci kuota diambil setelah kunci baris WO: pemegang kunci kuota (generator, WO manual)
+     * tidak pernah menunggu baris WO yang sudah ada, sehingga urutan ini tidak deadlock.
+     */
+    private function guardApkukQuota(WorkOrder $workOrder, string $workDate, string $shiftCode): void
+    {
+        if ($workOrder->work_type !== WorkOrder::TYPE_PEMASANGAN_APKUK || $workOrder->posko === null) {
+            return;
+        }
+
+        ApkukShiftQuota::lock($workDate, $shiftCode);
+        $this->quota->assertSlotAvailable($workOrder->posko, $workDate, $shiftCode);
     }
 
     private function plain(mixed $value): mixed

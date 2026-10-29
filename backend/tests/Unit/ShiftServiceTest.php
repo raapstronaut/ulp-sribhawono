@@ -52,7 +52,7 @@ class ShiftServiceTest extends TestCase
         $this->assertSame('3/3', $service->describe('C')['index']);
     }
 
-    public function test_window_returns_shift_bounds_on_calendar_date_in_jakarta(): void
+    public function test_window_returns_shift_bounds_of_the_operational_day_in_jakarta(): void
     {
         $service = new ShiftService;
         $utc = fn ($dt) => $dt->utc()->format('Y-m-d H:i');
@@ -65,9 +65,22 @@ class ShiftServiceTest extends TestCase
         $b = $service->window('2026-10-20', 'B');
         $this->assertSame('2026-10-21 00:00', $b['end']->setTimezone('Asia/Jakarta')->format('Y-m-d H:i'));
 
+        // Keputusan 29 Okt 2026: Shift C hari operasional 20 = 21 Okt 00:00–08:00 WIB.
         $c = $service->window(Carbon::create(2026, 10, 20, 23, 0, 0, 'Asia/Jakarta'), 'C');
-        $this->assertSame('2026-10-19 17:00', $utc($c['start']));
-        $this->assertSame('2026-10-20 01:00', $utc($c['end']));
+        $this->assertSame('2026-10-20 17:00', $utc($c['start']));
+        $this->assertSame('2026-10-21 01:00', $utc($c['end']));
+    }
+
+    public function test_operational_date_starts_at_eight_wib(): void
+    {
+        $service = new ShiftService;
+
+        $this->assertSame('2026-10-19', $service->operationalDate(Carbon::create(2026, 10, 20, 7, 59, 59, 'Asia/Jakarta')));
+        $this->assertSame('2026-10-20', $service->operationalDate(Carbon::create(2026, 10, 20, 8, 0, 0, 'Asia/Jakarta')));
+        $this->assertSame('2026-10-20', $service->operationalDate(Carbon::create(2026, 10, 20, 23, 59, 59, 'Asia/Jakarta')));
+        $this->assertSame('2026-10-20', $service->operationalDate(Carbon::create(2026, 10, 21, 0, 0, 0, 'Asia/Jakarta')));
+        // 17:30 UTC = 00:30 WIB tanggal 21 → hari operasional 20.
+        $this->assertSame('2026-10-20', $service->operationalDate(Carbon::create(2026, 10, 20, 17, 30, 0, 'UTC')));
     }
 
     public function test_today_uses_jakarta_calendar_date(): void

@@ -97,7 +97,7 @@
         </div>
     </x-admin.panel>
 
-    <x-admin.panel flush :title="'POSKO — Shift '.$shiftData['code'].' hari ini'" description="Target 6 WO APKUK per Posko per shift. Realisasi dari WO APKUK shift berjalan (tidak termasuk yang dibatalkan).">
+    <x-admin.panel flush :title="'POSKO — Shift '.$shiftData['code'].' · hari operasional '.\Illuminate\Support\Carbon::parse($shiftData['operational_date'])->format('d/m/Y')" description="Target 6 WO APKUK per Posko per shift. Realisasi dari WO APKUK shift berjalan (tidak termasuk yang dibatalkan).">
         @if ($poskoStatuses === [])
             <x-admin.empty-state title="Belum ada Posko aktif." />
         @else

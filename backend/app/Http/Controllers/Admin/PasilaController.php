@@ -130,14 +130,14 @@ class PasilaController extends Controller
     private function shiftContext(Request $request, ShiftService $shifts): array
     {
         $current = $shifts->current();
-        $workDate = QueryInput::date($request, 'work_date') ?: $shifts->today();
+        $workDate = QueryInput::date($request, 'work_date') ?: $shifts->operationalDate();
         $shiftCode = QueryInput::choice($request, 'shift_code', $shifts->codes(), $current['code']);
 
         return [
             'work_date' => $workDate,
             'shift_code' => $shiftCode,
             'shift' => $shifts->describe($shiftCode),
-            'is_current' => $workDate === $shifts->today() && $shiftCode === $current['code'],
+            'is_current' => $workDate === $shifts->operationalDate() && $shiftCode === $current['code'],
         ];
     }
 

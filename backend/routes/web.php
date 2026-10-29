@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\P0Controller;
 use App\Http\Controllers\Admin\PasilaController;
 use App\Http\Controllers\Admin\ReviewController;
 use App\Http\Controllers\Admin\RowController;
+use App\Http\Controllers\Admin\ShiftQuotaController;
 use App\Http\Controllers\Admin\SpecialCaseController;
 use App\Http\Controllers\Admin\TeamWorkOrderController;
 use App\Http\Controllers\Admin\UserAccessController;
@@ -133,6 +134,10 @@ Route::prefix('admin')
         Route::get('/apkuk', [ApkukController::class, 'index'])->name('apkuk.index');
         Route::get('/apkuk/{apkuk}', [ApkukController::class, 'show'])->where('apkuk', '[0-9]{1,18}')->name('apkuk.show');
         Route::post('/apkuk/{apkuk}/section', [ApkukController::class, 'updateSection'])->where('apkuk', '[0-9]{1,18}')->name('apkuk.section.update');
+
+        // Kuota 6 WO APKUK per Posko per shift: monitoring, pratinjau, dan generate (terkunci pengaman aktivasi).
+        Route::get('/kuota-shift', [ShiftQuotaController::class, 'index'])->name('shift-quota.index');
+        Route::post('/kuota-shift/eksekusi', [ShiftQuotaController::class, 'run'])->name('shift-quota.run');
 
         Route::get('/pasila', [PasilaController::class, 'index'])->name('pasila.index');
         Route::get('/pasila/{posko}', [PasilaController::class, 'show'])->name('pasila.show');

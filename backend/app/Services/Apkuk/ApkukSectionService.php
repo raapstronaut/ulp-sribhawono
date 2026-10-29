@@ -108,11 +108,9 @@ final class ApkukSectionService
             $references[self::normalize($raw)] ??= ['value' => trim((string) preg_replace('/\s+/u', ' ', (string) $raw)), 'basis' => $basis];
         };
 
-        $sectionPic = self::sectionPicFeeders();
-        foreach ($sectionPic as $mapping) {
-            if (isset($mapping['feeders'][$penyulang])) {
-                $add($mapping['value'], ApkukSectionOverride::BASIS_SECTION_PIC);
-            }
+        $sectionPic = SectionPoskoMap::load();
+        foreach ($sectionPic->sectionsOf($penyulang) as $value) {
+            $add($value, ApkukSectionOverride::BASIS_SECTION_PIC);
         }
 
         DB::table('apkuks')
@@ -122,38 +120,12 @@ final class ApkukSectionService
             ->pluck('section')
             // Pemutus yang dikenal SECTION_PIC_RAW hanya berlaku untuk penyulang pemetaannya (yang cocok
             // sudah ditambahkan di atas); bila dipetakan ke penyulang lain, nilai sumber ini bertentangan.
-            ->reject(fn (?string $section) => isset($sectionPic[self::normalize($section)]))
+            ->reject(fn (?string $section) => $sectionPic->knows($section))
             ->each(fn (?string $section) => $add($section, ApkukSectionOverride::BASIS_SAME_PENYULANG));
 
         ksort($references);
 
         return $references;
-    }
-
-    /**
-     * Pemutus SECTION_PIC_RAW beserta penyulang canonical-nya. Kolom PENYULANG hanya terisi pada
-     * baris pertama tiap kelompok, sehingga diturunkan ke baris berikutnya (fill-down, urutan baris
-     * sumber); baris sebelum penyulang pertama tidak dipetakan.
-     *
-     * @return array<string, array{value: string, feeders: array<string, true>}>
-     */
-    private static function sectionPicFeeders(): array
-    {
-        $mapping = [];
-        $feeder = null;
-        foreach (DB::table('section_pic_source_rows')->orderBy('source_row_number')->orderBy('id')->get(['penyulang_raw', 'pemutus_raw']) as $row) {
-            if (trim((string) $row->penyulang_raw) !== '') {
-                $feeder = PenyulangName::canonical($row->penyulang_raw);
-            }
-            if ($feeder === null || self::isPlaceholder($row->pemutus_raw)) {
-                continue;
-            }
-            $key = self::normalize($row->pemutus_raw);
-            $mapping[$key]['value'] ??= trim((string) preg_replace('/\s+/u', ' ', (string) $row->pemutus_raw));
-            $mapping[$key]['feeders'][$feeder] = true;
-        }
-
-        return $mapping;
     }
 
     public function set(Apkuk $apkuk, User $admin, string $section, string $reason): ApkukSectionOverride

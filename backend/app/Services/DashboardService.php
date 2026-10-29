@@ -56,7 +56,7 @@ class DashboardService
     {
         $period = array_key_exists($period, self::PERIODS) ? $period : 'today';
         $now = CarbonImmutable::now(ShiftService::TIMEZONE);
-        $shift = $this->shiftService->current($now);
+        $shift = $this->shiftService->current($now) + ['operational_date' => $this->shiftService->operationalDate($now)];
         $from = match ($period) {
             '7d' => $now->subDays(6)->startOfDay(),
             '30d' => $now->subDays(29)->startOfDay(),
@@ -163,7 +163,7 @@ class DashboardService
     private function poskoStatuses(Collection $poskos, array $shift, CarbonImmutable $now): array
     {
         $rows = WorkOrder::query()->apkuk()
-            ->whereDate('work_date', $now->toDateString())
+            ->whereDate('work_date', $shift['operational_date'])
             ->where('shift_code', $shift['code'])
             ->where('status', '!=', WorkOrderStatus::Dibatalkan->value)
             ->select('posko_id', 'status', DB::raw('count(*) as total'))

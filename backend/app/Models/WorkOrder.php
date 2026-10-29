@@ -88,6 +88,7 @@ class WorkOrder extends Model
         'cancelled_at',
         'cancelled_by_user_id',
         'cancel_reason',
+        'generation_run_id',
     ];
 
     protected function casts(): array
@@ -116,6 +117,12 @@ class WorkOrder extends Model
     public function penyulang(): BelongsTo
     {
         return $this->belongsTo(Penyulang::class);
+    }
+
+    /** Eksekusi generator yang membuat WO ini (null untuk WO manual/limpahan). */
+    public function generationRun(): BelongsTo
+    {
+        return $this->belongsTo(ApkukGenerationRun::class, 'generation_run_id');
     }
 
     public function parent(): BelongsTo

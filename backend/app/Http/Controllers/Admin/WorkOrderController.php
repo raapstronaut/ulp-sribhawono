@@ -37,7 +37,8 @@ class WorkOrderController extends Controller
     public function index(Request $request, ShiftService $shiftService): View
     {
         $shift = $shiftService->current();
-        $today = $shiftService->today();
+        // WO ber-shift memakai tanggal operasional (Shift C setelah 00:00 milik hari operasional sebelumnya).
+        $today = $shiftService->operationalDate();
 
         // QueryInput mengabaikan nilai yang ditolak PostgreSQL (UUID/tanggal tidak valid, array).
         $filters = [
@@ -163,7 +164,7 @@ class WorkOrderController extends Controller
         $poskos = Posko::where('is_active', true)->orderBy('nama_posko')->get();
         $penyulangs = Penyulang::where('is_active', true)->orderBy('kode_penyulang')->get();
         $shift_options = array_map(fn (string $code) => $shiftService->describe($code), $shiftService->codes());
-        $default_work_date = $shiftService->today();
+        $default_work_date = $shiftService->operationalDate();
         $default_shift = $shiftService->current()['code'];
         $issue_labels = ApkukCandidateService::LABELS;
 

@@ -263,10 +263,12 @@ class ApkukWorkOrderTest extends TestCase
     {
         $id = $this->apkuk();
 
-        // Shift C on 20 Oct (00–08 WIB) already ended at 09:00.
+        // Hari operasional 20 Okt pukul 17:00 WIB: Shift A (08–16) sudah berakhir.
+        $this->travelTo(Carbon::create(2026, 10, 20, 17, 0, 0, 'Asia/Jakarta'));
         $this->actingAs($this->admin)
-            ->post(route('admin.work-orders.store'), $this->payload($id, ['shift_code' => 'C']))
+            ->post(route('admin.work-orders.store'), $this->payload($id, ['shift_code' => 'A']))
             ->assertSessionHasErrors('shift_code');
+        $this->travelTo(Carbon::create(2026, 10, 20, 9, 0, 0, 'Asia/Jakarta'));
         $this->actingAs($this->admin)
             ->post(route('admin.work-orders.store'), $this->payload($id, ['work_date' => '2026-10-19']))
             ->assertSessionHasErrors('work_date');
@@ -276,8 +278,9 @@ class ApkukWorkOrderTest extends TestCase
 
         $this->assertSame(0, WorkOrder::count());
 
+        // Shift C hari operasional 20 Okt = 21 Okt 00:00–08:00 WIB (keputusan 29 Okt 2026).
         $this->actingAs($this->admin)
-            ->post(route('admin.work-orders.store'), $this->payload($id, ['work_date' => '2026-10-21', 'shift_code' => 'C']))
+            ->post(route('admin.work-orders.store'), $this->payload($id, ['work_date' => '2026-10-20', 'shift_code' => 'C']))
             ->assertRedirect();
         $this->assertSame('2026-10-21 01:00:00', WorkOrder::sole()->due_at->utc()->format('Y-m-d H:i:s'));
     }

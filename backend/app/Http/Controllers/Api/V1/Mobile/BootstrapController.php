@@ -42,7 +42,7 @@ class BootstrapController extends Controller
                 'reference_codes' => $codes,
                 'issue_types' => collect(WorkOrderIssue::TYPE_LABELS)->map(fn ($label, $code) => ['code' => $code, 'label' => $label])->values()->all(),
                 'shifts' => array_map(fn (string $code) => $shifts->describe($code), $shifts->codes()),
-                'current_shift' => $shifts->current(),
+                'current_shift' => $shifts->current() + ['operational_date' => $shifts->operationalDate()],
                 'penyulangs' => Penyulang::query()->where('is_active', true)->orderBy('kode_penyulang')
                     ->get(['id', 'kode_penyulang', 'nama_penyulang'])
                     ->map(fn ($p) => ['id' => $p->getKey(), 'code' => $p->kode_penyulang, 'name' => $p->nama_penyulang])->all(),

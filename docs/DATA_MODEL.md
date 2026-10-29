@@ -30,6 +30,7 @@
 | Pivot | posko_penyulang | Migration + sync |
 | Auth | users, password_reset_tokens, sessions | Default Laravel skeleton, belum RBAC final |
 | Operasional | work_orders, work_order_apkuk_targets, work_order_status_logs, work_order_reschedules, work_order_reports, work_order_report_personnel, work_order_media | Migration 20 Okt 2026 (branch `feat/workflows-v3-foundation`); WO APKUK manual Admin aktif. Status: DITUGASKAN, DIKERJAKAN, MENUNGGU_VERIFIKASI, RESCHEDULE_DIAJUKAN, DIJADWALKAN_ULANG, SELESAI, SELESAI_DITERUSKAN, DIBATALKAN; "terlambat" dihitung dari `due_at` WO aktif |
+| Shift & generator | shift_instances, apkuk_generation_runs, apkuk_shift_allocations, work_orders.generation_run_id | Migration Batch B2 (29 Okt 2026, belum di production): identitas shift per hari operasional, log pratinjau/generate (ringkasan per Posko, kandidat ditahan, rincian kategori laporan `breakdown`), alokasi kuota per Posko per shift (beku setelah generate), provenance WO SYSTEM |
 | Koreksi data | apkuk_section_overrides | Migration Batch B1 (29 Okt 2026, belum di production): koreksi Section internal Admin untuk laporan APKUK ber-Section kosong/DUMMY; nilai sumber `apkuks.section` tidak diubah, riwayat di `audit_logs` |
 
 Checkpoint historis: 6 Posko, 16 Penyulang, 26 relasi. Snapshot raw angka dapat berubah setelah reimport; 73 tests / 274 assertions adalah laporan sebelumnya, bukan hasil re-run pada revisi ini.
@@ -107,7 +108,7 @@ Tabel polimorfik di atas **desain logis**, bukan nama final yang memaksa impleme
 **P0 proposal:** MENUNGGU_ACC / DITOLAK / DISETUJUI lalu executable states; Admin manual aktif sesuai validasi. Reject SYSTEM mensyaratkan pengganti manual.
 **Sync local:** QUEUED / SENDING / ACKNOWLEDGED / RETRYABLE_ERROR / ACTION_REQUIRED dengan request_id/idempotency_key.
 **Identitas sumber (keputusan 28 Okt 2026):** target ROW memakai **ID POHON** (unik 16.983/16.983 pada snapshot 28 Okt), bukan ID baris staging. Laporan APKUK yang hilang dari snapshot SPS BOS valid berstatus pending/histori (`source_missing_at`), tidak dihapus.
-**Uniqueness:** shift_instance unik posko+work_date+shift; generator PASILA/WO dan ROW harus idempotent terhadap job retry. Aturan carryover mengurangi kuota WO berikutnya **TBD**. Aturan persis deduplikasi satu vegetasi/multi siklus juga **TBD**, walaupun banyak titik dan WO per hari diperbolehkan.
+**Uniqueness:** shift_instance unik operational_date+shift (alokasi generator unik shift+Posko); generator PASILA/WO dan ROW harus idempotent terhadap job retry. Limpahan sah dihitung dalam kuota enam shift penerima (keputusan 29 Okt 2026). WO manual Admin juga menempati kuota dan ditolak bila shift penuh; hanya limpahan sah yang boleh melebihi enam. Penegakannya memakai kunci advisory kuota per shift, bukan constraint tabel. Aturan persis deduplikasi satu vegetasi/multi siklus juga **TBD**, walaupun banyak titik dan WO per hari diperbolehkan.
 
 # 8. Index & query
 

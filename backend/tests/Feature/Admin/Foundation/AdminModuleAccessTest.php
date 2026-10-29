@@ -72,7 +72,8 @@ class AdminModuleAccessTest extends FoundationTestCase
         $this->assertStringNotContainsString('modul belum tersedia', $html);
         $this->assertStringNotContainsString('Modul lainnya belum tersedia', $html);
         $this->assertStringContainsString('id="mobile-sidebar"', $html);
-        $this->assertCount(17, AdminNavigation::routeNames());
+        // 18 menu: + Kuota Shift APKUK (Batch B2).
+        $this->assertCount(18, AdminNavigation::routeNames());
     }
 
     public function test_current_module_is_marked_active_in_navigation(): void

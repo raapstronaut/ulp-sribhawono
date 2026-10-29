@@ -101,7 +101,8 @@ Server idempotent pada retry. API harus mengembalikan konflik workflow 409 dan v
 - **Pengiriman ulang:** request dengan `client_request_id` yang sama mengembalikan record semula dengan `meta.idempotent_replay: true`, termasuk bila dua request datang bersamaan.
 - **Kunci dipakai ulang:** kunci yang dipakai untuk WO atau tim lain, atau untuk isi yang berbeda, ditolak dengan 422 pada `client_request_id`. Isi mencakup catatan, koordinat, waktu kejadian, petugas, dan SHA-256 foto. Outbox wajib mengirim ulang payload dan file yang sama persis.
 - **Waktu kejadian:** `occurred_at` tanpa offset dibaca sebagai WIB dan disimpan sebagai UTC.
-- **Mulai pekerjaan:** `start` pada WO yang sudah DIKERJAKAN mengembalikan 200. Jika offline, tombol submit mobile menjamin **local persistence**, bukan keberhasilan server. Background worker mengirim otomatis saat memungkinkan menurut kebijakan Android.
+- **Mulai pekerjaan:** `start` pada WO yang sudah DIKERJAKAN mengembalikan 200.
+- **Bootstrap:** `current_shift` menyertakan `operational_date`, dan `work_date` WO ber-shift adalah tanggal operasional. Hari operasional dimulai 08:00 WIB, sehingga Shift C setelah tengah malam memakai tanggal kemarin (Batch B2). Jika offline, tombol submit mobile menjamin **local persistence**, bukan keberhasilan server. Background worker mengirim otomatis saat memungkinkan menurut kebijakan Android.
 
 Koreksi oleh ADMIN wajib reason; catat old/new/actor/timestamp dan jangan hard-delete history. Role lain dilarang mengubah catatan canonical setelah diterima.
 
