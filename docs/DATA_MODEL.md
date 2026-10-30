@@ -60,7 +60,7 @@ Belum diputuskan: tipe teknis serial aset per kategori, master referensi kode fi
 |---|---|---|
 | work_orders | id, source, team_type, work_type, target_asset_id/vegetation_id, section_id, penyulang_id, posko_id, shift_instance_id nullable, due_at, status, parent_wo_id nullable | POSKO APKUK; HARSUS PEKERJAAN_KHUSUS; ROW RABAS/PANGKAS/TEBANG |
 | work_order_results | work_order_id, action_code, physical_apkuk_quantity nullable, outcome, occurred_at, received_at | Jumlah APKUK fisik bukan jumlah WO |
-| pasila_sessions | id, posko_id, section_id, penyulang_id, shift_instance_id, source SYSTEM/ADMIN, recommendation_rank, status | Auto dibuat awal shift; penambahan manual terkontrol |
+| pasila_sessions | **Dibangun B3.1:** id, code, shift_instance_id, posko_id, status, section_status (MENUNGGU_PENENTUAN/REKOMENDASI_SISTEM/DITETAPKAN_ADMIN), penyulang_id, section_key, section_name, section_hold_reason, recommendation (json), penetapan Admin, opened_at/trigger | Unik per shift_instance + Posko; dibuka awal shift; Section hanya dari `SectionPoskoMap` (kontrak: SECTION_REFERENCE_CONTRACT.md) |
 | pasila_findings | id, pasila_id, asset_id nullable, lat/lon, code, status, occurred_at | **Satu temuan satu GPS/foto/petugas** |
 | p0 | id, pasila_id, asset_id, source SYSTEM/ADMIN, approval_status, status, reject/replacement link | Executor POSKO; Section/Posko diwarisi dari PASILA |
 | p0_petugas | p0_id, petugas_id | Petugas aktual; bukan akun login |
@@ -115,7 +115,7 @@ Tabel polimorfik di atas **desain logis**, bukan nama final yang memaksa impleme
 - assets(penyulang_id,asset_type,section_id), external IDs unique under source/namespace; spatial index bila PostGIS digunakan.
 - disturbance_events(penyulang_id,occurred_at) dan affected_assets(asset_id).
 - work_orders(team_type,work_type,status,due_at), (posko_id,shift_instance_id).
-- pasila_sessions(shift_instance_id), pasila_findings(pasila_id).
+- pasila_sessions unique(shift_instance_id, posko_id) dan (posko_id, section_key) untuk rotasi; pasila_findings(pasila_session_id).
 - p0(pasila_id,approval_status,status).
 - media_attachments(asset_id,captured_at) dan asset_history_events(asset_id,occurred_at).
 - approvals(kind,decision,created_at), work_escalations(admin_decision).

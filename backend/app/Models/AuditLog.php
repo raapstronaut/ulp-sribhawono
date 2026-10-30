@@ -62,6 +62,7 @@ class AuditLog extends Model
         'apkuk_reconciliation_item' => 'Antrean rekonsiliasi APKUK',
         'apkuk_reconciliation' => 'Rekonsiliasi APKUK massal (CLI)',
         'apkuk_section_override' => 'Koreksi Section APKUK',
+        'pasila_session' => 'Sesi PASILA',
     ];
 
     protected $fillable = [

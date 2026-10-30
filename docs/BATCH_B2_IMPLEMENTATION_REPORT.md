@@ -3,7 +3,7 @@
 
 - **Tanggal:** 29 Oktober 2026
 - **Branch:** `feat/admin-web-foundation-v1` (PR #10, tetap OPEN), basis `2308c4f` (B1)
-- **Status kode B2:** **di-commit lokal** di branch ini (belum di-push ke PR #10). Tidak ada push, merge, deploy, migration production, perubahan Railway, maupun perubahan Google Sheets.
+- **Status kode B2:** commit `3187a12`, di-push ke PR #10 (tetap OPEN, belum di-merge). Tidak ada merge, deploy, migration production, perubahan Railway, maupun perubahan Google Sheets.
 - **Final review B2 (29 Okt 2026):** selesai. Pengaman aktivasi kini fail-closed, pratinjau konsisten dengan alokasi beku, dan rincian alasan laporan tercatat. Lihat §17.
 - **Perbaikan konkurensi kuota (29 Okt 2026):** WO manual Admin dan pemindahan jadwal APKUK oleh Admin kini memeriksa kuota enam di bawah kunci kuota shift yang sama dengan generator. Total tidak lagi bisa menjadi 7 kecuali karena limpahan sah. Lihat §18.
 - **Status operasional:** fondasi siap diuji lokal. GENERATE hanya dapat berjalan di APP_ENV `local`/`testing` dengan database lokal; semua lingkungan lain (production, `neon`, `workflows`, dan lainnya) selalu ditolak. Generator **tidak boleh dinyatakan siap operasional** sebelum model ML terlatih dan tervalidasi serta prosedur readiness tersedia.

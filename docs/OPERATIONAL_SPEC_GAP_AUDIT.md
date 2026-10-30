@@ -6,7 +6,7 @@
 - **Jenis:** audit teknis + penyelarasan spesifikasi. Tidak ada perubahan kode aplikasi, migration, data production, Railway, maupun Google Sheets.
 - **Status bukti:** kode dibaca langsung; tes dijalankan ulang pada sesi ini; data production dibaca **read-only** (lihat §2.3).
 - **Dokumen pendamping:** `docs/WEB_ADMIN_DATA_FIELD_AUDIT.md` (provenance per field, baseline audit ini).
-- **Pembaruan 29 Okt 2026 — Batch B2 (commit lokal, belum di-push):**
+- **Pembaruan 29 Okt 2026 — Batch B2 (commit `3187a12`, di-push ke PR #10):**
   - Keputusan pengguna menyelesaikan TBD-1 (hari operasional mulai 08:00), TBD-2 (limpahan sah masuk kuota), TBD-5 (kekurangan dicatat, tanpa data fiktif), dan TBD-6 (Posko hanya dari SECTION_PIC_RAW terverifikasi).
   - Dibangun: `shift_instances`, generator 6 WO APKUK idempoten, dan halaman Kuota Shift APKUK dengan rincian alasan laporan. Strateginya baseline rule-based. GENERATE fail-closed: hanya `local`/`testing` dengan database lokal, dan semua lingkungan operasional ditolak sampai model ML dan prosedur readiness siap.
   - Kuota: WO manual Admin ikut menempati kuota enam dan ditolak bila shift penuh. Generator dan WO manual memegang kunci kuota shift yang sama; hanya limpahan sah yang boleh melebihi enam. Catatan §9 tentang `ApkukSyncLock::shared()` pada WO manual menggambarkan keadaan sebelum B2.

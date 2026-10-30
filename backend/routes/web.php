@@ -139,7 +139,10 @@ Route::prefix('admin')
         Route::get('/kuota-shift', [ShiftQuotaController::class, 'index'])->name('shift-quota.index');
         Route::post('/kuota-shift/eksekusi', [ShiftQuotaController::class, 'run'])->name('shift-quota.run');
 
+        // Sesi PASILA per Posko per shift: monitor, buka sesi shift berjalan (terkunci flag), tetapkan Section.
         Route::get('/pasila', [PasilaController::class, 'index'])->name('pasila.index');
+        Route::post('/pasila/buka-shift', [PasilaController::class, 'open'])->name('pasila.open');
+        Route::post('/pasila/sesi/{pasilaSession}/section', [PasilaController::class, 'assignSection'])->whereUuid('pasilaSession')->name('pasila.section');
         Route::get('/pasila/{posko}', [PasilaController::class, 'show'])->name('pasila.show');
 
         Route::get('/inspeksi', [InspectionController::class, 'index'])->name('inspeksi.index');

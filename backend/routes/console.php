@@ -51,3 +51,17 @@ if (config('apkuk.generator.enabled')) {
         ->withoutOverlapping(30)
         ->appendOutputTo(storage_path('logs/apkuk-generator.log'));
 }
+
+// =====================================
+// PEMBUKA SESI PASILA PER SHIFT (Batch B3.1)
+// Hanya terdaftar bila PASILA_OPENER_ENABLED=true (default false). Dijalankan tepat pada awal
+// shift dan diulang tiap 15 menit: idempoten, sehingga eksekusi yang terlewat atau terlambat
+// tetap membuka sesi shift berjalan (keterlambatan tercatat). Belum diaktifkan di production.
+// =====================================
+if (config('pasila.opener.enabled')) {
+    Schedule::command('pasila:open-shift --trigger=SCHEDULER')
+        ->cron('0,15,30,45 * * * *')
+        ->timezone('Asia/Jakarta')
+        ->withoutOverlapping(10)
+        ->appendOutputTo(storage_path('logs/pasila-opener.log'));
+}

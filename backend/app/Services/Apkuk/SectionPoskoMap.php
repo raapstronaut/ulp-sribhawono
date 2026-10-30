@@ -2,6 +2,7 @@
 
 namespace App\Services\Apkuk;
 
+use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Support\PenyulangName;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,10 @@ use Illuminate\Support\Facades\DB;
  * SyncCoreTopologyMasters; baris sebelum penyulang pertama tidak dipetakan. Posko hanya diambil
  * dari pemetaan yang terbukti tunggal; tidak pernah ditebak dari penyulang (satu penyulang dapat
  * dilayani beberapa Posko). Nilai sumber tidak diubah.
+ *
+ * Satu-satunya sumber kepemilikan Section → Posko untuk generator APKUK (B2) dan PASILA (B3).
+ * Kepemilikan tetap selama referensinya tetap; satu Posko boleh memegang banyak Section pada
+ * banyak penyulang. Format data resmi: docs/SECTION_REFERENCE_CONTRACT.md.
  */
 final class SectionPoskoMap
 {
@@ -53,14 +58,27 @@ final class SectionPoskoMap
     /**
      * @param  array<string, array{value: string, feeders: array<string, array<string, true>>}>  $sections  section ternormalisasi
      * @param  array<string, Posko>  $poskos  nama Posko ternormalisasi
+     * @param  array<string, Penyulang>  $penyulangs  nama penyulang canonical master aktif
      */
-    private function __construct(private readonly array $sections, private readonly array $poskos) {}
+    private function __construct(private readonly array $sections, private readonly array $poskos, private readonly array $penyulangs) {}
 
     public static function load(): self
     {
+        return self::fromRows(DB::table('section_pic_source_rows')->orderBy('source_row_number')->orderBy('id')->get(['penyulang_raw', 'pemutus_raw', 'posko_pic_raw']));
+    }
+
+    /**
+     * Pemetaan dari baris berformat SECTION_PIC_RAW (penyulang_raw, pemutus_raw, posko_pic_raw) urut
+     * baris sumber, mis. berkas calon data resmi yang divalidasi sebelum diimport. Master Posko dan
+     * Penyulang tetap dibaca dari database.
+     *
+     * @param  iterable<int, object{penyulang_raw: ?string, pemutus_raw: ?string, posko_pic_raw: ?string}>  $rows
+     */
+    public static function fromRows(iterable $rows): self
+    {
         $sections = [];
         $feeder = null;
-        foreach (DB::table('section_pic_source_rows')->orderBy('source_row_number')->orderBy('id')->get(['penyulang_raw', 'pemutus_raw', 'posko_pic_raw']) as $row) {
+        foreach ($rows as $row) {
             if (trim((string) $row->penyulang_raw) !== '') {
                 $feeder = PenyulangName::canonical($row->penyulang_raw);
             }
@@ -78,7 +96,73 @@ final class SectionPoskoMap
             $poskos[self::poskoKey($posko->kode_posko)] ??= $posko;
         }
 
-        return new self($sections, $poskos);
+        $penyulangs = [];
+        foreach (Penyulang::query()->where('is_active', true)->get() as $penyulang) {
+            foreach (PenyulangName::sourceNames($penyulang) as $name) {
+                $penyulangs[PenyulangName::canonical($name)] ??= $penyulang;
+            }
+        }
+
+        return new self($sections, $poskos, $penyulangs);
+    }
+
+    /**
+     * Seluruh referensi Section: satu entri per Section per penyulang sumber, dengan Posko
+     * penanggung jawab atau alasan ditahan. Urut penyulang lalu Section.
+     *
+     * @return array<int, array{key: string, section: string, penyulang: string, penyulang_model: ?Penyulang, posko: ?Posko, reason: ?string, posko_pic: array<int, string>}>
+     */
+    public function entries(): array
+    {
+        $entries = [];
+        foreach ($this->sections as $key => $section) {
+            foreach ($section['feeders'] as $feeder => $pics) {
+                $penyulang = $this->penyulangs[$feeder] ?? null;
+                $result = $penyulang === null
+                    ? ['posko' => null, 'reason' => self::REASON_PENYULANG_TIDAK_DIKENAL]
+                    : $this->resolve($feeder, $section['value']);
+                $entries[] = [
+                    'key' => (string) $key,
+                    'section' => $section['value'],
+                    'penyulang' => (string) $feeder,
+                    'penyulang_model' => $penyulang,
+                    'posko' => $result['posko'],
+                    'reason' => $result['reason'],
+                    'posko_pic' => array_values(array_filter(array_map('strval', array_keys($pics)), fn (string $pic) => $pic !== '')),
+                ];
+            }
+        }
+        usort($entries, fn (array $a, array $b) => [$a['penyulang'], $a['section']] <=> [$b['penyulang'], $b['section']]);
+
+        return $entries;
+    }
+
+    /**
+     * Section terverifikasi milik satu Posko (bisa dari beberapa penyulang).
+     *
+     * @return array<int, array{key: string, section: string, penyulang: string, penyulang_model: ?Penyulang, posko: ?Posko, reason: ?string, posko_pic: array<int, string>}>
+     */
+    public function sectionsForPosko(string $poskoId): array
+    {
+        return array_values(array_filter($this->entries(), fn (array $entry) => $entry['posko']?->getKey() === $poskoId));
+    }
+
+    /**
+     * Referensi untuk satu Section (nilai bebas, dinormalisasi). Section yang tercatat di lebih dari
+     * satu penyulang selalu berstatus ditahan, sehingga entri mana pun mewakili alasannya.
+     *
+     * @return array{key: string, section: string, penyulang: string, penyulang_model: ?Penyulang, posko: ?Posko, reason: ?string, posko_pic: array<int, string>}|null
+     */
+    public function entry(?string $section): ?array
+    {
+        $key = ApkukSectionService::normalize($section);
+        foreach ($this->entries() as $entry) {
+            if ($entry['key'] === $key) {
+                return $entry;
+            }
+        }
+
+        return null;
     }
 
     /**

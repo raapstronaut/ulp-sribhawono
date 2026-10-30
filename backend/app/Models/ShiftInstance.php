@@ -63,6 +63,11 @@ class ShiftInstance extends Model
         return $this->hasMany(ApkukShiftAllocation::class);
     }
 
+    public function pasilaSessions(): HasMany
+    {
+        return $this->hasMany(PasilaSession::class);
+    }
+
     public function label(): string
     {
         return 'Shift '.$this->shift_code.' · hari operasional '.$this->operational_date->format('d/m/Y');

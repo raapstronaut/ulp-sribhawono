@@ -28,7 +28,7 @@ class WorkModulesTest extends FoundationTestCase
         $this->pugung->penyulangs()->attach($this->reog->id);
     }
 
-    public function test_pasila_monitor_shows_real_shift_context_and_marks_pasila_domain_unavailable(): void
+    public function test_pasila_monitor_shows_real_shift_context_and_honest_state_without_sessions(): void
     {
         $this->makeWorkOrder(['posko_id' => $this->pugung->id, 'status' => WorkOrderStatus::Selesai, 'completed_at' => now()]);
         $active = $this->makeWorkOrder(['posko_id' => $this->pugung->id]);
@@ -46,12 +46,13 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.pasila.index'))
             ->assertOk()
-            ->assertSee('Domain PASILA belum dibangun')
             ->assertSee('Shift A · Pagi')
             ->assertSee('PUGUNG')
             ->assertSee('JABUNG')
-            ->assertSeeInOrder(['PUGUNG', '1 / 6', '2 WO tercatat · 1 aktif', '1 menunggu'])
-            ->assertSee('Buat PASILA')
+            // Tanpa sesi tercatat: status sesi, WO APKUK, dan P0 tetap kolom terpisah.
+            ->assertSeeInOrder(['PUGUNG', 'Belum dibuka', 'Pembuka sesi belum dijalankan untuk shift berjalan.', '1 / 6', '2 WO tercatat · 1 aktif', '1 menunggu', 'Belum aktif'])
+            ->assertSee('Buka sesi shift berjalan')
+            ->assertSee('PASILA_OPENER_ENABLED=false')
             ->assertSee('aria-disabled="true"', false)
             ->assertSee(route('admin.pasila.show', ['posko' => $this->pugung, 'work_date' => '2026-10-20', 'shift_code' => 'A']));
     }
@@ -99,7 +100,10 @@ class WorkModulesTest extends FoundationTestCase
             ->assertSee('REOG')
             ->assertSee('Buat P0 dari PASILA')
             ->assertSee('P0 wajib dibuat dari sesi PASILA yang valid')
-            ->assertSee('Sesi PASILA &amp; Section', false);
+            ->assertSee('Sesi PASILA shift ini')
+            ->assertSee('Belum ada sesi PASILA.')
+            ->assertSee('Tersedia setelah sesi PASILA shift ini dibuka.')
+            ->assertSee('Belum ada Section terverifikasi.');
     }
 
     public function test_pasila_detail_returns_404_for_unknown_posko(): void

@@ -5,15 +5,16 @@ namespace App\Console\Commands;
 use App\Models\AssetSourceRow;
 use App\Models\SectionPicSourceRow;
 use App\Models\VegetasiSourceRow;
-use Google\Client;
-use Google\Service\Sheets;
+use App\Services\Apkuk\SectionPoskoMap;
+use App\Services\GoogleSheetValues;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class ImportSourceSheets extends Command
 {
     protected $signature = 'sources:import
-                            {--replace : Hapus data staging lama sebelum import}';
+                            {--replace : Hapus data staging lama sebelum import}
+                            {--only=* : Hanya sheet tertentu (ASSET_RAW, VEGETASI_RAW, SECTION_PIC_RAW); default semua}';
 
     protected $description = 'Import ASSET_RAW, VEGETASI_RAW, SECTION_PIC_RAW, KEYPOINT_RAW dari Google Sheets ke PostgreSQL';
 
@@ -22,8 +23,17 @@ class ImportSourceSheets extends Command
      */
     private const BATCH_SIZE = 500;
 
-    public function handle(): int
+    public function handle(GoogleSheetValues $sheets): int
     {
+        // Divalidasi sebelum menghubungi Google agar salah ketik tidak mengimport (atau --replace) semua sheet.
+        $known = array_column($this->sourceDefinitions(), 'sheet');
+        $only = array_values(array_unique(array_map(fn ($sheet) => mb_strtoupper(trim((string) $sheet)), (array) $this->option('only'))));
+        if ($unknown = array_diff($only, $known)) {
+            $this->error('Sheet tidak dikenal untuk --only: '.implode(', ', $unknown).'. Pilihan: '.implode(', ', $known).'.');
+
+            return self::FAILURE;
+        }
+
         $credentialsPath = config('services.google_sheets.credentials_path');
         $spreadsheetId = config('services.google_sheets.spreadsheet_id');
 
@@ -39,24 +49,13 @@ class ImportSourceSheets extends Command
             return self::FAILURE;
         }
 
-        try {
-            $client = new Client();
-            $client->setAuthConfig($credentialsPath);
-            $client->setScopes([
-                Sheets::SPREADSHEETS_READONLY,
-            ]);
-
-            $service = new Sheets($client);
-        } catch (\Throwable $e) {
-            $this->error('Gagal menginisialisasi Google Sheets client: '.$e->getMessage());
-
-            return self::FAILURE;
-        }
-
         $hasError = false;
 
         foreach ($this->sourceDefinitions() as $definition) {
-            if (! $this->importSource($service, $spreadsheetId, $definition)) {
+            if ($only !== [] && ! in_array($definition['sheet'], $only, true)) {
+                continue;
+            }
+            if (! $this->importSource($sheets, $credentialsPath, $spreadsheetId, $definition)) {
                 $hasError = true;
             }
         }
@@ -149,7 +148,7 @@ class ImportSourceSheets extends Command
      * Jika fetch/validasi gagal → tidak ada perubahan DB.
      * Jika insert gagal → rollback, data lama tetap utuh.
      */
-    private function importSource(Sheets $service, string $spreadsheetId, array $definition): bool
+    private function importSource(GoogleSheetValues $sheets, string $credentialsPath, string $spreadsheetId, array $definition): bool
     {
         $sheetName = $definition['sheet'];
         $modelClass = $definition['model'];
@@ -165,18 +164,14 @@ class ImportSourceSheets extends Command
 
         // ─── Phase 1: Fetch dari Google Sheets ───
 
+        // Pembaca read-only (scope SPREADSHEETS_READONLY); command ini tidak pernah menulis ke Google Sheets.
         try {
-            $response = $service->spreadsheets_values->get(
-                $spreadsheetId,
-                "{$sheetName}!A:ZZ"
-            );
+            $allRows = $sheets->get($credentialsPath, $spreadsheetId, "{$sheetName}!A:ZZ");
         } catch (\Throwable $e) {
             $this->error("Gagal membaca sheet \"{$sheetName}\": {$e->getMessage()}");
 
             return false;
         }
-
-        $allRows = $response->getValues() ?? [];
 
         if ($allRows === []) {
             $this->error("Sheet \"{$sheetName}\" kosong.");
@@ -254,6 +249,10 @@ class ImportSourceSheets extends Command
             return true;
         }
 
+        if ($modelClass === SectionPicSourceRow::class && ! $this->guardSectionReferences($buffer)) {
+            return false;
+        }
+
         // ─── Phase 4: Atomic DB transaction ───
 
         try {
@@ -294,6 +293,54 @@ class ImportSourceSheets extends Command
 
             return false;
         }
+    }
+
+    /**
+     * Pengaman SECTION_PIC_RAW, satu-satunya sumber kepemilikan Section → Posko
+     * (docs/SECTION_REFERENCE_CONTRACT.md). Dijalankan sebelum transaksi; bila menolak, staging lama utuh.
+     *
+     * - Tab ini snapshot utuh: bila staging sudah berisi, wajib --replace. Tanpa --replace baris baru
+     *   bercampur dengan baris lama menurut nomor baris sumber, sehingga pewarisan PENYULANG (fill-down)
+     *   menjadi salah dan baris tergandakan.
+     * - Isi baru yang tidak menghasilkan satu pun Section terverifikasi tidak menggantikan referensi lama
+     *   yang masih memiliki Section terverifikasi (mis. kolom tertukar tetapi header benar).
+     * - Section yang tidak lagi terverifikasi atau berganti Posko dicetak untuk ditinjau.
+     *
+     * @param  list<array<string, mixed>>  $buffer  baris baru urut baris sumber
+     */
+    private function guardSectionReferences(array $buffer): bool
+    {
+        if (! $this->option('replace') && SectionPicSourceRow::query()->exists()) {
+            $this->error('SECTION_PIC_RAW adalah snapshot satu tab dan staging sudah berisi: jalankan dengan --replace. Referensi lama tidak diubah.');
+
+            return false;
+        }
+
+        $verified = fn (SectionPoskoMap $map) => collect($map->entries())
+            ->whereNotNull('posko')
+            ->mapWithKeys(fn (array $entry) => [$entry['section'].' ('.$entry['penyulang'].')' => $entry['posko']->nama_posko])
+            ->all();
+        $before = $verified(SectionPoskoMap::load());
+        $after = $verified(SectionPoskoMap::fromRows(array_map(fn (array $row) => (object) $row, $buffer)));
+
+        if ($after === [] && $before !== []) {
+            $this->error('Isi SECTION_PIC_RAW baru tidak menghasilkan satu pun Section terverifikasi; '.count($before).' referensi lama dipertahankan. Validasi dulu dengan: php artisan pasila:section-references --file=<berkas.csv>');
+
+            return false;
+        }
+
+        $this->line('Section terverifikasi: sebelum '.count($before).', sesudah '.count($after).'.');
+        foreach (array_diff_key($before, $after) as $section => $posko) {
+            $this->warn("  Tidak lagi terverifikasi: {$section}, sebelumnya Posko {$posko}");
+        }
+        foreach (array_intersect_key($after, $before) as $section => $posko) {
+            if ($before[$section] !== $posko) {
+                // Hanya ASCII: keluaran CLI di lingkungan ini membuang karakter non-ASCII seperti panah.
+                $this->warn("  Berganti Posko: {$section}, dari {$before[$section]} ke {$posko}");
+            }
+        }
+
+        return true;
     }
 
     /**
