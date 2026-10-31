@@ -3,7 +3,7 @@
 
 - **Tanggal:** 30 Oktober 2026
 - **Branch:** `feat/admin-web-foundation-v1` (PR #10, tetap OPEN), basis `3187a12` (B2)
-- **Status kode:** commit lokal di branch ini (belum di-push). Tidak ada push, merge, deploy, migration production, perubahan Railway, maupun perubahan Google Sheets.
+- **Status kode:** commit `24af20a`, di-push ke PR #10 (belum di-merge). Tidak ada merge, deploy, migration production, perubahan Railway, maupun perubahan Google Sheets.
 - **Status operasional:** pembuka sesi PASILA **nonaktif secara default** (`PASILA_OPENER_ENABLED=false`) dan scheduler-nya tidak terdaftar. Temuan per titik (B3.2) dan P0 (B3.3) belum dibangun.
 
 ## 1. Keputusan pengguna yang diterapkan (30 Okt 2026)

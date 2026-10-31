@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\FieldTeam;
 use App\Models\PasilaSession;
 use App\Models\Posko;
+use App\Models\ReferenceCode;
 use App\Models\ShiftInstance;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderReschedule;
@@ -28,7 +29,8 @@ use Illuminate\View\View;
 /**
  * Monitor PASILA per Posko dan shift (Batch B3.1).
  *
- * Tiga hal ditampilkan terpisah: sesi PASILA (pasila_sessions), status WO APKUK shift yang sama
+ * Ditampilkan terpisah: sesi PASILA (pasila_sessions), laporan patroli (temuan per titik dan laporan
+ * nihil dari aplikasi POSKO, B3.2; Admin hanya melihat), status WO APKUK shift yang sama
  * (work_orders), dan kewajiban P0 (belum aktif, B3.3). Section sesi berasal dari referensi
  * terverifikasi SectionPoskoMap; Admin dapat menentukan/mengganti Section hanya ke Section milik
  * Posko tersebut.
@@ -121,6 +123,11 @@ class PasilaController extends Controller
 
         $session = $load->attempt('sessions', fn () => $this->sessionsFor($context)->get($posko->id));
         $map = $load->attempt('sections', fn () => SectionPoskoMap::load());
+        $findings = $session ? $load->attempt('findings', fn () => $session->findings()
+            ->with(['media', 'personnel', 'submittedBy:id,name,username', 'submittedByTeam:id,code,name', 'keypoint:id,nama,jenis', 'penyulang:id,kode_penyulang,nama_penyulang'])
+            ->orderBy('sequence')
+            ->get(), collect()) : collect();
+        $nilReport = $session ? $load->attempt('nil_report', fn () => $session->nilReport()->with(['personnel', 'submittedBy:id,name,username', 'supersededBy:id,sequence'])->first()) : null;
         $sections = $map ? $map->sectionsForPosko($posko->getKey()) : [];
         $lastAssigned = $load->attempt('history', fn () => PasilaSession::query()
             ->join('shift_instances as s', 's.id', '=', 'pasila_sessions.shift_instance_id')
@@ -141,6 +148,11 @@ class PasilaController extends Controller
             'sectionCheck' => $session && $map ? $this->sectionCheck($map, $session) : null,
             'sections' => $sections,
             'sectionOptions' => collect($sections)->mapWithKeys(fn (array $entry) => [$entry['section'] => $entry['section'].' — '.$entry['penyulang']])->all(),
+            'findings' => $findings,
+            // Section temuan yang tidak lagi terverifikasi milik Posko ini pada referensi terkini (data dicatat apa adanya).
+            'findingSectionNotes' => $map ? $findings->mapWithKeys(fn ($finding) => [$finding->id => $this->sectionNote($map, $finding->section_key, $posko->getKey())])->filter()->all() : [],
+            'findingCodeLabels' => $load->attempt('codes', fn () => ReferenceCode::query()->where('category', ReferenceCode::CATEGORY_PASILA_FINDING)->pluck('label', 'code')->all(), []),
+            'nilReport' => $nilReport,
             'lastAssigned' => $lastAssigned,
             'penyulangs' => $load->attempt('penyulangs', fn () => $posko->penyulangs()->orderBy('kode_penyulang')->get(), collect()),
             'fieldTeams' => $load->attempt('teams', fn () => FieldTeam::query()
@@ -225,7 +237,10 @@ class PasilaController extends Controller
 
         return $instance === null
             ? collect()
-            : PasilaSession::query()->where('shift_instance_id', $instance->id)->with(['penyulang', 'shiftInstance', 'sectionSetBy:id,name,username', 'openedBy:id,name,username'])->get()->keyBy('posko_id');
+            : PasilaSession::query()->where('shift_instance_id', $instance->id)
+                ->with(['penyulang', 'shiftInstance', 'sectionSetBy:id,name,username', 'openedBy:id,name,username', 'nilReport'])
+                ->withCount('findings')
+                ->get()->keyBy('posko_id');
     }
 
     /**
@@ -238,18 +253,24 @@ class PasilaController extends Controller
         if (! $session->hasSection()) {
             return ['valid' => false, 'note' => null];
         }
-        $entry = $map->entry($session->section_key);
-        if ($entry === null) {
-            return ['valid' => false, 'note' => 'Section tidak lagi ada pada referensi SECTION_PIC_RAW terkini.'];
-        }
-        if ($entry['posko'] === null) {
-            return ['valid' => false, 'note' => 'Referensi terkini menahan Section ini: '.(SectionPoskoMap::LABELS[$entry['reason']] ?? $entry['reason']).'.'];
-        }
-        if ($entry['posko']->getKey() !== $session->posko_id) {
-            return ['valid' => false, 'note' => 'Referensi terkini mencatat Section ini milik Posko '.$entry['posko']->nama_posko.'.'];
-        }
+        $note = $this->sectionNote($map, $session->section_key, $session->posko_id);
 
-        return ['valid' => true, 'note' => null];
+        return ['valid' => $note === null, 'note' => $note];
+    }
+
+    /**
+     * Catatan bila Section (ternormalisasi) tidak lagi terverifikasi milik Posko pada referensi terkini.
+     */
+    private function sectionNote(SectionPoskoMap $map, string $sectionKey, string $poskoId): ?string
+    {
+        $entry = $map->entry($sectionKey);
+
+        return match (true) {
+            $entry === null => 'Section tidak lagi ada pada referensi SECTION_PIC_RAW terkini.',
+            $entry['posko'] === null => 'Referensi terkini menahan Section ini: '.(SectionPoskoMap::LABELS[$entry['reason']] ?? $entry['reason']).'.',
+            $entry['posko']->getKey() !== $poskoId => 'Referensi terkini mencatat Section ini milik Posko '.$entry['posko']->nama_posko.'.',
+            default => null,
+        };
     }
 
     private function shiftWorkOrders(array $context): Builder

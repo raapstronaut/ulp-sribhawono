@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Mobile\AuthController;
 use App\Http\Controllers\Api\V1\Mobile\BootstrapController;
 use App\Http\Controllers\Api\V1\Mobile\InspectionController;
+use App\Http\Controllers\Api\V1\Mobile\PasilaController;
 use App\Http\Controllers\Api\V1\Mobile\WorkOrderController;
 use Illuminate\Support\Facades\Route;
 
@@ -31,5 +32,11 @@ Route::prefix('v1/mobile')->name('api.mobile.')->group(function (): void {
 
         Route::get('/inspections', [InspectionController::class, 'index'])->name('inspections.index');
         Route::post('/inspections', [InspectionController::class, 'store'])->name('inspections.store');
+
+        // PASILA POSKO: sesi dibuat server; temuan per titik (satu per request) dan laporan nihil.
+        Route::get('/pasila', [PasilaController::class, 'index'])->name('pasila.index');
+        Route::get('/pasila/{pasilaSession}', [PasilaController::class, 'show'])->whereUuid('pasilaSession')->name('pasila.show');
+        Route::post('/pasila/{pasilaSession}/findings', [PasilaController::class, 'storeFinding'])->whereUuid('pasilaSession')->name('pasila.findings.store');
+        Route::post('/pasila/{pasilaSession}/nil-report', [PasilaController::class, 'storeNilReport'])->whereUuid('pasilaSession')->name('pasila.nil-report.store');
     });
 });

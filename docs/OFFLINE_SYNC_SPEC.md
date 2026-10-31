@@ -58,7 +58,7 @@ Rancang test perangkat nyata saat jaringan OFF→ON, task background, reboot, ba
 
 # 7. Offline per role
 
-**POSKO:** cached APKUK WO, PASILA shift, P0 yang sudah ACC, reschedule reason+manual note, temuan terpisah; setiap submit tercatat outbox. PASILA dibentuk server awal shift, sehingga tugas yang belum sempat didownload tidak dapat dibuat-buat lokal tanpa kontrak khusus.
+**POSKO:** cached APKUK WO, PASILA shift, P0 yang sudah ACC, reschedule reason+manual note, temuan terpisah; setiap submit tercatat outbox. PASILA dibentuk server awal shift, sehingga tugas yang belum sempat didownload tidak dapat dibuat-buat lokal tanpa kontrak khusus. Server B3.2: setiap temuan dan laporan nihil membawa `client_request_id` sendiri (kiriman ulang mengembalikan record yang sama; isi berbeda dengan kunci sama → 422). Kiriman yang tiba setelah shift berakhir diterima bila `occurred_at` di dalam jendela shift sesi. Temuan yang tiba setelah laporan nihil menggantikan laporan nihil, sedangkan laporan nihil untuk sesi yang sudah memiliki temuan ditolak 409.
 
 **HARSUS:** cached WO PEKERJAAN_KHUSUS dan target aset. Tidak ada P0 HARSUS.
 

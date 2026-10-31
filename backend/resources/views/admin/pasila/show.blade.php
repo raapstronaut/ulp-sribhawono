@@ -131,6 +131,77 @@
         </x-admin.panel>
     </div>
 
+    <x-admin.panel flush title="Laporan patroli & temuan per titik" description="Dicatat petugas POSKO lewat aplikasi: satu record per titik dengan Section, kode, uraian, GPS perangkat, waktu, foto, dan petugas sendiri. Daftar kosong tanpa laporan nihil berarti belum ada laporan patroli, bukan nihil.">
+        @if (! $session)
+            <div class="p-4 text-xs text-slate-500">Tersedia setelah sesi PASILA shift ini dibuka.</div>
+        @elseif ($load->failed('findings', 'nil_report'))
+            <x-admin.error-state />
+        @else
+            @php $patrol = $session->patrolStatus(); @endphp
+            <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3 text-xs" data-patrol-status="{{ $patrol }}">
+                <x-admin.status-badge :tone="[PasilaSession::PATROL_BELUM => 'slate', PasilaSession::PATROL_ADA_TEMUAN => 'violet', PasilaSession::PATROL_NIHIL => 'emerald'][$patrol]">{{ $session->patrolStatusLabel() }}</x-admin.status-badge>
+                <span class="text-slate-600">{{ $findings->count() }} temuan tercatat</span>
+                @if ($findingCodeLabels === [])
+                    <span class="text-amber-800">Kode temuan PASILA belum diisi di Master Data (kategori PASILA_FINDING); petugas belum dapat mengirim temuan.</span>
+                @endif
+            </div>
+
+            @if ($nilReport)
+                <div class="border-b border-slate-100 px-4 py-3 text-xs" data-nil-report="{{ $nilReport->status }}">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <x-admin.status-badge :tone="$nilReport->isActive() ? 'emerald' : 'slate'">Laporan nihil · {{ $nilReport->statusLabel() }}</x-admin.status-badge>
+                        <span class="text-slate-600">{{ $fmt($nilReport->occurred_at) }} · diterima {{ $fmt($nilReport->received_at) }}</span>
+                        @if (! $nilReport->isActive() && $nilReport->supersededBy)
+                            <span class="font-semibold text-violet-700">Digantikan temuan #{{ $nilReport->supersededBy->sequence }} ({{ $fmt($nilReport->superseded_at) }})</span>
+                        @endif
+                    </div>
+                    <p class="mt-1 text-slate-700">{{ $nilReport->note }}</p>
+                    <p class="mt-1 text-slate-500">GPS {{ number_format((float) $nilReport->latitude, 6) }}, {{ number_format((float) $nilReport->longitude, 6) }}{{ $nilReport->gps_accuracy_m !== null ? ' (±'.(float) $nilReport->gps_accuracy_m.' m)' : '' }} · Petugas: {{ $nilReport->personnel->pluck('personnel_name')->implode(', ') }} · Akun {{ $nilReport->submittedBy?->username ?? '-' }}</p>
+                </div>
+            @endif
+
+            @if ($findings->isEmpty())
+                <x-admin.empty-state :title="$nilReport ? 'Tidak ada temuan.' : 'Belum ada laporan patroli.'" :description="$nilReport ? 'Petugas menyatakan patroli dilakukan tanpa temuan.' : 'Belum ada temuan maupun laporan nihil yang diterima untuk sesi ini (patroli belum dilaporkan atau kiriman offline belum masuk).'" />
+            @else
+                <ul class="divide-y divide-slate-100">
+                    @foreach ($findings as $finding)
+                        <li class="space-y-2 p-4" data-finding="{{ $finding->sequence }}">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-sm font-bold text-slate-900">#{{ $finding->sequence }}</span>
+                                <x-admin.status-badge tone="violet">{{ $finding->finding_code }}</x-admin.status-badge>
+                                <span class="text-xs font-semibold text-slate-800">{{ $findingCodeLabels[$finding->finding_code] ?? 'Kode tidak ada lagi di Master Data' }}</span>
+                                <x-admin.status-badge tone="blue">{{ $finding->statusLabel() }}</x-admin.status-badge>
+                            </div>
+                            <p class="text-sm text-slate-700">{{ $finding->description }}</p>
+                            <dl class="grid grid-cols-1 gap-x-6 gap-y-1 text-xs text-slate-600 md:grid-cols-2">
+                                <div><span class="font-semibold text-slate-700">Section:</span> {{ $finding->section_name }} ({{ $finding->penyulang?->nama_penyulang ?? '-' }})
+                                    @if (isset($findingSectionNotes[$finding->id]))
+                                        <span class="block font-semibold text-red-700">{{ $findingSectionNotes[$finding->id] }}</span>
+                                    @endif
+                                </div>
+                                <div><span class="font-semibold text-slate-700">Aset:</span> {{ $finding->keypoint ? $finding->keypoint->nama.' ('.$finding->keypoint->jenis.')' : ($finding->asset_label ?? '-') }}</div>
+                                <div data-finding-gps><span class="font-semibold text-slate-700">GPS perangkat:</span>
+                                    <a href="https://www.openstreetmap.org/?mlat={{ $finding->latitude }}&amp;mlon={{ $finding->longitude }}#map=18/{{ $finding->latitude }}/{{ $finding->longitude }}" target="_blank" rel="noopener" class="font-semibold text-blue-600 hover:text-blue-800">{{ number_format((float) $finding->latitude, 6) }}, {{ number_format((float) $finding->longitude, 6) }}</a>{{ $finding->gps_accuracy_m !== null ? ' (±'.(float) $finding->gps_accuracy_m.' m)' : '' }}
+                                </div>
+                                <div><span class="font-semibold text-slate-700">Waktu kejadian:</span> {{ $fmt($finding->occurred_at) }} · diterima {{ $fmt($finding->received_at) }}
+                                    @if ($finding->received_at->gt($session->shiftInstance->ends_at))
+                                        <span class="text-amber-700">(terkirim setelah shift berakhir)</span>
+                                    @endif
+                                </div>
+                                <div data-finding-reporter><span class="font-semibold text-slate-700">Petugas:</span> {{ $finding->personnel->pluck('personnel_name')->implode(', ') }} · Akun {{ $finding->submittedByTeam?->code ?? '-' }} ({{ $finding->submittedBy?->username ?? '-' }})</div>
+                            </dl>
+                            <div class="flex flex-wrap gap-2">
+                                @foreach ($finding->media as $photo)
+                                    <a href="{{ route('admin.media.pasila', $photo) }}" target="_blank" rel="noopener"><img src="{{ route('admin.media.pasila', $photo) }}" alt="Foto temuan #{{ $finding->sequence }}" loading="lazy" class="h-20 w-24 rounded border border-slate-200 object-cover"></a>
+                                @endforeach
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        @endif
+    </x-admin.panel>
+
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <x-admin.panel title="Penyulang terkait" description="Relasi posko_penyulang (many-to-many); bukan dasar kepemilikan aset atau Section.">
             @if ($load->failed('penyulangs'))
@@ -201,12 +272,7 @@
         @endif
     </x-admin.panel>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <x-admin.unavailable-panel
-            title="Temuan per Titik"
-            description="Daftar temuan sesi ini (jenis/kode, aset/koordinat, foto, GPS, petugas, waktu per temuan) akan tampil di sini."
-            :requirements="['Tabel temuan PASILA dan media per temuan (tahap berikutnya)', 'Kode temuan resmi']"
-        />
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <x-admin.unavailable-panel
             title="P0 terkait PASILA"
             description="P0 POSKO yang mewarisi Section/Posko dari sesi ini, termasuk usulan SYSTEM yang menunggu ACC dan kewajiban pengganti manual setelah penolakan."

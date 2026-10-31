@@ -48,10 +48,11 @@ WO type:
 
 | Method/path | Actors | Efek |
 |---|---|---|
-| GET /api/v1/pasila | POSKO scoped / ADMIN monitor | Session otomatis awal shift |
-| GET /api/v1/pasila/{id} | POSKO / ADMIN | Section, shift, daftar temuan, P0 |
-| POST /api/v1/pasila/{id}/findings | POSKO | **Satu temuan per record** dengan GPS/foto/kode |
-| POST /api/v1/pasila/{id}/complete | POSKO | Validasi hasil/target; WO rescheduled tidak memblokir |
+| GET /api/v1/mobile/pasila | POSKO (Posko timnya saja) | **Dibangun B3.2.** Sesi dibuat server awal shift; ringkasan sesi, Section, `patrol_status`, jumlah temuan |
+| GET /api/v1/mobile/pasila/{id} | POSKO pemilik sesi | **Dibangun B3.2.** Section terverifikasi milik Posko (pilihan Section temuan), kode temuan aktif, daftar temuan, laporan nihil |
+| POST /api/v1/mobile/pasila/{id}/findings | POSKO pemilik sesi | **Dibangun B3.2.** Multipart, **satu temuan per request**: `client_request_id`, `finding_code` (reference_codes PASILA_FINDING), `description`, `section` opsional (default Section sesi; wajib milik Posko), `keypoint_id`/`asset_label` opsional, `latitude`/`longitude` wajib (bukan 0,0), `gps_accuracy_m`, `occurred_at` (di dalam jendela shift sesi), `personnel_ids[]` roster tim, `photos[]` 1–10. 201 + `meta.idempotent_replay`; 403 bukan POSKO; 404 sesi Posko lain; 422 validasi |
+| POST /api/v1/mobile/pasila/{id}/nil-report | POSKO pemilik sesi | **Dibangun B3.2.** Laporan nihil eksplisit: `client_request_id`, `note` (area/rute, ≥10 karakter), GPS, `occurred_at`, `personnel_ids[]`. 409 bila sesi sudah memiliki temuan atau laporan nihil. Temuan yang masuk kemudian menggantikan laporan nihil (riwayat tetap) |
+| POST /api/v1/mobile/pasila/{id}/complete | POSKO | Belum dibangun: menunggu keputusan pemeriksaan WO APKUK (gate) saat penutupan |
 | POST /api/v1/admin/pasila | ADMIN | Manual create sesuai Section/Posko |
 | GET /api/v1/p0 | POSKO / ADMIN | P0 harus berelasi PASILA |
 | POST /api/v1/admin/p0 | ADMIN | Manual P0 dari PASILA, inherited Section/Posko |

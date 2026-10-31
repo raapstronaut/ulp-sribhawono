@@ -6,13 +6,16 @@ use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * Sesi PASILA satu Posko pada satu shift. Dibuka otomatis pada awal shift (PasilaShiftOpener),
  * tidak menunggu WO APKUK selesai.
  *
- * Tiga hal dipisahkan: status sesi (status), penentuan Section (section_status), dan status WO
- * APKUK yang dihitung dari work_orders. Kewajiban P0 belum aktif (B3.3).
+ * Hal berikut dipisahkan: status sesi (status), penentuan Section (section_status), laporan patroli
+ * (patrolStatus(), dihitung dari temuan dan laporan nihil), dan status WO APKUK yang dihitung dari
+ * work_orders. Kewajiban P0 belum aktif (B3.3).
  */
 class PasilaSession extends Model
 {
@@ -47,6 +50,19 @@ class PasilaSession extends Model
 
     public const HOLD_LABELS = [
         self::HOLD_TIDAK_ADA_SECTION => 'Posko belum memiliki Section terverifikasi pada referensi SECTION_PIC_RAW',
+    ];
+
+    /** Status laporan patroli, dihitung dari temuan dan laporan nihil (tidak disimpan). */
+    public const PATROL_BELUM = 'BELUM_ADA_LAPORAN';
+
+    public const PATROL_ADA_TEMUAN = 'ADA_TEMUAN';
+
+    public const PATROL_NIHIL = 'NIHIL';
+
+    public const PATROL_LABELS = [
+        self::PATROL_BELUM => 'Belum ada laporan patroli',
+        self::PATROL_ADA_TEMUAN => 'Ada temuan',
+        self::PATROL_NIHIL => 'Nihil (dilaporkan petugas)',
     ];
 
     public const TRIGGER_LABELS = [
@@ -106,6 +122,36 @@ class PasilaSession extends Model
     public function sectionSetBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'section_set_by_user_id');
+    }
+
+    public function findings(): HasMany
+    {
+        return $this->hasMany(PasilaFinding::class);
+    }
+
+    public function nilReport(): HasOne
+    {
+        return $this->hasOne(PasilaNilReport::class);
+    }
+
+    /**
+     * Ada temuan → ADA_TEMUAN; laporan nihil aktif → NIHIL; selain itu BELUM_ADA_LAPORAN.
+     * Daftar temuan kosong tanpa laporan nihil tidak pernah dianggap nihil.
+     */
+    public function patrolStatus(): string
+    {
+        $findings = $this->findings_count ?? $this->findings()->count();
+        if ($findings > 0) {
+            return self::PATROL_ADA_TEMUAN;
+        }
+        $nil = $this->relationLoaded('nilReport') ? $this->nilReport : $this->nilReport()->first();
+
+        return $nil?->isActive() ? self::PATROL_NIHIL : self::PATROL_BELUM;
+    }
+
+    public function patrolStatusLabel(): string
+    {
+        return self::PATROL_LABELS[$this->patrolStatus()];
     }
 
     public function hasSection(): bool

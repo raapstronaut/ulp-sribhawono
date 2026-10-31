@@ -9,6 +9,7 @@
     $tz = \App\Services\ShiftService::TIMEZONE;
     $fmt = fn ($dt) => $dt ? \Illuminate\Support\Carbon::parse($dt)->timezone($tz)->format('d/m/Y H:i').' WIB' : '-';
     $sectionTone = [PasilaSession::SECTION_MENUNGGU => 'amber', PasilaSession::SECTION_REKOMENDASI => 'blue', PasilaSession::SECTION_ADMIN => 'emerald'];
+    $patrolTone = [PasilaSession::PATROL_BELUM => 'slate', PasilaSession::PATROL_ADA_TEMUAN => 'violet', PasilaSession::PATROL_NIHIL => 'emerald'];
     $noSession = [
         'BERJALAN' => ['Belum dibuka', 'Pembuka sesi belum dijalankan untuk shift berjalan.'],
         'BERAKHIR' => ['Tidak ada sesi', 'Shift sudah berakhir; sesi tidak dibuat mundur.'],
@@ -40,7 +41,7 @@
         Pembuka sesi otomatis {{ $blockedReason ? 'nonaktif di lingkungan ini' : 'aktif di lingkungan ini' }}.
         Rekomendasi Section memakai strategi {{ $strategy->name() }} {{ $strategy->version() }}: <strong>rotasi baseline, bukan skor risiko, bukan ML, dan tidak memakai data gangguan</strong>.
         Referensi Section–Posko berasal dari SECTION_PIC_RAW (staging, belum disahkan sebagai data resmi); Section yang tidak lengkap atau ambigu ditahan, bukan ditebak.
-        Temuan per titik dan P0 belum aktif.
+        Temuan per titik dan laporan nihil dicatat petugas POSKO lewat aplikasi; daftar temuan kosong tanpa laporan nihil berarti <strong>belum ada laporan patroli</strong>, bukan nihil. P0 belum aktif.
     </x-admin.notice>
 
     <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
@@ -61,11 +62,12 @@
         @if ($load->failed('poskos', 'sessions', 'work_orders', 'reschedules'))
             <x-admin.error-state />
         @else
-            <x-admin.table min-width="min-w-[1100px]">
+            <x-admin.table min-width="min-w-[1240px]">
                 <x-slot:head>
                     <th class="px-4 py-3">Posko</th>
                     <th class="px-4 py-3">Sesi PASILA</th>
                     <th class="px-4 py-3">Penyulang · Section</th>
+                    <th class="px-4 py-3">Laporan patroli</th>
                     <th class="px-4 py-3">WO APKUK (selesai / target)</th>
                     <th class="px-4 py-3">Reschedule diajukan</th>
                     <th class="px-4 py-3">Kewajiban P0</th>
@@ -107,6 +109,14 @@
                                 <span class="text-xs text-slate-400">—</span>
                             @endif
                         </td>
+                        <td class="px-4 py-3" data-patrol-status="{{ $session?->patrolStatus() ?? '' }}">
+                            @if ($session)
+                                <x-admin.status-badge :tone="$patrolTone[$session->patrolStatus()]">{{ $session->patrolStatusLabel() }}</x-admin.status-badge>
+                                <div class="mt-1 text-[10px] text-slate-500">{{ $session->findings_count }} temuan</div>
+                            @else
+                                <span class="text-xs text-slate-400">—</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-3">
                                 <span class="w-14 shrink-0 text-xs font-bold text-slate-800">{{ $row['selesai'] }} / {{ $targetPerShift }}</span>
@@ -128,7 +138,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <x-admin.empty-state title="Belum ada Posko aktif." description="Master Posko aktif kosong atau tidak cocok dengan filter." />
                         </td>
                     </tr>
@@ -185,11 +195,6 @@
     </x-admin.panel>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <x-admin.unavailable-panel
-            title="Temuan per Titik"
-            description="Satu sesi PASILA dapat memuat banyak temuan; setiap temuan memiliki jenis/kode, aset atau koordinat, foto, GPS, waktu, dan petugas sendiri."
-            :requirements="['Tabel temuan PASILA beserta foto dan petugas per temuan (tahap berikutnya)', 'Kode temuan resmi di reference_codes']"
-        />
         <x-admin.unavailable-panel
             title="P0 dalam PASILA"
             description="Minimal satu P0 ditargetkan per Posko per shift dan selalu merujuk sesi PASILA. P0 SYSTEM perlu ACC Admin; bila ditolak, Admin wajib membuat P0 manual pengganti dalam PASILA yang sama."

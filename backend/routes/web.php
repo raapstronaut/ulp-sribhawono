@@ -129,6 +129,7 @@ Route::prefix('admin')
         // Foto bukti dari disk privat.
         Route::get('/media/work-orders/{media}', [MediaController::class, 'workOrder'])->name('media.work-orders');
         Route::get('/media/inspections/{media}', [MediaController::class, 'inspection'])->name('media.inspections');
+        Route::get('/media/pasila/{media}', [MediaController::class, 'pasila'])->whereUuid('media')->name('media.pasila');
 
         // APKUK: laporan sumber aktif, histori, kebutuhan, dan progres pemasangan.
         Route::get('/apkuk', [ApkukController::class, 'index'])->name('apkuk.index');

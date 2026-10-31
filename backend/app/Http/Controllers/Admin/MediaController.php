@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Models\InspectionFindingMedia;
+use App\Models\PasilaFindingMedia;
 use App\Models\WorkOrderMedia;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
@@ -19,6 +20,11 @@ class MediaController extends Controller
     }
 
     public function inspection(InspectionFindingMedia $media): Response
+    {
+        return $this->stream($media->disk, $media->storage_path, $media->mime_type);
+    }
+
+    public function pasila(PasilaFindingMedia $media): Response
     {
         return $this->stream($media->disk, $media->storage_path, $media->mime_type);
     }

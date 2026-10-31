@@ -20,11 +20,15 @@ class ReferenceCode extends Model
 
     public const CATEGORY_INSPECTION_FINDING = 'INSPECTION_FINDING';
 
+    // Jenis temuan PASILA POSKO. Isi kode belum resmi (TBD-16); dikelola Admin di Master Data.
+    public const CATEGORY_PASILA_FINDING = 'PASILA_FINDING';
+
     // Kategori yang dipakai alur aplikasi. Kategori lain boleh ada (mis. hasil sinkron lama).
     public const CATEGORIES = [
         self::CATEGORY_RESCHEDULE_REASON => 'Alasan reschedule',
         self::CATEGORY_ESCALATION_REASON => 'Alasan limpahan',
         self::CATEGORY_INSPECTION_FINDING => 'Jenis temuan inspeksi',
+        self::CATEGORY_PASILA_FINDING => 'Jenis temuan PASILA',
     ];
 
     public const ROLE_SCOPES = ['POSKO', 'HARSUS', 'INSPEKSI', 'ROW'];

@@ -178,13 +178,17 @@ class MasterDataService
             || DB::table('inspections')->where('field_team_id', $id)->orWhere('submitted_by_field_team_id', $id)->exists()
             || DB::table('field_team_shift_assignments')->where('field_team_id', $id)->exists()
             || DB::table('work_order_reports')->where('submitted_by_field_team_id', $id)->exists()
-            || DB::table('work_order_status_logs')->where('actor_field_team_id', $id)->exists();
+            || DB::table('work_order_status_logs')->where('actor_field_team_id', $id)->exists()
+            || DB::table('pasila_findings')->where('submitted_by_field_team_id', $id)->exists()
+            || DB::table('pasila_nil_reports')->where('submitted_by_field_team_id', $id)->exists();
     }
 
     public function personnelInUse(FieldPersonnel $person): bool
     {
         return DB::table('work_order_report_personnel')->where('field_personnel_id', $person->getKey())->exists()
-            || DB::table('inspection_personnel')->where('field_personnel_id', $person->getKey())->exists();
+            || DB::table('inspection_personnel')->where('field_personnel_id', $person->getKey())->exists()
+            || DB::table('pasila_finding_personnel')->where('field_personnel_id', $person->getKey())->exists()
+            || DB::table('pasila_nil_report_personnel')->where('field_personnel_id', $person->getKey())->exists();
     }
 
     public function codeInUse(ReferenceCode $code): bool
@@ -193,6 +197,7 @@ class MasterDataService
             ReferenceCode::CATEGORY_RESCHEDULE_REASON => DB::table('work_order_reschedules')->where('reason_code', $code->code)->exists(),
             ReferenceCode::CATEGORY_ESCALATION_REASON => DB::table('work_escalations')->where('reason_code', $code->code)->exists(),
             ReferenceCode::CATEGORY_INSPECTION_FINDING => DB::table('inspection_findings')->where('finding_code', $code->code)->exists(),
+            ReferenceCode::CATEGORY_PASILA_FINDING => DB::table('pasila_findings')->where('finding_code', $code->code)->exists(),
             default => false,
         };
     }
