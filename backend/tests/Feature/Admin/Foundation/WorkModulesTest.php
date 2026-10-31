@@ -50,7 +50,7 @@ class WorkModulesTest extends FoundationTestCase
             ->assertSee('PUGUNG')
             ->assertSee('JABUNG')
             // Tanpa sesi tercatat: status sesi, WO APKUK, dan P0 tetap kolom terpisah.
-            ->assertSeeInOrder(['PUGUNG', 'Belum dibuka', 'Pembuka sesi belum dijalankan untuk shift berjalan.', '1 / 6', '2 WO tercatat · 1 aktif', '1 menunggu', 'Belum aktif'])
+            ->assertSeeInOrder(['PUGUNG', 'Belum dibuka', 'Pembuka sesi belum dijalankan untuk shift berjalan.', '1 / 6', '2 WO tercatat · 1 aktif', '1 menunggu', 'data-p0-obligation=""'], false)
             ->assertSee('Buka sesi shift berjalan')
             ->assertSee('PASILA_OPENER_ENABLED=false')
             ->assertSee('aria-disabled="true"', false)

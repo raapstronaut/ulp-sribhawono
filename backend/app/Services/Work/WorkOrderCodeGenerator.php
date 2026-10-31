@@ -18,6 +18,8 @@ class WorkOrderCodeGenerator
 
     public const KIND_ROW = 'ROW';
 
+    public const KIND_P0 = 'P0';
+
     public static function kindFor(string $teamType): string
     {
         return match ($teamType) {

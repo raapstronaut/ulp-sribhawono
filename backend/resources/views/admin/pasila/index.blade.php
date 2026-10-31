@@ -41,7 +41,7 @@
         Pembuka sesi otomatis {{ $blockedReason ? 'nonaktif di lingkungan ini' : 'aktif di lingkungan ini' }}.
         Rekomendasi Section memakai strategi {{ $strategy->name() }} {{ $strategy->version() }}: <strong>rotasi baseline, bukan skor risiko, bukan ML, dan tidak memakai data gangguan</strong>.
         Referensi Section–Posko berasal dari SECTION_PIC_RAW (staging, belum disahkan sebagai data resmi); Section yang tidak lengkap atau ambigu ditahan, bukan ditebak.
-        Temuan per titik dan laporan nihil dicatat petugas POSKO lewat aplikasi; daftar temuan kosong tanpa laporan nihil berarti <strong>belum ada laporan patroli</strong>, bukan nihil. P0 belum aktif.
+        Temuan per titik dan laporan nihil dicatat petugas POSKO lewat aplikasi; daftar temuan kosong tanpa laporan nihil berarti <strong>belum ada laporan patroli</strong>, bukan nihil. Target P0 (minimal {{ \App\Services\Pasila\P0Service::TARGET_PER_SHIFT }} per Posko per shift) terpenuhi hanya oleh P0 yang selesai; P0 pengganti yang baru dibuat memenuhi kewajiban penggantian Admin, bukan target. PASILA boleh nihil walau target P0 belum terpenuhi.
     </x-admin.notice>
 
     <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
@@ -49,7 +49,7 @@
         <x-admin.stat-card label="Sesi PASILA" :value="$load->failed('sessions') ? null : $totals['sessions']" :hint="'Tercatat untuk shift ini dari '.$totals['poskos'].' Posko'" unavailable-label="Gagal dimuat" tone="blue" />
         <x-admin.stat-card label="Menunggu Section" :value="$load->failed('sessions') ? null : $totals['waiting']" hint="Sesi tanpa Section terverifikasi" unavailable-label="Gagal dimuat" tone="amber" />
         <x-admin.stat-card label="WO APKUK shift" :value="$load->failed('work_orders') ? null : $totals['work_orders']" :hint="'Status WO terpisah dari sesi; target '.$targetPerShift.' per Posko'" unavailable-label="Gagal dimuat" />
-        <x-admin.stat-card label="P0 terkait PASILA" hint="Workflow P0 belum aktif" :href="route('admin.p0.index')" />
+        <x-admin.stat-card label="Target P0 terpenuhi" :value="$load->failed('sessions') ? null : $rows->filter(fn ($r) => $r['p0']['fulfilled'] ?? false)->count()" :hint="'Sesi dengan P0 selesai, dari '.$totals['sessions'].' sesi'" :href="route('admin.p0.index')" unavailable-label="Gagal dimuat" />
     </div>
 
     <x-admin.panel flush :title="'Shift '.$context['shift']['code'].' · '.$context['shift']['name'].' — '.\Illuminate\Support\Carbon::parse($context['work_date'])->format('d/m/Y')" :description="$context['shift']['time'].' · hari operasional '.\Illuminate\Support\Carbon::parse($context['work_date'])->format('d/m/Y').' · '.$fmt($context['window']['start']).' – '.$fmt($context['window']['end']).($context['is_current'] ? ' · shift berjalan' : ' · bukan shift berjalan')">
@@ -70,7 +70,7 @@
                     <th class="px-4 py-3">Laporan patroli</th>
                     <th class="px-4 py-3">WO APKUK (selesai / target)</th>
                     <th class="px-4 py-3">Reschedule diajukan</th>
-                    <th class="px-4 py-3">Kewajiban P0</th>
+                    <th class="px-4 py-3">Target P0 · pengganti</th>
                     <th class="px-4 py-3 text-center">Aksi</th>
                 </x-slot:head>
                 @forelse ($rows as $row)
@@ -131,7 +131,22 @@
                                 <span class="text-xs text-slate-400">0</span>
                             @endif
                         </td>
-                        <td class="px-4 py-3 text-[11px] text-slate-400">Belum aktif</td>
+                        <td class="px-4 py-3 text-[11px]" data-p0-obligation="{{ $row['p0'] === null ? '' : ($row['p0']['fulfilled'] ? 'TERPENUHI' : 'BELUM') }}">
+                            @if ($row['p0'] === null)
+                                <span class="text-slate-400">—</span>
+                            @else
+                                <x-admin.status-badge :tone="$row['p0']['fulfilled'] ? 'emerald' : 'amber'">Target {{ $row['p0']['fulfilled'] ? 'terpenuhi' : 'belum terpenuhi' }}</x-admin.status-badge>
+                                <div class="mt-1 text-[10px] text-slate-500">
+                                    {{ $row['p0']['completed'] }}/{{ $row['p0']['target'] }} P0 selesai
+                                    @foreach ([\App\Models\P0Item::STAGE_AKTIF => 'aktif', \App\Models\P0Item::STAGE_MENUNGGU_VERIFIKASI => 'menunggu verifikasi', \App\Models\P0Item::STAGE_MENUNGGU_ACC => 'menunggu ACC'] as $stage => $text)
+                                        @if (($row['p0']['stages'][$stage] ?? 0) > 0) · {{ $row['p0']['stages'][$stage] }} {{ $text }} @endif
+                                    @endforeach
+                                </div>
+                                @if ($row['p0']['replacement_open'] > 0)
+                                    <div class="mt-1 text-[10px] font-semibold text-red-700" data-p0-replacement-open="{{ $row['p0']['replacement_open'] }}">Pengganti wajib dibuat Admin: {{ $row['p0']['replacement_open'] }}</div>
+                                @endif
+                            @endif
+                        </td>
                         <td class="px-4 py-3 text-center">
                             <a href="{{ route('admin.pasila.show', ['posko' => $row['posko'], 'work_date' => $context['work_date'], 'shift_code' => $context['shift_code']]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Detail</a>
                         </td>
@@ -193,13 +208,5 @@
             @endif
         @endif
     </x-admin.panel>
-
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <x-admin.unavailable-panel
-            title="P0 dalam PASILA"
-            description="Minimal satu P0 ditargetkan per Posko per shift dan selalu merujuk sesi PASILA. P0 SYSTEM perlu ACC Admin; bila ditolak, Admin wajib membuat P0 manual pengganti dalam PASILA yang sama."
-            :requirements="['Workflow P0 terikat sesi PASILA (tahap berikutnya)', 'Skema detail P0 (menunggu konfirmasi atasan)']"
-        />
-    </div>
 </div>
 @endsection

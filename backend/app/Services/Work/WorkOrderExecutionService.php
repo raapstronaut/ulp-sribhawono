@@ -338,6 +338,10 @@ class WorkOrderExecutionService
     private function createEscalation(WorkOrder $workOrder, FieldActor $actor, array $data): WorkEscalation
     {
         $this->assertWorkable($workOrder, self::WORKABLE);
+        if ($workOrder->isP0()) {
+            // P0 adalah pekerjaan POSKO; HARSUS/ROW/INSPEKSI tidak boleh menjadi pelaksananya.
+            throw ValidationException::withMessages(['target_team_type' => 'P0 adalah pekerjaan POSKO dan tidak dapat dilimpahkan ke tim lain. Gunakan reschedule atau laporkan kendala.']);
+        }
 
         $targetTeam = $data['target_team_type'];
         if (! in_array($targetTeam, [WorkOrder::TEAM_HARSUS, WorkOrder::TEAM_ROW], true) || $targetTeam === $workOrder->team_type) {

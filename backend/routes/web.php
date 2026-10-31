@@ -84,12 +84,14 @@ Route::prefix('admin')
             ]);
         })->name('maps.keypoints');
 
-        // P0
+        // P0 POSKO: monitoring, ACC/tolak usulan SYSTEM. P0 manual dibuat dari sesi PASILA (route PASILA).
         Route::get('/p0', [P0Controller::class, 'index'])
             ->name('p0.index');
 
-        Route::get('/p0/{p0}', [P0Controller::class, 'show'])
+        Route::get('/p0/{p0Item}', [P0Controller::class, 'show'])
             ->name('p0.show');
+        Route::post('/p0/{p0Item}/acc', [P0Controller::class, 'approve'])->name('p0.approve');
+        Route::post('/p0/{p0Item}/tolak', [P0Controller::class, 'reject'])->name('p0.reject');
 
         // Antrean rekonsiliasi APKUK (laporan yang tidak lagi ada di APKUK_RAW)
         Route::get('/apkuk-rekonsiliasi', [ApkukReconciliationController::class, 'index'])
@@ -144,6 +146,7 @@ Route::prefix('admin')
         Route::get('/pasila', [PasilaController::class, 'index'])->name('pasila.index');
         Route::post('/pasila/buka-shift', [PasilaController::class, 'open'])->name('pasila.open');
         Route::post('/pasila/sesi/{pasilaSession}/section', [PasilaController::class, 'assignSection'])->whereUuid('pasilaSession')->name('pasila.section');
+        Route::post('/pasila/sesi/{pasilaSession}/p0', [P0Controller::class, 'store'])->whereUuid('pasilaSession')->name('pasila.p0.store');
         Route::get('/pasila/{posko}', [PasilaController::class, 'show'])->name('pasila.show');
 
         Route::get('/inspeksi', [InspectionController::class, 'index'])->name('inspeksi.index');

@@ -65,6 +65,7 @@ class AuditLog extends Model
         'pasila_session' => 'Sesi PASILA',
         'pasila_finding' => 'Temuan PASILA',
         'pasila_nil_report' => 'Laporan nihil PASILA',
+        'p0_item' => 'P0 POSKO',
     ];
 
     protected $fillable = [

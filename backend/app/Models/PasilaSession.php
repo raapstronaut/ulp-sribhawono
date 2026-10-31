@@ -134,6 +134,11 @@ class PasilaSession extends Model
         return $this->hasOne(PasilaNilReport::class);
     }
 
+    public function p0Items(): HasMany
+    {
+        return $this->hasMany(P0Item::class);
+    }
+
     /**
      * Ada temuan → ADA_TEMUAN; laporan nihil aktif → NIHIL; selain itu BELUM_ADA_LAPORAN.
      * Daftar temuan kosong tanpa laporan nihil tidak pernah dianggap nihil.

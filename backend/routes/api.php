@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V1\Mobile\AuthController;
 use App\Http\Controllers\Api\V1\Mobile\BootstrapController;
 use App\Http\Controllers\Api\V1\Mobile\InspectionController;
+use App\Http\Controllers\Api\V1\Mobile\P0Controller;
 use App\Http\Controllers\Api\V1\Mobile\PasilaController;
 use App\Http\Controllers\Api\V1\Mobile\WorkOrderController;
 use Illuminate\Support\Facades\Route;
@@ -38,5 +39,8 @@ Route::prefix('v1/mobile')->name('api.mobile.')->group(function (): void {
         Route::get('/pasila/{pasilaSession}', [PasilaController::class, 'show'])->whereUuid('pasilaSession')->name('pasila.show');
         Route::post('/pasila/{pasilaSession}/findings', [PasilaController::class, 'storeFinding'])->whereUuid('pasilaSession')->name('pasila.findings.store');
         Route::post('/pasila/{pasilaSession}/nil-report', [PasilaController::class, 'storeNilReport'])->whereUuid('pasilaSession')->name('pasila.nil-report.store');
+
+        // P0 POSKO yang sudah menjadi pekerjaan; pelaksanaan lewat endpoint work-orders.
+        Route::get('/p0', [P0Controller::class, 'index'])->name('p0.index');
     });
 });

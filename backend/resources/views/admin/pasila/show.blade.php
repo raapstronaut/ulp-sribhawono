@@ -25,7 +25,11 @@
         :description="'Shift '.$context['shift']['code'].' ('.$context['shift']['name'].', '.$context['shift']['time'].') hari operasional '.$workDateLabel.'. Status sesi PASILA, status WO APKUK, dan kewajiban P0 ditampilkan terpisah.'"
     >
         <x-slot:actions>
-            <x-admin.unavailable-action label="Buat P0 dari PASILA" reason="P0 wajib dibuat dari sesi PASILA yang valid pada Section dan Posko yang sama; workflow P0 belum aktif." />
+            @if ($session)
+                <x-admin.button href="#p0">Buat P0 dari PASILA</x-admin.button>
+            @else
+                <x-admin.unavailable-action label="Buat P0 dari PASILA" reason="P0 wajib dibuat dari sesi PASILA yang valid pada Section dan Posko yang sama; sesi PASILA shift ini belum dibuka." />
+            @endif
         </x-slot:actions>
     </x-admin.page-header>
 
@@ -202,6 +206,57 @@
         @endif
     </x-admin.panel>
 
+    <x-admin.panel flush title="P0 sesi ini" description="P0 POSKO dari sumber masalah yang tercatat (temuan PASILA atau temuan inspeksi tervalidasi) pada Section milik Posko ini. Usulan SYSTEM perlu ACC; usulan ditolak wajib diganti P0 manual. Target terpenuhi hanya oleh P0 yang selesai.">
+        <div id="p0"></div>
+        @if (! $session)
+            <div class="p-4 text-xs text-slate-500">Tersedia setelah sesi PASILA shift ini dibuka.</div>
+        @else
+            <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3 text-xs" data-p0-obligation="{{ $p0Obligation['fulfilled'] ? 'TERPENUHI' : 'BELUM' }}">
+                <x-admin.status-badge :tone="$p0Obligation['fulfilled'] ? 'emerald' : 'amber'">Target P0 shift: {{ $p0Obligation['fulfilled'] ? 'terpenuhi' : 'belum terpenuhi' }}</x-admin.status-badge>
+                <span class="text-slate-600">{{ $p0Obligation['completed'] }}/{{ $p0Obligation['target'] }} P0 selesai</span>
+                <x-admin.status-badge :tone="$p0Obligation['replacement_open'] > 0 ? 'red' : 'slate'" data-p0-replacement-open="{{ $p0Obligation['replacement_open'] }}">Kewajiban pengganti Admin: {{ $p0Obligation['replacement_open'] > 0 ? $p0Obligation['replacement_open'].' terbuka' : 'tidak ada' }}</x-admin.status-badge>
+                @if (! $p0Obligation['fulfilled'] && $p0Items->isEmpty())
+                    <span class="text-amber-800">Belum ada P0 untuk sesi ini.</span>
+                @endif
+                <span class="text-slate-500">Usulan SYSTEM otomatis: {{ $p0Strategy->notReadyReason() ? 'belum siap' : $p0Strategy->name() }}</span>
+            </div>
+            @if ($p0Items->isNotEmpty())
+                <ul class="divide-y divide-slate-100">
+                    @foreach ($p0Items as $item)
+                        <li class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-xs" data-p0-item="{{ $item->code }}" data-stage="{{ $item->stage() }}">
+                            <div>
+                                <a href="{{ route('admin.p0.show', $item) }}" class="font-bold text-blue-600 hover:text-blue-800">{{ $item->code }}</a>
+                                <span class="text-slate-600">· {{ $item->originLabel() }} · {{ $item->sourceLabel() }} · {{ $item->section_name }}</span>
+                                <div class="text-slate-700">{{ $item->description }}</div>
+                            </div>
+                            <x-admin.status-badge :tone="$item->stage() === \App\Models\P0Item::STAGE_SELESAI ? 'emerald' : ($item->stage() === \App\Models\P0Item::STAGE_MENUNGGU_PENGGANTI ? 'red' : 'blue')">{{ $item->stageLabel() }}</x-admin.status-badge>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+            <div class="border-t border-slate-100 p-4">
+                <h3 class="mb-2 text-sm font-semibold text-slate-900">Buat P0 manual</h3>
+                @if ($load->failed('p0_sources'))
+                    <x-admin.error-state :inset="false" />
+                @elseif ($p0SourceOptions === [])
+                    <x-admin.empty-state title="Belum ada sumber P0 yang sah." description="P0 hanya dibuat dari temuan PASILA milik Posko ini atau temuan inspeksi yang sudah divalidasi pada Section milik Posko ini, yang belum memiliki P0 berjalan. Tidak ada P0 yang dibuat tanpa sumber; kewajiban P0 tetap tampil belum terpenuhi." />
+                @else
+                    <form method="POST" action="{{ route('admin.pasila.p0.store', $session) }}" class="grid grid-cols-1 gap-3 md:grid-cols-2" data-p0-form>
+                        @csrf
+                        <div class="md:col-span-2"><x-admin.select name="source" label="Sumber masalah" :options="$p0SourceOptions" placeholder="Pilih sumber yang tercatat" required /></div>
+                        <div class="md:col-span-2"><x-admin.textarea name="description" label="Uraian pekerjaan P0" required hint="Minimal 10 karakter: tindakan yang harus dikerjakan POSKO." /></div>
+                        <x-admin.input type="date" name="work_date" label="Tanggal operasional" :value="$p0Schedule['work_date']" required />
+                        <x-admin.select name="shift_code" label="Shift" :options="$shiftOptions" :value="$p0Schedule['shift_code']" required />
+                        @if ($p0ReplaceOptions !== [])
+                            <div class="md:col-span-2"><x-admin.select name="replaces_p0_item_id" label="Sebagai pengganti usulan yang ditolak" :options="$p0ReplaceOptions" placeholder="Bukan pengganti" /></div>
+                        @endif
+                        <div class="md:col-span-2"><x-admin.button>Buat P0 dan tugaskan ke POSKO</x-admin.button></div>
+                    </form>
+                @endif
+            </div>
+        @endif
+    </x-admin.panel>
+
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <x-admin.panel title="Penyulang terkait" description="Relasi posko_penyulang (many-to-many); bukan dasar kepemilikan aset atau Section.">
             @if ($load->failed('penyulangs'))
@@ -273,11 +328,6 @@
     </x-admin.panel>
 
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <x-admin.unavailable-panel
-            title="P0 terkait PASILA"
-            description="P0 POSKO yang mewarisi Section/Posko dari sesi ini, termasuk usulan SYSTEM yang menunggu ACC dan kewajiban pengganti manual setelah penolakan."
-            :requirements="['Workflow P0 terikat sesi PASILA (tahap berikutnya)', 'Skema detail P0 (menunggu konfirmasi atasan)']"
-        />
         <x-admin.unavailable-panel
             title="Eskalasi & Pekerjaan Tertunda"
             description="Permintaan eskalasi dari temuan PASILA dan tindakan yang tertunda akan tampil setelah alur eskalasi tersedia."

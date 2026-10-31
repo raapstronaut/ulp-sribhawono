@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\Pasila\RotationSectionStrategy;
+use App\Services\Pasila\UnavailableP0CandidateStrategy;
 
 /*
 |--------------------------------------------------------------------------
@@ -22,4 +23,8 @@ return [
     ],
 
     'section_strategy' => RotationSectionStrategy::class,
+
+    // Strategi usulan P0 SYSTEM (B3.3). Belum siap: klasifikasi kode temuan dan bobot prioritas resmi
+    // belum ada, sehingga tidak ada usulan otomatis; P0 dibuat lewat jalur manual Admin.
+    'p0_strategy' => UnavailableP0CandidateStrategy::class,
 ];

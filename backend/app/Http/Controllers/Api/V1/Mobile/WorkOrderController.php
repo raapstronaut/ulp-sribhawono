@@ -198,6 +198,10 @@ class WorkOrderController extends Controller
             ],
             'report_types' => WorkOrderExecutionService::reportTypesFor($wo),
             'notes' => $wo->notes,
+            // P0: keterkaitan dengan sesi PASILA dan sumber masalah (null untuk WO lain).
+            'p0' => $wo->isP0() && ($p0 = $wo->loadMissing('p0Item.session:id,code')->p0Item)
+                ? ['code' => $p0->code, 'pasila_session_code' => $p0->session->code, 'source_type' => $p0->source_type]
+                : null,
         ];
     }
 

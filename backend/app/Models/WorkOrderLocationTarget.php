@@ -22,11 +22,14 @@ class WorkOrderLocationTarget extends Model
 
     public const TYPE_INSPEKSI = 'INSPEKSI';
 
+    public const TYPE_PASILA = 'PASILA';
+
     public const TYPE_LABELS = [
         self::TYPE_KEYPOINT => 'Aset jaringan (keypoint)',
         self::TYPE_VEGETASI => 'Pohon (ID POHON, VEGETASI_RAW)',
         self::TYPE_WORK_ORDER => 'Lokasi WO asal (limpahan)',
         self::TYPE_INSPEKSI => 'Lokasi temuan inspeksi',
+        self::TYPE_PASILA => 'Lokasi temuan PASILA',
     ];
 
     protected $fillable = [

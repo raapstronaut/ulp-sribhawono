@@ -61,11 +61,19 @@ class WorkOrderEditor
                 if ($locked->posko_id !== null && $team->posko_id !== null && $team->posko_id !== $locked->posko_id && $locked->team_type === WorkOrder::TEAM_POSKO) {
                     throw ValidationException::withMessages(['field_team_id' => 'Tim POSKO harus berasal dari POSKO penanggung jawab WO.']);
                 }
+                if ($locked->isP0() && $team->posko_id !== $locked->posko_id) {
+                    throw ValidationException::withMessages(['field_team_id' => 'WO P0 hanya dapat ditunjuk ke tim POSKO dari Posko pemilik sesi PASILA.']);
+                }
+            }
+
+            // P0 terikat sesi PASILA dan Section terverifikasi milik Posko: Section tidak diubah lewat editor.
+            if ($locked->isP0() && filled($input['section_name'] ?? null) && trim($input['section_name']) !== $locked->section_name) {
+                throw ValidationException::withMessages(['section_name' => 'Section WO P0 mengikuti sumber P0 dan tidak dapat diubah.']);
             }
 
             $attributes = [
                 'field_team_id' => $team?->getKey(),
-                'section_name' => filled($input['section_name'] ?? null) ? trim($input['section_name']) : null,
+                'section_name' => $locked->isP0() ? $locked->section_name : (filled($input['section_name'] ?? null) ? trim($input['section_name']) : null),
                 'notes' => filled($input['notes'] ?? null) ? trim($input['notes']) : null,
                 'work_date' => $input['work_date'],
             ];

@@ -40,6 +40,10 @@ class WorkOrderLifecycleService
                     'status' => "WO berstatus {$from->label()} tidak dapat diubah menjadi {$to->label()}.",
                 ]);
             }
+            if ($to === WorkOrderStatus::Dibatalkan && $locked->isP0()) {
+                // Pengaman sementara di semua jalur: kebijakan pembatalan P0 belum disahkan.
+                throw ValidationException::withMessages(['status' => 'WO P0 tidak dapat dibatalkan karena kebijakan pembatalan P0 belum disahkan.']);
+            }
 
             $locked->fill($attributes);
             $locked->status = $to;

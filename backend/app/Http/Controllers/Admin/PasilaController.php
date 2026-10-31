@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Models\FieldTeam;
+use App\Models\P0Item;
 use App\Models\PasilaSession;
 use App\Models\Posko;
 use App\Models\ReferenceCode;
@@ -13,6 +14,7 @@ use App\Models\WorkOrder;
 use App\Models\WorkOrderReschedule;
 use App\Services\Apkuk\Generation\ApkukShiftQuota;
 use App\Services\Apkuk\SectionPoskoMap;
+use App\Services\Pasila\P0Service;
 use App\Services\Pasila\PasilaSectionService;
 use App\Services\Pasila\PasilaShiftOpener;
 use App\Services\ShiftService;
@@ -77,6 +79,7 @@ class PasilaController extends Controller
                 return [
                     'posko' => $posko,
                     'session' => $session,
+                    'p0' => $session ? P0Service::obligation($session->p0Items) : null,
                     'section_check' => $session && $map ? $this->sectionCheck($map, $session) : null,
                     'total' => (int) $statusRows->sum('total'),
                     'selesai' => (int) $statusRows->filter(fn ($row) => $row->status === WorkOrderStatus::Selesai)->sum('total'),
@@ -111,7 +114,7 @@ class PasilaController extends Controller
         ]);
     }
 
-    public function show(Request $request, Posko $posko, ShiftService $shifts, DataLoader $load): View
+    public function show(Request $request, Posko $posko, ShiftService $shifts, P0Service $p0, DataLoader $load): View
     {
         $context = $this->shiftContext($request, $shifts);
         $constrain = fn (Builder $query) => $query
@@ -128,6 +131,8 @@ class PasilaController extends Controller
             ->orderBy('sequence')
             ->get(), collect()) : collect();
         $nilReport = $session ? $load->attempt('nil_report', fn () => $session->nilReport()->with(['personnel', 'submittedBy:id,name,username', 'supersededBy:id,sequence'])->first()) : null;
+        $p0Items = $session ? $session->p0Items->sortBy('sequence')->values() : collect();
+        $p0Sources = $session ? $load->attempt('p0_sources', fn () => $p0->candidates($session), []) : [];
         $sections = $map ? $map->sectionsForPosko($posko->getKey()) : [];
         $lastAssigned = $load->attempt('history', fn () => PasilaSession::query()
             ->join('shift_instances as s', 's.id', '=', 'pasila_sessions.shift_instance_id')
@@ -153,6 +158,12 @@ class PasilaController extends Controller
             'findingSectionNotes' => $map ? $findings->mapWithKeys(fn ($finding) => [$finding->id => $this->sectionNote($map, $finding->section_key, $posko->getKey())])->filter()->all() : [],
             'findingCodeLabels' => $load->attempt('codes', fn () => ReferenceCode::query()->where('category', ReferenceCode::CATEGORY_PASILA_FINDING)->pluck('label', 'code')->all(), []),
             'nilReport' => $nilReport,
+            'p0Items' => $p0Items,
+            'p0Obligation' => P0Service::obligation($p0Items),
+            'p0SourceOptions' => collect($p0Sources)->mapWithKeys(fn (array $source) => [$source['source_type'].':'.$source['source_id'] => $source['label']])->all(),
+            'p0ReplaceOptions' => $p0Items->filter(fn ($item) => $item->stage() === P0Item::STAGE_MENUNGGU_PENGGANTI)->mapWithKeys(fn ($item) => [$item->id => $item->code.' (ditolak)'])->all(),
+            'p0Schedule' => $session ? P0Controller::defaultSchedule($session, $shifts) : null,
+            'p0Strategy' => $p0->strategy(),
             'lastAssigned' => $lastAssigned,
             'penyulangs' => $load->attempt('penyulangs', fn () => $posko->penyulangs()->orderBy('kode_penyulang')->get(), collect()),
             'fieldTeams' => $load->attempt('teams', fn () => FieldTeam::query()
@@ -238,7 +249,7 @@ class PasilaController extends Controller
         return $instance === null
             ? collect()
             : PasilaSession::query()->where('shift_instance_id', $instance->id)
-                ->with(['penyulang', 'shiftInstance', 'sectionSetBy:id,name,username', 'openedBy:id,name,username', 'nilReport'])
+                ->with(['penyulang', 'shiftInstance', 'sectionSetBy:id,name,username', 'openedBy:id,name,username', 'nilReport', 'p0Items.workOrder'])
                 ->withCount('findings')
                 ->get()->keyBy('posko_id');
     }

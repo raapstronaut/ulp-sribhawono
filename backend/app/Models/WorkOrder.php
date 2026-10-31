@@ -25,6 +25,9 @@ class WorkOrder extends Model
 
     public const TYPE_PEKERJAAN_KHUSUS = 'PEKERJAAN_KHUSUS';
 
+    // P0 POSKO (B3.3): dibuat hanya lewat P0Service dari sesi PASILA; tidak termasuk kuota APKUK.
+    public const TYPE_P0 = 'P0';
+
     public const TYPE_RABAS = 'RABAS';
 
     public const TYPE_PANGKAS = 'PANGKAS';
@@ -47,13 +50,14 @@ class WorkOrder extends Model
 
     // Jenis pekerjaan yang sah per tim (PRD §6).
     public const WORK_TYPES_BY_TEAM = [
-        self::TEAM_POSKO => [self::TYPE_PEMASANGAN_APKUK],
+        self::TEAM_POSKO => [self::TYPE_PEMASANGAN_APKUK, self::TYPE_P0],
         self::TEAM_HARSUS => [self::TYPE_PEKERJAAN_KHUSUS],
         self::TEAM_ROW => self::ROW_WORK_TYPES,
     ];
 
     public const WORK_TYPE_LABELS = [
         self::TYPE_PEMASANGAN_APKUK => 'Pemasangan APKUK',
+        self::TYPE_P0 => 'P0 (pekerjaan prioritas POSKO)',
         self::TYPE_PEKERJAAN_KHUSUS => 'Pekerjaan khusus',
         self::TYPE_RABAS => 'Rabas',
         self::TYPE_PANGKAS => 'Pangkas',
@@ -213,6 +217,10 @@ class WorkOrder extends Model
      */
     public function supportsAdminCancellation(): bool
     {
+        // Kebijakan pembatalan P0 belum disahkan: semua WO P0 (manual maupun dari usulan SYSTEM) tidak dapat dibatalkan.
+        if ($this->isP0()) {
+            return false;
+        }
         if ($this->team_type === self::TEAM_POSKO && $this->work_type === self::TYPE_PEMASANGAN_APKUK) {
             return true;
         }
@@ -240,6 +248,16 @@ class WorkOrder extends Model
     public function isApkuk(): bool
     {
         return $this->team_type === self::TEAM_POSKO && $this->work_type === self::TYPE_PEMASANGAN_APKUK;
+    }
+
+    public function isP0(): bool
+    {
+        return $this->team_type === self::TEAM_POSKO && $this->work_type === self::TYPE_P0;
+    }
+
+    public function p0Item(): HasOne
+    {
+        return $this->hasOne(P0Item::class);
     }
 
     /**

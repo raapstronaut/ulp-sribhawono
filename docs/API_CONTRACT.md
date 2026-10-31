@@ -54,11 +54,11 @@ WO type:
 | POST /api/v1/mobile/pasila/{id}/nil-report | POSKO pemilik sesi | **Dibangun B3.2.** Laporan nihil eksplisit: `client_request_id`, `note` (area/rute, ≥10 karakter), GPS, `occurred_at`, `personnel_ids[]`. 409 bila sesi sudah memiliki temuan atau laporan nihil. Temuan yang masuk kemudian menggantikan laporan nihil (riwayat tetap) |
 | POST /api/v1/mobile/pasila/{id}/complete | POSKO | Belum dibangun: menunggu keputusan pemeriksaan WO APKUK (gate) saat penutupan |
 | POST /api/v1/admin/pasila | ADMIN | Manual create sesuai Section/Posko |
-| GET /api/v1/p0 | POSKO / ADMIN | P0 harus berelasi PASILA |
-| POST /api/v1/admin/p0 | ADMIN | Manual P0 dari PASILA, inherited Section/Posko |
-| POST /api/v1/admin/p0/{id}/approve | ADMIN | ACC usulan SYSTEM agar executable |
-| POST /api/v1/admin/p0/{id}/reject | ADMIN | Tolak SYSTEM, tandai mandatory manual replacement |
-| POST /api/v1/p0/{id}/complete | POSKO pemilik PASILA | Hasil kerja + petugas + bukti |
+| GET /api/v1/mobile/p0 | POSKO (Posko timnya saja) | **Dibangun B3.3.** Hanya P0 yang sudah menjadi pekerjaan (WO P0): kode P0, sesi PASILA, tahap, sumber, Section, WO. Usulan menunggu ACC/ditolak tidak tampil. Non-POSKO → 403 |
+| GET /api/v1/mobile/work-feed, POST /api/v1/mobile/work-orders/{id}/start\|reports\|reschedules\|issues | POSKO pemilik | **Dipakai ulang untuk P0.** WO P0 (`work_type` = `P0`, blok `p0` berisi sesi PASILA) muncul di feed Posko; selesai = laporan `PEKERJAAN_SELESAI` (BEFORE+AFTER, GPS, petugas) → verifikasi Admin → SELESAI. Limpahan P0 ke tim lain ditolak (422) |
+| POST /admin/pasila/sesi/{id}/p0 (Web Admin) | ADMIN | **Dibangun B3.3.** P0 manual dari sesi PASILA: sumber tercatat (temuan PASILA atau temuan inspeksi tervalidasi milik Posko), uraian, jadwal shift, opsional pengganti usulan yang ditolak |
+| POST /admin/p0/{id}/acc (Web Admin) | ADMIN | **Dibangun B3.3.** ACC usulan SYSTEM → WO P0; sumber dan kepemilikan Section diperiksa ulang; ACC ulang → konflik |
+| POST /admin/p0/{id}/tolak (Web Admin) | ADMIN | **Dibangun B3.3.** Tolak usulan SYSTEM dengan alasan → kewajiban P0 manual pengganti dalam sesi yang sama |
 
 Jangan ada P0 endpoint execute milik HARSUS. Jangan ada P0 yang tidak terikat PASILA. Replacement Admin diwajibkan sebagai invariant sesudah SYSTEM proposal reject; mekanisme pengawasan tenggat masih TBD.
 
