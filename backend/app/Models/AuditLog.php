@@ -35,6 +35,8 @@ class AuditLog extends Model
 
     public const ACTION_REVOKED = 'REVOKED';
 
+    public const ACTION_CLOSED = 'CLOSED';
+
     public const ACTION_LABELS = [
         self::ACTION_CREATED => 'Dibuat',
         self::ACTION_UPDATED => 'Diubah',
@@ -47,6 +49,7 @@ class AuditLog extends Model
         self::ACTION_RESOLVED => 'Ditindaklanjuti',
         self::ACTION_ARCHIVED => 'Diarsipkan',
         self::ACTION_REVOKED => 'Dicabut',
+        self::ACTION_CLOSED => 'Ditutup',
     ];
 
     public const ENTITY_LABELS = [

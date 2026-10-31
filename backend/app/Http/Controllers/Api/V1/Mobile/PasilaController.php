@@ -35,7 +35,7 @@ class PasilaController extends Controller
             ->where('posko_id', $team->posko_id)
             ->join('shift_instances as s', 's.id', '=', 'pasila_sessions.shift_instance_id')
             ->select('pasila_sessions.*')
-            ->with(['shiftInstance', 'penyulang', 'nilReport'])
+            ->with(['shiftInstance', 'penyulang', 'nilReport', 'closure'])
             ->withCount('findings')
             ->orderByDesc('s.starts_at')
             ->paginate(30);
@@ -49,7 +49,7 @@ class PasilaController extends Controller
     public function show(Request $request, PasilaSession $pasilaSession, ShiftService $shifts): JsonResponse
     {
         $team = $this->poskoTeam($request);
-        $session = $this->scoped($pasilaSession, $team)->load(['shiftInstance', 'penyulang', 'nilReport.personnel'])->loadCount('findings');
+        $session = $this->scoped($pasilaSession, $team)->load(['shiftInstance', 'penyulang', 'nilReport.personnel', 'closure'])->loadCount('findings');
         $findings = $session->findings()->with(['personnel', 'media'])->orderBy('sequence')->get();
 
         return response()->json([
@@ -121,6 +121,37 @@ class PasilaController extends Controller
         ], 201);
     }
 
+    public function close(Request $request, PasilaSession $pasilaSession, PasilaFindingService $service, ShiftService $shifts): JsonResponse
+    {
+        $team = $this->poskoTeam($request);
+        $session = $this->scoped($pasilaSession, $team);
+        $data = $request->validate([
+            'client_request_id' => ['required', 'string', 'max:64'],
+            'occurred_at' => ['required', 'date'],
+            'personnel_ids' => ['required', 'array', 'min:1', 'max:20'],
+            'personnel_ids.*' => ['uuid'],
+            'note' => ['nullable', 'string', 'max:2000'],
+            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'gps_accuracy_m' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+        ]);
+
+        $closure = $service->close($session, $request->user(), $data);
+        $session = $session->fresh(['shiftInstance', 'penyulang', 'nilReport', 'closure'])->loadCount('findings');
+        $snapshot = $closure->snapshot;
+        // Peringatan tidak memblokir penutupan; kewajiban tetap berjalan terpisah.
+        $warnings = array_filter([
+            'P0_TARGET_BELUM_TERPENUHI' => ($snapshot['p0']['fulfilled'] ?? false) ? null : 'Target P0 shift belum terpenuhi; status tetap tercatat belum terpenuhi.',
+            'APKUK_RESCHEDULE_MENUNGGU_ACC' => ($snapshot['apkuk']['reschedule_menunggu_acc'] ?? 0) > 0 ? $snapshot['apkuk']['reschedule_menunggu_acc'].' WO APKUK menunggu ACC reschedule; kewajiban WO tetap berjalan.' : null,
+            'APKUK_BELUM_SELESAI' => ($snapshot['apkuk']['belum_selesai'] ?? 0) > 0 ? $snapshot['apkuk']['belum_selesai'].' WO APKUK belum selesai.' : null,
+        ]);
+
+        return response()->json([
+            'data' => $this->sessionSummary($session, $shifts->instanceAt()),
+            'meta' => ['server_time' => now()->toIso8601String(), 'idempotent_replay' => ! $closure->wasRecentlyCreated, 'warnings' => $warnings],
+        ], 201);
+    }
+
     private function poskoTeam(Request $request): FieldTeam
     {
         $team = $request->user()->fieldTeam;
@@ -169,6 +200,12 @@ class PasilaController extends Controller
             'section' => $session->hasSection() ? ['section' => $session->section_name, 'penyulang' => $session->penyulang?->kode_penyulang] : null,
             'patrol_status' => $session->patrolStatus(),
             'finding_count' => (int) ($session->findings_count ?? $session->findings()->count()),
+            'closure' => ($closure = $session->relationLoaded('closure') ? $session->closure : $session->closure()->first()) ? [
+                'outcome' => $closure->outcome,
+                'occurred_at' => $closure->occurred_at->toIso8601String(),
+                'received_at' => $closure->received_at->toIso8601String(),
+                'flags' => array_keys($session->closureFlags()),
+            ] : null,
         ];
     }
 

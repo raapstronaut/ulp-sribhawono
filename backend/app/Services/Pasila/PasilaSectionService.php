@@ -35,6 +35,9 @@ class PasilaSectionService
         return DB::transaction(function () use ($session, $admin, $section, $reason): PasilaSession {
             $session = PasilaSession::query()->whereKey($session->getKey())->lockForUpdate()->firstOrFail();
             $session->loadMissing(['posko', 'shiftInstance']);
+            if ($session->isClosed()) {
+                throw ValidationException::withMessages(['section' => 'Sesi '.$session->code.' sudah ditutup; Section tidak diubah agar catatan patroli tetap utuh.']);
+            }
             if ($session->shiftHasEnded()) {
                 throw ValidationException::withMessages(['section' => 'Shift sesi '.$session->code.' sudah berakhir; Section tidak diubah agar riwayat tetap utuh.']);
             }

@@ -21,8 +21,11 @@ class PasilaSession extends Model
 {
     use HasUuids;
 
-    /** Sesi tercatat dan dapat dipantau. Status pelaksanaan (temuan, penutupan) menyusul di B3.2. */
+    /** Sesi tercatat dan dapat dipantau. */
     public const STATUS_DIBUKA = 'DIBUKA';
+
+    /** Ditutup tim POSKO setelah laporan patroli diterima (B3.4); lihat PasilaClosure. */
+    public const STATUS_DITUTUP = 'DITUTUP';
 
     public const SECTION_MENUNGGU = 'MENUNGGU_PENENTUAN';
 
@@ -40,6 +43,7 @@ class PasilaSession extends Model
 
     public const STATUS_LABELS = [
         self::STATUS_DIBUKA => 'Dibuka',
+        self::STATUS_DITUTUP => 'Ditutup',
     ];
 
     public const SECTION_STATUS_LABELS = [
@@ -137,6 +141,45 @@ class PasilaSession extends Model
     public function p0Items(): HasMany
     {
         return $this->hasMany(P0Item::class);
+    }
+
+    public function closure(): HasOne
+    {
+        return $this->hasOne(PasilaClosure::class);
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->status === self::STATUS_DITUTUP;
+    }
+
+    /**
+     * Ketidaksesuaian setelah penutupan, dihitung dari record asli (penutupan tidak diubah):
+     * temuan yang diterima setelah ditutup, penutupan nihil yang kemudian berisi temuan, dan
+     * penutupan yang dilakukan setelah shift berakhir.
+     *
+     * @return array<string, string> kode => keterangan
+     */
+    public function closureFlags(): array
+    {
+        $closure = $this->relationLoaded('closure') ? $this->closure : $this->closure()->first();
+        if ($closure === null) {
+            return [];
+        }
+
+        $flags = [];
+        $late = $this->findings()->where('received_at', '>', $closure->received_at)->count();
+        if ($late > 0) {
+            $flags['TEMUAN_SETELAH_DITUTUP'] = "{$late} temuan diterima setelah sesi ditutup";
+        }
+        if ($closure->outcome === PasilaClosure::OUTCOME_NIHIL && $this->findings()->exists()) {
+            $flags['NIHIL_TERBANTAH'] = 'Ditutup nihil, kemudian ada temuan (laporan nihil digantikan)';
+        }
+        if ($closure->occurred_at->gte($this->shiftInstance->ends_at)) {
+            $flags['DITUTUP_SETELAH_SHIFT'] = 'Ditutup setelah shift berakhir';
+        }
+
+        return $flags;
     }
 
     /**

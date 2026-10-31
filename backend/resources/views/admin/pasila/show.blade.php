@@ -150,6 +150,24 @@
                 @endif
             </div>
 
+            <div class="border-b border-slate-100 px-4 py-3 text-xs" data-closure-panel="{{ $session->closure?->outcome ?? 'BELUM_DITUTUP' }}">
+                @if ($closure = $session->closure)
+                    <div class="flex flex-wrap items-center gap-2">
+                        <x-admin.status-badge tone="emerald">Sesi ditutup · {{ $closure->outcomeLabel() }}</x-admin.status-badge>
+                        <span class="text-slate-600">{{ $fmt($closure->occurred_at) }} · diterima {{ $fmt($closure->received_at) }} · Akun {{ $closure->submittedByTeam?->code ?? '-' }} ({{ $closure->submittedBy?->username ?? '-' }}) · Petugas: {{ collect($closure->personnel)->pluck('name')->implode(', ') }}</span>
+                    </div>
+                    <p class="mt-1 text-slate-500" data-closure-snapshot>Saat ditutup: {{ $closure->finding_count }} temuan · target P0 {{ ($closure->snapshot['p0']['fulfilled'] ?? false) ? 'terpenuhi' : 'belum terpenuhi' }} ({{ $closure->snapshot['p0']['completed'] ?? 0 }}/{{ $closure->snapshot['p0']['target'] ?? 1 }} selesai) · WO APKUK {{ $closure->snapshot['apkuk']['belum_selesai'] ?? 0 }} belum selesai, {{ $closure->snapshot['apkuk']['reschedule_menunggu_acc'] ?? 0 }} menunggu ACC reschedule. Status terkini ditampilkan di bawah dan dapat berbeda.</p>
+                    @if ($closure->note)
+                        <p class="mt-1 text-slate-700">{{ $closure->note }}</p>
+                    @endif
+                    @foreach ($session->closureFlags() as $flag => $text)
+                        <p class="mt-1 font-semibold text-amber-700" data-closure-flag="{{ $flag }}">{{ $text }}</p>
+                    @endforeach
+                @else
+                    <span class="text-slate-500">Sesi belum ditutup. Penutupan dilakukan tim POSKO lewat aplikasi setelah laporan patroli (temuan atau laporan nihil) diterima; tidak menunggu target P0 maupun reschedule WO APKUK.</span>
+                @endif
+            </div>
+
             @if ($nilReport)
                 <div class="border-b border-slate-100 px-4 py-3 text-xs" data-nil-report="{{ $nilReport->status }}">
                     <div class="flex flex-wrap items-center gap-2">

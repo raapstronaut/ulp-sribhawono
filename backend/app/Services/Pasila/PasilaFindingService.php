@@ -2,10 +2,12 @@
 
 namespace App\Services\Pasila;
 
+use App\Enums\WorkOrderStatus;
 use App\Models\AuditLog;
 use App\Models\FieldPersonnel;
 use App\Models\FieldTeam;
 use App\Models\Keypoint;
+use App\Models\PasilaClosure;
 use App\Models\PasilaFinding;
 use App\Models\PasilaFindingMedia;
 use App\Models\PasilaFindingPersonnel;
@@ -18,6 +20,7 @@ use App\Models\ReferenceCode;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Services\Apkuk\ApkukSectionService;
+use App\Services\Apkuk\Generation\ApkukShiftQuota;
 use App\Services\Apkuk\SectionPoskoMap;
 use App\Services\Audit\AuditLogger;
 use App\Services\ShiftService;
@@ -43,7 +46,10 @@ use Throwable;
  *   bila sesi sudah memiliki temuan; temuan yang masuk kemudian menggantikannya (riwayat tetap).
  *   Daftar temuan kosong tidak pernah dianggap nihil.
  * - Pengiriman ulang dengan client_request_id sama mengembalikan record yang ada (IdempotentSubmission).
- * - Tidak membaca atau mengubah WO APKUK, kuota, maupun P0.
+ * - Penutupan sesi (B3.4): hanya bila laporan patroli sudah diterima (temuan atau laporan nihil aktif);
+ *   tidak menunggu target P0 maupun reschedule WO APKUK. Sekali per sesi. Temuan sah yang tiba
+ *   setelah penutupan tetap diterima (bukti tidak dibuang) dan tercatat sebagai kiriman setelah ditutup.
+ * - Tidak mengubah WO APKUK, kuota, maupun P0 (penutupan hanya membaca keduanya untuk snapshot).
  */
 class PasilaFindingService
 {
@@ -57,7 +63,103 @@ class PasilaFindingService
     public function __construct(
         private readonly MediaStore $media,
         private readonly AuditLogger $audit,
+        private readonly ApkukShiftQuota $quota,
     ) {}
+
+    /**
+     * Menutup sesi PASILA.
+     *
+     * @param  array{client_request_id?: ?string, occurred_at: string, personnel_ids: array<int, string>, note?: ?string, latitude?: mixed, longitude?: mixed, gps_accuracy_m?: mixed}  $data
+     */
+    public function close(PasilaSession $session, User $account, array $data): PasilaClosure
+    {
+        $team = $this->teamOf($account, $session);
+
+        return IdempotentSubmission::run(
+            PasilaClosure::class,
+            $data['client_request_id'] ?? null,
+            ['submitted_by_field_team_id', $team->getKey(), 'tim lain'],
+            [
+                'pasila_session_id' => $session->getKey(),
+                'occurred_at' => CarbonImmutable::parse($data['occurred_at'], ShiftService::TIMEZONE),
+                'note' => IdempotentSubmission::text($data['note'] ?? null),
+                'latitude' => IdempotentSubmission::decimal($data['latitude'] ?? null, 7),
+                'longitude' => IdempotentSubmission::decimal($data['longitude'] ?? null, 7),
+                'personnel' => fn (PasilaClosure $c) => IdempotentSubmission::sameList(array_column($c->personnel, 'id'), array_values(array_unique(array_map('strval', $data['personnel_ids'])))),
+            ],
+            fn () => $this->createClosure($session, $account, $team, $data),
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function createClosure(PasilaSession $session, User $account, FieldTeam $team, array $data): PasilaClosure
+    {
+        $session->loadMissing('shiftInstance');
+        $shift = $session->shiftInstance;
+        $occurredAt = CarbonImmutable::parse((string) $data['occurred_at'], ShiftService::TIMEZONE);
+        if ($occurredAt->gt(CarbonImmutable::now()->addMinutes(self::FUTURE_TOLERANCE_MINUTES))) {
+            throw ValidationException::withMessages(['occurred_at' => 'Waktu penutupan tidak boleh di masa depan.']);
+        }
+        if ($occurredAt->lt($shift->starts_at)) {
+            throw ValidationException::withMessages(['occurred_at' => 'Waktu penutupan tidak boleh sebelum shift sesi dimulai.']);
+        }
+        $personnel = $this->personnel($team, $data['personnel_ids']);
+
+        return DB::transaction(function () use ($session, $account, $team, $data, $occurredAt, $personnel, $shift): PasilaClosure {
+            $session = PasilaSession::query()->whereKey($session->getKey())->lockForUpdate()->firstOrFail();
+            if ($existing = PasilaClosure::query()->where('pasila_session_id', $session->getKey())->first()) {
+                throw new WorkflowConflictException("Sesi {$session->code} sudah ditutup pada ".$existing->received_at->setTimezone(ShiftService::TIMEZONE)->format('d/m/Y H:i').' WIB.');
+            }
+
+            $findings = PasilaFinding::query()->where('pasila_session_id', $session->getKey())->count();
+            $nil = PasilaNilReport::query()->where('pasila_session_id', $session->getKey())->where('status', PasilaNilReport::STATUS_AKTIF)->first();
+            if ($findings === 0 && $nil === null) {
+                throw new WorkflowConflictException("Sesi {$session->code} belum dapat ditutup: belum ada laporan patroli yang diterima server (temuan atau laporan nihil). Kirim laporan patroli lebih dulu.");
+            }
+
+            $date = $shift->operational_date->toDateString();
+            $apkuk = $this->quota->scheduled($date, $shift->shift_code, $session->posko_id)[$session->posko_id] ?? null;
+            $workOrders = $apkuk ? $apkuk['carry_over']->concat($apkuk['existing']) : collect();
+            $p0 = P0Service::obligation($session->p0Items()->with('workOrder')->get());
+
+            $closure = PasilaClosure::create([
+                'pasila_session_id' => $session->getKey(),
+                'outcome' => $findings > 0 ? PasilaClosure::OUTCOME_ADA_TEMUAN : PasilaClosure::OUTCOME_NIHIL,
+                'finding_count' => $findings,
+                'pasila_nil_report_id' => $findings > 0 ? null : $nil->getKey(),
+                'note' => IdempotentSubmission::text($data['note'] ?? null),
+                'latitude' => $data['latitude'] ?? null,
+                'longitude' => $data['longitude'] ?? null,
+                'gps_accuracy_m' => $data['gps_accuracy_m'] ?? null,
+                'personnel' => array_map(fn (array $p) => ['id' => $p['field_personnel_id'], 'name' => $p['personnel_name']], $personnel),
+                'snapshot' => [
+                    'patrol' => ['finding_count' => $findings, 'nil_report_id' => $nil?->getKey()],
+                    'p0' => array_intersect_key($p0, array_flip(['target', 'completed', 'fulfilled', 'replacement_open', 'stages'])),
+                    'apkuk' => [
+                        'total' => $workOrders->count(),
+                        'selesai' => $workOrders->filter(fn ($wo) => $wo->status === WorkOrderStatus::Selesai)->count(),
+                        'belum_selesai' => $workOrders->filter(fn ($wo) => $wo->status->isActive())->count(),
+                        'reschedule_menunggu_acc' => $workOrders->filter(fn ($wo) => $wo->status === WorkOrderStatus::RescheduleDiajukan)->count(),
+                    ],
+                ],
+                'occurred_at' => $occurredAt->utc(),
+                'received_at' => now(),
+                'submitted_by_field_team_id' => $team->getKey(),
+                'submitted_by_user_id' => $account->getKey(),
+                'client_request_id' => $data['client_request_id'] ?? null,
+            ]);
+            $session->forceFill(['status' => PasilaSession::STATUS_DITUTUP])->save();
+
+            $this->audit->record('pasila_session', $session->getKey(), $session->code, AuditLog::ACTION_CLOSED,
+                ['status' => PasilaSession::STATUS_DIBUKA],
+                ['status' => PasilaSession::STATUS_DITUTUP, 'outcome' => $closure->outcome, 'finding_count' => $findings, 'p0_fulfilled' => $p0['fulfilled'], 'apkuk_reschedule_menunggu_acc' => $closure->snapshot['apkuk']['reschedule_menunggu_acc']],
+                $account, null, $team);
+
+            return $closure;
+        });
+    }
 
     /**
      * @param  array{client_request_id?: ?string, finding_code: string, description: string, section?: ?string, keypoint_id?: mixed, asset_label?: ?string, latitude: mixed, longitude: mixed, gps_accuracy_m?: mixed, occurred_at: string, personnel_ids: array<int, string>}  $data
@@ -177,13 +279,15 @@ class PasilaFindingService
                     ]);
                 }
 
+                // Kiriman offline yang tiba setelah sesi ditutup tetap diterima dan dicatat sebagai kiriman terlambat.
                 $this->audit->record('pasila_finding', $finding->getKey(), $session->code.' #'.$finding->sequence, AuditLog::ACTION_CREATED, null, [
                     'pasila_session_id' => $session->getKey(),
                     'section' => $finding->section_name,
                     'finding_code' => $code,
                     'occurred_at' => $finding->occurred_at,
                     'photo_count' => count($stored),
-                ], $account, null, $team);
+                    'received_after_closure' => $session->isClosed(),
+                ], $account, $session->isClosed() ? 'Diterima setelah sesi PASILA ditutup.' : null, $team);
 
                 // Bukti lapangan menang atas pernyataan nihil yang lebih dulu tercatat.
                 $nil = PasilaNilReport::query()->where('pasila_session_id', $session->getKey())->where('status', PasilaNilReport::STATUS_AKTIF)->first();

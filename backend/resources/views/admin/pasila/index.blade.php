@@ -44,7 +44,8 @@
         Temuan per titik dan laporan nihil dicatat petugas POSKO lewat aplikasi; daftar temuan kosong tanpa laporan nihil berarti <strong>belum ada laporan patroli</strong>, bukan nihil. Target P0 (minimal {{ \App\Services\Pasila\P0Service::TARGET_PER_SHIFT }} per Posko per shift) terpenuhi hanya oleh P0 yang selesai; P0 pengganti yang baru dibuat memenuhi kewajiban penggantian Admin, bukan target. PASILA boleh nihil walau target P0 belum terpenuhi.
     </x-admin.notice>
 
-    <div class="grid grid-cols-2 gap-4 lg:grid-cols-5">
+    <div class="grid grid-cols-2 gap-4 lg:grid-cols-6">
+        <x-admin.stat-card label="Sesi ditutup" :value="$load->failed('sessions') ? null : $totals['closed']" :hint="'Dari '.$totals['sessions'].' sesi; perlu laporan patroli'" unavailable-label="Gagal dimuat" tone="emerald" />
         <x-admin.stat-card label="Posko aktif" :value="$load->failed('poskos') ? null : $totals['poskos']" hint="Dari master poskos" unavailable-label="Gagal dimuat" />
         <x-admin.stat-card label="Sesi PASILA" :value="$load->failed('sessions') ? null : $totals['sessions']" :hint="'Tercatat untuk shift ini dari '.$totals['poskos'].' Posko'" unavailable-label="Gagal dimuat" tone="blue" />
         <x-admin.stat-card label="Menunggu Section" :value="$load->failed('sessions') ? null : $totals['waiting']" hint="Sesi tanpa Section terverifikasi" unavailable-label="Gagal dimuat" tone="amber" />
@@ -82,11 +83,17 @@
                         </td>
                         <td class="px-4 py-3" data-session-status="{{ $session?->status ?? 'TIDAK_ADA' }}">
                             @if ($session)
-                                <x-admin.status-badge tone="blue">{{ $session->statusLabel() }}</x-admin.status-badge>
+                                <x-admin.status-badge :tone="$session->isClosed() ? 'emerald' : 'blue'">{{ $session->statusLabel() }}</x-admin.status-badge>
                                 <div class="mt-1 text-[10px] font-semibold text-slate-700">{{ $session->code }}</div>
                                 <div class="text-[10px] text-slate-500">{{ $fmt($session->opened_at) }} · {{ $session->triggerLabel() }}</div>
                                 @if ($session->openedLateMinutes() > 0)
                                     <div class="text-[10px] font-semibold text-amber-700">Dibuka {{ $session->openedLateMinutes() }} menit setelah awal shift</div>
+                                @endif
+                                @if ($session->closure)
+                                    <div class="text-[10px] text-slate-600" data-closure="{{ $session->closure->outcome }}">{{ $session->closure->outcomeLabel() }} · {{ $fmt($session->closure->occurred_at) }}</div>
+                                    @foreach ($session->closureFlags() as $flag => $text)
+                                        <div class="text-[10px] font-semibold text-amber-700" data-closure-flag="{{ $flag }}">{{ $text }}</div>
+                                    @endforeach
                                 @endif
                             @else
                                 <x-admin.status-badge tone="slate">{{ $noSession[$context['phase']][0] }}</x-admin.status-badge>

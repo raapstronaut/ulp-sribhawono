@@ -108,6 +108,7 @@ class PasilaController extends Controller
                 'poskos' => $poskos->count(),
                 'sessions' => $sessions->count(),
                 'waiting' => $sessions->where('section_status', PasilaSession::SECTION_MENUNGGU)->count(),
+                'closed' => $sessions->where('status', PasilaSession::STATUS_DITUTUP)->count(),
                 'work_orders' => (int) $rows->sum('total'),
             ],
             'load' => $load,
@@ -249,7 +250,7 @@ class PasilaController extends Controller
         return $instance === null
             ? collect()
             : PasilaSession::query()->where('shift_instance_id', $instance->id)
-                ->with(['penyulang', 'shiftInstance', 'sectionSetBy:id,name,username', 'openedBy:id,name,username', 'nilReport', 'p0Items.workOrder'])
+                ->with(['penyulang', 'shiftInstance', 'sectionSetBy:id,name,username', 'openedBy:id,name,username', 'nilReport', 'p0Items.workOrder', 'closure'])
                 ->withCount('findings')
                 ->get()->keyBy('posko_id');
     }
