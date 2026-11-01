@@ -53,6 +53,53 @@
         <x-admin.stat-card label="Target P0 terpenuhi" :value="$load->failed('sessions') ? null : $rows->filter(fn ($r) => $r['p0']['fulfilled'] ?? false)->count()" :hint="'Sesi dengan P0 selesai, dari '.$totals['sessions'].' sesi'" :href="route('admin.p0.index')" unavailable-label="Gagal dimuat" />
     </div>
 
+    <x-admin.panel flush :title="'Belum ditutup setelah shift berakhir ('.($load->failed('unclosed') ? '-' : $unclosed['total']).')'" description="Semua tanggal, terlama lebih dulu. Status sesi tetap Dibuka; sistem tidak menutup sesi otomatis. Penutupan dari HP yang masih offline tetap diterima dan ditandai “Ditutup setelah shift berakhir”.">
+        <div data-unclosed-panel="{{ $load->failed('unclosed') ? 'GAGAL' : $unclosed['total'] }}">
+        @if ($load->failed('unclosed'))
+            <x-admin.error-state />
+        @elseif ($unclosed['total'] === 0)
+            <div class="px-4 py-3 text-xs text-slate-500">Tidak ada sesi PASILA yang melewati akhir shift tanpa penutupan{{ $filters['posko_id'] !== '' ? ' untuk Posko ini' : '' }}.</div>
+        @else
+            <x-admin.table min-width="min-w-[900px]">
+                <x-slot:head>
+                    <th class="px-4 py-3">Posko</th>
+                    <th class="px-4 py-3">Sesi PASILA</th>
+                    <th class="px-4 py-3">Shift berakhir</th>
+                    <th class="px-4 py-3">Keterlambatan</th>
+                    <th class="px-4 py-3">Laporan patroli</th>
+                    <th class="px-4 py-3 text-center">Aksi</th>
+                </x-slot:head>
+                @foreach ($unclosed['sessions'] as $late)
+                    @php $minutes = $late->minutesUnclosedAfterShift(); @endphp
+                    <tr data-unclosed-session="{{ $late->code }}" data-unclosed-minutes="{{ $minutes }}">
+                        <td class="px-4 py-3 font-semibold text-slate-900">{{ $late->posko?->nama_posko ?? '-' }}</td>
+                        <td class="px-4 py-3">
+                            <x-admin.status-badge tone="amber">{{ $late->statusLabel() }}</x-admin.status-badge>
+                            <div class="mt-1 text-[10px] font-semibold text-slate-700">{{ $late->code }}</div>
+                            <div class="text-[10px] text-slate-500">Shift {{ $late->shiftInstance->shift_code }} · {{ $late->shiftInstance->operational_date->format('d/m/Y') }}</div>
+                        </td>
+                        <td class="px-4 py-3 text-xs text-slate-700">{{ $fmt($late->shiftInstance->ends_at) }}</td>
+                        <td class="px-4 py-3">
+                            <span class="text-xs font-semibold {{ $minutes >= 1440 ? 'text-red-700' : 'text-amber-700' }}">{{ PasilaSession::durationLabel($minutes) }}</span>
+                            <div class="text-[10px] text-slate-500">belum ada penutupan diterima server</div>
+                        </td>
+                        <td class="px-4 py-3">
+                            <x-admin.status-badge :tone="$patrolTone[$late->patrolStatus()]">{{ $late->patrolStatusLabel() }}</x-admin.status-badge>
+                            <div class="mt-1 text-[10px] text-slate-500">{{ $late->findings_count }} temuan</div>
+                        </td>
+                        <td class="px-4 py-3 text-center">
+                            <a href="{{ route('admin.pasila.show', ['posko' => $late->posko_id, 'work_date' => $late->shiftInstance->operational_date->toDateString(), 'shift_code' => $late->shiftInstance->shift_code]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Detail</a>
+                        </td>
+                    </tr>
+                @endforeach
+            </x-admin.table>
+            @if ($unclosed['total'] > $unclosed['sessions']->count())
+                <div class="border-t border-slate-100 px-4 py-3 text-xs text-slate-500">Menampilkan {{ $unclosed['sessions']->count() }} terlama dari {{ $unclosed['total'] }} sesi.</div>
+            @endif
+        @endif
+        </div>
+    </x-admin.panel>
+
     <x-admin.panel flush :title="'Shift '.$context['shift']['code'].' · '.$context['shift']['name'].' — '.\Illuminate\Support\Carbon::parse($context['work_date'])->format('d/m/Y')" :description="$context['shift']['time'].' · hari operasional '.\Illuminate\Support\Carbon::parse($context['work_date'])->format('d/m/Y').' · '.$fmt($context['window']['start']).' – '.$fmt($context['window']['end']).($context['is_current'] ? ' · shift berjalan' : ' · bukan shift berjalan')">
         <x-admin.filter-bar :action="route('admin.pasila.index')" :reset-url="route('admin.pasila.index')" :active="$hasFilter">
             <x-admin.filter-input type="date" name="work_date" label="Tanggal operasional" :value="$filters['work_date']" />
@@ -83,7 +130,11 @@
                         </td>
                         <td class="px-4 py-3" data-session-status="{{ $session?->status ?? 'TIDAK_ADA' }}">
                             @if ($session)
-                                <x-admin.status-badge :tone="$session->isClosed() ? 'emerald' : 'blue'">{{ $session->statusLabel() }}</x-admin.status-badge>
+                                @php $unclosedLabel = $session->unclosedAfterShiftLabel(); @endphp
+                                <x-admin.status-badge :tone="$session->isClosed() ? 'emerald' : ($unclosedLabel ? 'amber' : 'blue')">{{ $session->statusLabel() }}</x-admin.status-badge>
+                                @if ($unclosedLabel)
+                                    <div class="mt-1 text-[10px] font-semibold text-amber-700" data-unclosed-label>{{ $unclosedLabel }}</div>
+                                @endif
                                 <div class="mt-1 text-[10px] font-semibold text-slate-700">{{ $session->code }}</div>
                                 <div class="text-[10px] text-slate-500">{{ $fmt($session->opened_at) }} · {{ $session->triggerLabel() }}</div>
                                 @if ($session->openedLateMinutes() > 0)

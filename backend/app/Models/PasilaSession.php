@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -238,5 +240,54 @@ class PasilaSession extends Model
     public function shiftHasEnded(?CarbonInterface $now = null): bool
     {
         return $this->shiftInstance->ends_at->lte($now ?? now());
+    }
+
+    /**
+     * Sesi yang shift-nya sudah berakhir tetapi belum ada penutupan yang diterima server (B3.5).
+     * Hanya untuk pemantauan: status tetap DIBUKA dan sistem tidak menutup sesi otomatis.
+     */
+    public function scopeUnclosedAfterShift(Builder $query, ?CarbonInterface $now = null): Builder
+    {
+        // shift_instances.ends_at disimpan UTC.
+        $at = CarbonImmutable::instance($now ?? now())->utc();
+
+        return $query->where($this->qualifyColumn('status'), self::STATUS_DIBUKA)
+            ->whereHas('shiftInstance', fn (Builder $shift) => $shift->where('ends_at', '<=', $at));
+    }
+
+    /**
+     * Menit sejak shift berakhir tanpa penutupan; null bila sudah ditutup atau shift belum berakhir.
+     */
+    public function minutesUnclosedAfterShift(?CarbonInterface $now = null): ?int
+    {
+        if ($this->isClosed() || ! $this->shiftHasEnded($now)) {
+            return null;
+        }
+
+        return (int) floor($this->shiftInstance->ends_at->diffInSeconds($now ?? now(), false) / 60);
+    }
+
+    public function unclosedAfterShiftLabel(?CarbonInterface $now = null): ?string
+    {
+        $minutes = $this->minutesUnclosedAfterShift($now);
+
+        return $minutes === null ? null : 'Belum ditutup '.self::durationLabel($minutes).' setelah shift berakhir';
+    }
+
+    /**
+     * `45 menit`, `3 jam 20 menit`, `2 hari 4 jam` (menit tidak ditampilkan bila sudah berhari-hari).
+     */
+    public static function durationLabel(int $minutes): string
+    {
+        $days = intdiv($minutes, 1440);
+        $hours = intdiv($minutes % 1440, 60);
+        $rest = $minutes % 60;
+        $parts = array_filter([
+            $days > 0 ? "{$days} hari" : null,
+            $hours > 0 ? "{$hours} jam" : null,
+            $days === 0 && $rest > 0 ? "{$rest} menit" : null,
+        ]);
+
+        return $parts === [] ? 'kurang dari 1 menit' : implode(' ', $parts);
     }
 }

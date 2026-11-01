@@ -29,7 +29,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
 /**
- * Monitor PASILA per Posko dan shift (Batch B3.1).
+ * Monitor PASILA per Posko dan shift (Batch B3.1). Sejak B3.5 juga memantau sesi yang shift-nya
+ * sudah berakhir tetapi belum ditutup tim POSKO, tanpa mengubah status sesi.
  *
  * Ditampilkan terpisah: sesi PASILA (pasila_sessions), laporan patroli (temuan per titik dan laporan
  * nihil dari aplikasi POSKO, B3.2; Admin hanya melihat), status WO APKUK shift yang sama
@@ -39,10 +40,29 @@ use Illuminate\View\View;
  */
 class PasilaController extends Controller
 {
+    /** Batas baris daftar sesi yang belum ditutup setelah shift berakhir (terlama lebih dulu). */
+    public const UNCLOSED_LIMIT = 50;
+
     public function index(Request $request, ShiftService $shifts, PasilaShiftOpener $opener, DataLoader $load): View
     {
         $context = $this->shiftContext($request, $shifts);
         $poskoId = QueryInput::uuid($request, 'posko_id');
+
+        // Lintas tanggal: sesi yang shift-nya sudah berakhir tanpa penutupan dari tim POSKO (B3.5).
+        // Hanya ditampilkan; status tetap DIBUKA dan tidak ada penutupan otomatis.
+        $unclosedQuery = fn () => PasilaSession::query()->unclosedAfterShift()
+            ->when($poskoId !== '', fn (Builder $query) => $query->where('pasila_sessions.posko_id', $poskoId));
+        $unclosed = $load->attempt('unclosed', fn () => [
+            'total' => $unclosedQuery()->count(),
+            'sessions' => $unclosedQuery()
+                ->join('shift_instances as s', 's.id', '=', 'pasila_sessions.shift_instance_id')
+                ->select('pasila_sessions.*')
+                ->with(['posko', 'shiftInstance', 'nilReport'])
+                ->withCount('findings')
+                ->orderBy('s.ends_at')
+                ->limit(self::UNCLOSED_LIMIT)
+                ->get(),
+        ], ['total' => 0, 'sessions' => collect()]);
 
         $poskos = $load->attempt('poskos', fn () => Posko::query()
             ->where('is_active', true)
@@ -104,6 +124,8 @@ class PasilaController extends Controller
             'heldEntries' => collect($entries)->whereNull('posko')->values(),
             'blockedReason' => $opener->blockedReason(),
             'strategy' => $opener->strategy(),
+            'unclosed' => $unclosed,
+            'unclosedLimit' => self::UNCLOSED_LIMIT,
             'totals' => [
                 'poskos' => $poskos->count(),
                 'sessions' => $sessions->count(),

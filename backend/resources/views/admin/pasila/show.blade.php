@@ -52,7 +52,13 @@
         @elseif ($session)
             <dl class="grid grid-cols-2 gap-5 text-sm md:grid-cols-4" data-session="{{ $session->code }}">
                 <x-admin.detail-item label="Kode sesi">{{ $session->code }}</x-admin.detail-item>
-                <x-admin.detail-item label="Status sesi"><x-admin.status-badge tone="blue">{{ $session->statusLabel() }}</x-admin.status-badge></x-admin.detail-item>
+                @php $unclosedLabel = $session->unclosedAfterShiftLabel(); @endphp
+                <x-admin.detail-item label="Status sesi">
+                    <x-admin.status-badge :tone="$session->isClosed() ? 'emerald' : ($unclosedLabel ? 'amber' : 'blue')">{{ $session->statusLabel() }}</x-admin.status-badge>
+                    @if ($unclosedLabel)
+                        <span class="mt-1 block text-[11px] font-semibold text-amber-700" data-unclosed-label>{{ $unclosedLabel }}</span>
+                    @endif
+                </x-admin.detail-item>
                 <x-admin.detail-item label="Dibuka">
                     {{ $fmt($session->opened_at) }} · {{ $session->triggerLabel() }}{{ $session->openedBy ? ' · '.$session->openedBy->username : '' }}
                     @if ($session->openedLateMinutes() > 0)
@@ -164,6 +170,9 @@
                         <p class="mt-1 font-semibold text-amber-700" data-closure-flag="{{ $flag }}">{{ $text }}</p>
                     @endforeach
                 @else
+                    @if (($minutes = $session->minutesUnclosedAfterShift()) !== null)
+                        <p class="mb-1 font-semibold text-amber-700" data-unclosed-minutes="{{ $minutes }}">Shift berakhir {{ $fmt($session->shiftInstance->ends_at) }}; belum ada penutupan yang diterima server selama {{ PasilaSession::durationLabel($minutes) }}. Status tetap Dibuka dan sistem tidak menutup otomatis. Bila HP petugas masih offline, penutupan yang terkirim kemudian tetap diterima dan ditandai “Ditutup setelah shift berakhir”.</p>
+                    @endif
                     <span class="text-slate-500">Sesi belum ditutup. Penutupan dilakukan tim POSKO lewat aplikasi setelah laporan patroli (temuan atau laporan nihil) diterima; tidak menunggu target P0 maupun reschedule WO APKUK.</span>
                 @endif
             </div>

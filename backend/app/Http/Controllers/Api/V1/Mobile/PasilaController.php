@@ -46,7 +46,7 @@ class PasilaController extends Controller
         ]);
     }
 
-    public function show(Request $request, PasilaSession $pasilaSession, ShiftService $shifts): JsonResponse
+    public function show(Request $request, string $pasilaSession, ShiftService $shifts): JsonResponse
     {
         $team = $this->poskoTeam($request);
         $session = $this->scoped($pasilaSession, $team)->load(['shiftInstance', 'penyulang', 'nilReport.personnel', 'closure'])->loadCount('findings');
@@ -65,7 +65,7 @@ class PasilaController extends Controller
         ]);
     }
 
-    public function storeFinding(Request $request, PasilaSession $pasilaSession, PasilaFindingService $service): JsonResponse
+    public function storeFinding(Request $request, string $pasilaSession, PasilaFindingService $service): JsonResponse
     {
         $team = $this->poskoTeam($request);
         $session = $this->scoped($pasilaSession, $team);
@@ -96,7 +96,7 @@ class PasilaController extends Controller
         ], 201);
     }
 
-    public function storeNilReport(Request $request, PasilaSession $pasilaSession, PasilaFindingService $service): JsonResponse
+    public function storeNilReport(Request $request, string $pasilaSession, PasilaFindingService $service): JsonResponse
     {
         $team = $this->poskoTeam($request);
         $session = $this->scoped($pasilaSession, $team);
@@ -121,7 +121,7 @@ class PasilaController extends Controller
         ], 201);
     }
 
-    public function close(Request $request, PasilaSession $pasilaSession, PasilaFindingService $service, ShiftService $shifts): JsonResponse
+    public function close(Request $request, string $pasilaSession, PasilaFindingService $service, ShiftService $shifts): JsonResponse
     {
         $team = $this->poskoTeam($request);
         $session = $this->scoped($pasilaSession, $team);
@@ -148,7 +148,8 @@ class PasilaController extends Controller
 
         return response()->json([
             'data' => $this->sessionSummary($session, $shifts->instanceAt()),
-            'meta' => ['server_time' => now()->toIso8601String(), 'idempotent_replay' => ! $closure->wasRecentlyCreated, 'warnings' => $warnings],
+            // Selalu objek JSON ({} bila tanpa peringatan), bukan array kosong.
+            'meta' => ['server_time' => now()->toIso8601String(), 'idempotent_replay' => ! $closure->wasRecentlyCreated, 'warnings' => (object) $warnings],
         ], 201);
     }
 
@@ -160,9 +161,14 @@ class PasilaController extends Controller
         return $team;
     }
 
-    private function scoped(PasilaSession $session, FieldTeam $team): PasilaSession
+    /**
+     * Sesi dicari di dalam Posko tim: sesi Posko lain dan sesi yang tidak ada dibalas 404 yang
+     * sama, agar keberadaan sesi Posko lain tidak terungkap (seperti WO di WorkOrderController).
+     */
+    private function scoped(string $id, FieldTeam $team): PasilaSession
     {
-        abort_unless($session->posko_id === $team->posko_id, 404, 'Sesi PASILA tidak ditemukan untuk Posko tim ini.');
+        $session = PasilaSession::query()->where('posko_id', $team->posko_id)->find($id);
+        abort_if($session === null, 404, 'Sesi PASILA tidak ditemukan untuk Posko tim ini.');
 
         return $session;
     }

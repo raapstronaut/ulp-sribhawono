@@ -10,8 +10,9 @@ use Illuminate\Support\Facades\Route;
 
 /*
 | API v1 untuk aplikasi Android tim lapangan (POSKO, HARSUS, INSPEKSI, ROW).
-| Respons: { data, meta } atau { message, errors }. 401 tanpa token, 403 akun/tim tidak
-| berhak, 404 data di luar cakupan tim, 409 konflik workflow, 422 validasi.
+| Sukses: { data, meta }. Galat: { message }, ditambah errors per field pada 409/422 (dan 403
+| akun nonaktif). 401 tanpa token, 403 akun/tim tidak berhak, 404 data di luar cakupan tim
+| (sama dengan data tidak ada), 409 konflik workflow, 422 validasi. Panduan: docs/MOBILE_API_GUIDE.md.
 */
 Route::prefix('v1/mobile')->name('api.mobile.')->group(function (): void {
     Route::post('/auth/login', [AuthController::class, 'login'])

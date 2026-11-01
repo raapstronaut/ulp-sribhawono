@@ -60,6 +60,8 @@ Rancang test perangkat nyata saat jaringan OFF→ON, task background, reboot, ba
 
 **POSKO:** cached APKUK WO, PASILA shift, P0 yang sudah ACC, reschedule reason+manual note, temuan terpisah; setiap submit tercatat outbox. PASILA dibentuk server awal shift, sehingga tugas yang belum sempat didownload tidak dapat dibuat-buat lokal tanpa kontrak khusus. Server B3.2: setiap temuan dan laporan nihil membawa `client_request_id` sendiri (kiriman ulang mengembalikan record yang sama; isi berbeda dengan kunci sama → 422). Kiriman yang tiba setelah shift berakhir diterima bila `occurred_at` di dalam jendela shift sesi. Temuan yang tiba setelah laporan nihil menggantikan laporan nihil, sedangkan laporan nihil untuk sesi yang sudah memiliki temuan ditolak 409.
 
+Endpoint aktual, contoh payload/respons, dan tabel penanganan 401/403/404/409/422 untuk outbox: `MOBILE_API_GUIDE.md` §8.
+
 Penutupan sesi (B3.4, `POST pasila/{id}/close`) juga membawa `client_request_id` sendiri; kiriman ulang mengembalikan penutupan yang sama. Aturan urutan dan kiriman terlambat:
 - **Urutan outbox:** penutupan bergantung pada laporan patroli sesi itu. Kirim semua temuan/laporan nihil sesi lebih dulu; bila penutupan tiba sebelum laporan apa pun diterima server, server menolak 409 "belum ada laporan patroli" tanpa membuat penutupan, dan klien mengirim ulang penutupan dengan key sama setelah laporan terkirim.
 - **Penutupan terlambat:** `occurred_at` penutupan boleh setelah shift berakhir (HP offline sampai lewat shift); diterima dan ditandai `DITUTUP_SETELAH_SHIFT`. `occurred_at` sebelum awal shift atau lebih dari 10 menit di depan jam server ditolak 422.
