@@ -6,7 +6,9 @@ import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_nav.dart';
+import '../widgets/not_ready.dart';
 import '../widgets/wo_status_chip.dart';
+import 'daftar_wo_screen.dart';
 
 /// Artboard desain "2 · Beranda Shift". Masih memakai data contoh.
 class BerandaScreen extends StatelessWidget {
@@ -14,11 +16,12 @@ class BerandaScreen extends StatelessWidget {
 
   final BerandaData data;
 
-  /// Layar tujuan belum dibuat: beri tahu dengan jujur, jangan diam saja.
-  void _showNotReady(BuildContext context, String feature) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text('$feature belum tersedia')));
+  void _openWorkOrders(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => DaftarWoScreen(pendingSyncCount: data.pendingSyncCount),
+      ),
+    );
   }
 
   @override
@@ -32,7 +35,7 @@ class BerandaScreen extends StatelessWidget {
             children: [
               _Header(
                 data: data,
-                onNotifications: () => _showNotReady(context, 'Notifikasi'),
+                onNotifications: () => showNotReady(context, 'Notifikasi'),
               ),
               // Pita biru di belakang kartu membuatnya tampak menimpa header.
               Stack(
@@ -60,7 +63,7 @@ class BerandaScreen extends StatelessWidget {
                     if (data.pendingSyncCount > 0) ...[
                       _SyncBanner(
                         count: data.pendingSyncCount,
-                        onTap: () => _showNotReady(context, 'Halaman Sinkron'),
+                        onTap: () => showNotReady(context, 'Halaman Sinkron'),
                       ),
                       const SizedBox(height: 14),
                     ],
@@ -68,7 +71,7 @@ class BerandaScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     _NextTaskCard(
                       task: data.nextTask,
-                      onContinue: () => _showNotReady(context, 'Detail WO'),
+                      onContinue: () => showNotReady(context, 'Detail WO'),
                     ),
                     const SizedBox(height: 14),
                     IntrinsicHeight(
@@ -80,7 +83,7 @@ class BerandaScreen extends StatelessWidget {
                               icon: Icons.assignment_outlined,
                               title: 'WO APKUK',
                               subtitle: '${data.woRemaining} sisa di shift ini',
-                              onTap: () => _showNotReady(context, 'Daftar WO'),
+                              onTap: () => _openWorkOrders(context),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -89,8 +92,7 @@ class BerandaScreen extends StatelessWidget {
                               icon: Icons.location_on_outlined,
                               title: 'PASILA & P0',
                               subtitle: data.pasilaSummary,
-                              onTap: () =>
-                                  _showNotReady(context, 'PASILA & P0'),
+                              onTap: () => showNotReady(context, 'PASILA & P0'),
                             ),
                           ),
                         ],
@@ -106,7 +108,15 @@ class BerandaScreen extends StatelessWidget {
           current: AppTab.beranda,
           pendingSyncCount: data.pendingSyncCount,
           onSelected: (tab) {
-            if (tab != AppTab.beranda) _showNotReady(context, tab.label);
+            switch (tab) {
+              case AppTab.beranda:
+                break;
+              case AppTab.pekerjaan:
+                _openWorkOrders(context);
+              case AppTab.sinkron:
+              case AppTab.akun:
+                showNotReady(context, tab.label);
+            }
           },
         ),
       ),
