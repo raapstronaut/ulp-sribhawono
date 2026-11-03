@@ -66,7 +66,7 @@ Shift A 08:00–16:00, B 16:00–00:00, C 00:00–08:00 **FINAL (dikonfirmasi 28
 
 # 6. Maps Web architecture
 
-Server endpoint memilih penyulang wajib dan jenis layer serta bbox/zoom/page. Jangan mengembalikan 17k+ aset seluruh ULP setiap request. Cache/cluster sesuai zoom; dukung jenis TIANG, GARDU, FCO, LBSM, REC, APKUK, VEGETASI dan event GANGGUAN. Layer gangguan merender koordinat kejadian dan mereferensikan aset terdampak.
+Server endpoint memilih penyulang wajib dan jenis layer serta bbox/zoom/page. Jangan mengembalikan 17k+ aset seluruh ULP setiap request. Cache/cluster sesuai zoom; dukung jenis TIANG, GARDU, FCO, LBSM, REC, APKUK, VEGETASI dan event GANGGUAN. Layer gangguan merender koordinat kejadian dan mereferensikan aset terdampak. Peta Monitoring yang sudah berjalan hanya memetakan koordinat di dalam wilayah operasional; titik bernilai 0 atau di luar wilayah dilaporkan terpisah tanpa mengubah nilai aslinya (aturan: `SOURCE_IMPORT_RUNBOOK.md` §6).
 
 Search endpoint adalah **global lintas 16 penyulang** meskipun map menampilkan satu penyulang. Hasil harus mengandung asset ID, penyulang ID, koordinat, label. UI **switch dropdown → load markers → zoom → drawer**.
 

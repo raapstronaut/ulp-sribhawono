@@ -172,7 +172,7 @@ Field sistem: `legacy_key` (hash penyulang+jenis+nama), `sumber_input=SPS_BOS`, 
 
 | Tab | Header exact yang dibaca | Penggunaan saat ini | Status sumber |
 |---|---|---|---|
-| `ASSET_RAW` | `ID_ASET`, `NAMA_ASET`, `JENIS_ASET`, `PENYULANG`, `LATITUDE`, `LONGITUDE`, `STATUS` | Disimpan ke `asset_source_rows`; belum menjadi master asset canonical | `SRC-STAGING` |
+| `ASSET_RAW` | `ID_ASET`, `NAMA_ASET`, `JENIS_ASET`, `PENYULANG`, `LATITUDE`, `LONGITUDE`, `STATUS`, `Foto`, `Section`, `Posko` | Disimpan ke `asset_source_rows`; belum menjadi master asset canonical. `Section`/`Posko` mentah bukan referensi kepemilikan | `SRC-STAGING` |
 | `VEGETASI_RAW` | `NO`, `NAMA POHON`, `UP3`, `ULP`, `PENYULANG`, `ID JTM`, `ID TIANG`, `NAMA TIANG`, `JENIS POHON`, `PERTUMBUHAN POHON`, `JARAK AMAN`, `JARAK BAHAYA`, `KONDISI`, `SECTION`, `EAM`, `LATITUDE`, `LONGITUDE`, `JARAK POHON`, `JARAK POHON SAAT INI`, `IZIN PADAM`, `IZIN TEBANG BAWAH`, `TANGGAL UPDATE`, `TANGGAL PERIKSA`, `TANGGAL PERKIRAAN BAHAYA`, `USER PEMBUAT`, `USER UPDATE`, `KETERANGAN`, `ID POHON` | Disimpan sebagai teks raw; menjadi kandidat target ROW | `SRC-STAGING`, belum canonical/tervalidasi penuh |
 | `SECTION_PIC_RAW` | `PENYULANG`, `PEMUTUS`, `POSKO PIC` | Menyimpan row non-kosong, null cell, dan nomor baris; row sepenuhnya kosong dilewati; sinkronisasi master melakukan derived fill-down | `SRC-STAGING` |
 
@@ -209,7 +209,7 @@ Nuansa staging: tanpa `--replace`, import berulang dapat menambah duplikasi. Den
 | `APKUK_RAW` | 3.721 | 12 | Ya — `apkuk:sync` (cron) | Header persis sesuai kontrak |
 | `GANGGUAN_PUSAT_IMPORT` | 494 | 90 (grid 109 kolom) | Ya — `gangguan:sync` (cron), 28 posisi | Lihat tabel verifikasi posisi di 3.2 |
 | `KEYPOINT_RAW` | 129 | 5 | Ya — `keypoint:sync` (cron) | `NOTE` 0% terisi |
-| `ASSET_RAW` | 17.059 | 10 | Ya — `sources:import` (manual, 7 kolom pertama) | Header `Foto`, `Section`, `Posko` ada tetapi 0% terisi dan tidak dibaca |
+| `ASSET_RAW` | 17.059 | 10 | Ya — `sources:import` (manual, 10 kolom) | Header `Foto`, `Section`, `Posko` dibaca sebagai nilai mentah; saat ini 0% terisi |
 | `VEGETASI_RAW` | 16.983 | 28 | Ya — `sources:import` (manual) | `SECTION`, `EAM`, `IZIN TEBANG BAWAH` 0% terisi; `IZIN PADAM` seluruhnya `TIDAK`; `ID POHON` 100% terisi |
 | `SECTION_PIC_RAW` | 69 | 3 | Ya — `sources:import` + `topology:sync` | `PENYULANG` 23% (pola fill-down), `PEMUTUS` 100%, `POSKO PIC` 97% |
 | `MASTER_POSKO` | 6 | 3 (`POSKO_ID`, `POSKO`, `STATUS`) | **Tidak** | ID resmi PSK001–PSK006, semua `AKTIF` |
@@ -935,7 +935,7 @@ Indeks ini memakai nama kolom database sebagaimana didefinisikan migration. `id`
 | `apkuks` | `id`, `source_id`, `legacy_key`, `tanggal`, `petugas`, `penyulang`, `section`, `no_tiang`, `naik_dari`, `terpasang_bh`, `kurang_bh`, `status`, `koordinat`, `latitude`, `longitude`, `foto`, `sumber_input`, `source_row_number`, `last_synced_at`, `source_missing_at`, timestamps |
 | `keypoints` | `id`, `legacy_key`, `penyulang`, `jenis`, `nama`, `koordinat_raw`, `latitude`, `longitude`, `note`, `sumber_input`, `source_row_number`, `last_synced_at`, timestamps |
 | `gangguans` | `id_gangguan`, `tanggal_kejadian`, `penyulang`, `ulp`, `peralatan`, `kategori_proteksi_pusat`, `kode_gangguan`, `sifat_gangguan`, `penyebab`, `jenis_hewan`, `uraian_penyebab`, `no_tiang`, `keypoint_pusat`, `lepas`, `masuk`, `lama_padam_menit`, `ens_kwh`, `ens_apkt_kwh`, `beban_amp`, `beban_setelah_amp`, `rele_kerja`, `arus_gangguan_amp`, `material_rusak`, `tindakan_corrective`, `tindakan_preventive`, `keterangan_temuan`, `foto_gangguan_url`, `foto_corrective_url`, `sumber_data`, `last_synced_at`, timestamps |
-| `asset_source_rows` | raw mirror untuk tujuh header `ASSET_RAW`, `source_row_number`, `imported_at`, timestamps |
+| `asset_source_rows` | raw mirror untuk sepuluh header `ASSET_RAW` (termasuk `foto_raw`, `section_raw`, `posko_raw`), `source_row_number`, `imported_at`, timestamps |
 | `vegetasi_source_rows` | raw mirror untuk 28 header `VEGETASI_RAW`, `source_row_number`, `imported_at`, timestamps |
 | `section_pic_source_rows` | `penyulang_raw`, `pemutus_raw`, `posko_pic_raw`, `source_row_number`, `imported_at`, timestamps |
 | `keypoint_source_rows` | `penyulang_raw`, `jenis_raw`, `nama_raw`, `koordinat_raw`, `note_raw`, `source_row_number`, `imported_at`, timestamps; staging lama, bukan writer Keypoint aktif |

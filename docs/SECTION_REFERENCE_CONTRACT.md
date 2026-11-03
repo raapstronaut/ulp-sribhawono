@@ -75,7 +75,7 @@ Posko aktif tanpa satu pun Section terverifikasi tetap mendapat sesi PASILA seti
    php artisan sources:import --only=SECTION_PIC_RAW --replace
    php artisan topology:sync-core-masters
    ```
-   `--only` membatasi import ke tab ini, sehingga `--replace` tidak menghapus staging `ASSET_RAW`/`VEGETASI_RAW`. Tanpa `--only`, ketiga tab diimport ulang. Command kedua hanya memperbarui relasi tampilan Posko ↔ Penyulang.
+   `--only` membatasi import ke tab ini, sehingga `--replace` tidak menghapus staging `ASSET_RAW`/`VEGETASI_RAW`. Tanpa `--only` ketiga tab diproses: tanpa `--replace` tab yang sudah berisi ditolak, sedangkan dengan `--replace` ketiganya diganti (lihat `SOURCE_IMPORT_RUNBOOK.md`). Command kedua hanya memperbarui relasi tampilan Posko ↔ Penyulang.
 5. **Konfirmasi** pemetaan aktif:
    ```
    php artisan pasila:section-references

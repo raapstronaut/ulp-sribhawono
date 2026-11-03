@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const moreButton = $('maps-load-more');
     const tabLocations = $('maps-tab-locations');
     const tabGangguan = $('maps-tab-gangguan');
+    const tabIssues = $('maps-tab-issues');
     const caption = $('maps-list-caption');
     const refreshButton = $('maps-refresh');
     const updated = $('maps-updated');
@@ -79,8 +80,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let allLocations = [];
     let allGangguan = [];
+    let allIssues = [];
     let currentLocations = [];
     let currentGangguan = [];
+    let currentIssues = [];
     let markerById = new Map();
     let activeTab = 'locations';
     let visibleRows = PAGE_SIZE;
@@ -91,6 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const stats = (field, value) => { const target = $(field); if (target) target.textContent = formatCount(value); };
 
     function buildLocations(payload) {
+        const area = payload.meta?.operational_bounds;
         const data = [];
         for (const point of payload.keypoints || []) {
             data.push({
@@ -111,9 +115,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return data.filter((point) => {
             const lat = Number(point.latitude);
             const lon = Number(point.longitude);
+            // Server sudah memisahkan koordinat invalid ke coordinate_issues; batas wilayah diperiksa
+            // lagi di sini karena titik yang lolos menentukan batas tampilan peta (fitToPoints).
             return point.latitude !== null && point.longitude !== null
                 && Number.isFinite(lat) && Number.isFinite(lon)
-                && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+                && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
+                && (!area || (lat >= area.south && lat <= area.north && lon >= area.west && lon <= area.east));
         });
     }
 
@@ -123,6 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const feeders = [...new Set([
             ...allLocations.map((item) => item.penyulang),
             ...allGangguan.map((item) => item.penyulang),
+            ...allIssues.map((item) => item.penyulang),
         ].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'id'));
         const types = [...new Set(allLocations
             .filter((item) => item.layer === 'keypoint')
@@ -154,6 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return currentMatches(item);
         });
         currentGangguan = allGangguan.filter(currentMatches);
+        currentIssues = allIssues.filter(currentMatches);
     }
 
     function fitToPoints() {
@@ -180,7 +189,8 @@ document.addEventListener('DOMContentLoaded', () => {
             markerById.set(item.uid, marker);
         }
         stats('maps-stat-visible', currentLocations.length);
-        statusText(`${formatCount(currentLocations.length)} marker di peta · ${formatCount(currentGangguan.length)} Gangguan dalam daftar`);
+        statusText(`${formatCount(currentLocations.length)} marker di peta · ${formatCount(currentGangguan.length)} Gangguan dalam daftar`
+            + (currentIssues.length ? ` · ${formatCount(currentIssues.length)} titik tidak dipetakan (koordinat invalid)` : ''));
         if (fit) {
             fitToPoints();
             // Pertahankan perilaku lama: bila pencarian menemukan satu titik,
@@ -227,26 +237,42 @@ document.addEventListener('DOMContentLoaded', () => {
         return container;
     }
 
+    function listItemForIssue(item) {
+        const container = document.createElement('div');
+        container.className = 'rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5';
+        container.dataset.coordinateIssue = item.uid;
+        container.append(textElement('p', item.label, 'break-words text-sm font-semibold text-slate-900'));
+        container.append(textElement('p', `${item.layer === 'apkuk' ? 'APKUK' : text(item.jenis)} · ${text(item.penyulang)}${item.source_id ? ` · ID ${item.source_id}` : ''}`, 'mt-1 text-xs text-slate-600'));
+        container.append(textElement('p', `Koordinat sumber: ${item.latitude}, ${item.longitude}`, 'mt-1 text-xs text-slate-700'));
+        container.append(textElement('p', item.issue_label, 'mt-1 text-xs font-semibold text-amber-800'));
+        if (item.source_row_number) container.append(textElement('p', `Baris sumber: ${item.source_row_number}`, 'mt-1 text-xs text-slate-500'));
+        return container;
+    }
+
     function renderList() {
-        const locationsTab = activeTab === 'locations';
-        const source = locationsTab ? currentLocations : currentGangguan;
-        tabLocations.setAttribute('aria-selected', String(locationsTab));
-        tabGangguan.setAttribute('aria-selected', String(!locationsTab));
-        for (const [button, selected] of [[tabLocations, locationsTab], [tabGangguan, !locationsTab]]) {
-            button.className = selected
-                ? 'flex-1 border-b-2 border-blue-600 px-3 py-3 text-sm font-bold text-blue-700'
-                : 'flex-1 border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50';
+        const tabs = {
+            locations: { button: tabLocations, source: currentLocations, row: listItemForLocation, caption: (n) => `${n} lokasi cocok. Klik nama untuk menuju marker. Hasil pertama ditampilkan lebih dahulu.` },
+            gangguan: { button: tabGangguan, source: currentGangguan, row: listItemForGangguan, caption: (n) => `${n} laporan cocok. Gangguan belum memiliki koordinat untuk dipetakan.` },
+            issues: { button: tabIssues, source: currentIssues, row: listItemForIssue, caption: (n) => `${n} titik tidak dipetakan karena koordinatnya invalid dan tidak memengaruhi batas tampilan peta. Nilai asli tidak diubah; perbaikan dilakukan di sumber.` },
+        };
+        const active = tabs[activeTab];
+        const source = active.source;
+        for (const [key, tab] of Object.entries(tabs)) {
+            const selected = key === activeTab;
+            tab.button.setAttribute('aria-selected', String(selected));
+            tab.button.className = selected
+                ? 'flex-1 border-b-2 border-blue-600 px-2 py-3 text-sm font-bold text-blue-700'
+                : 'flex-1 border-b-2 border-transparent px-2 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50';
         }
-        caption.textContent = locationsTab
-            ? `${formatCount(source.length)} lokasi cocok. Klik nama untuk menuju marker. Hasil pertama ditampilkan lebih dahulu.`
-            : `${formatCount(source.length)} laporan cocok. Gangguan belum memiliki koordinat untuk dipetakan.`;
+        tabIssues.textContent = `Koordinat Invalid (${formatCount(currentIssues.length)})`;
+        caption.textContent = active.caption(formatCount(source.length));
         resultsElement.replaceChildren();
         if (!source.length) {
             resultsElement.append(textElement('p', loaded ? 'Tidak ada hasil yang cocok.' : 'Memuat data...', 'p-4 text-sm text-slate-500'));
         } else {
             const slice = source.slice(0, visibleRows);
             for (const item of slice) {
-                const row = locationsTab ? listItemForLocation(item) : listItemForGangguan(item);
+                const row = active.row(item);
                 row.setAttribute('role', 'listitem');
                 resultsElement.appendChild(row);
             }
@@ -281,11 +307,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             allLocations = buildLocations(payload);
             allGangguan = payload.gangguans;
+            allIssues = payload.coordinate_issues || [];
             const meta = payload.meta || {};
             stats('maps-stat-keypoint', meta.keypoint_mapped ?? payload.keypoints.length);
             stats('maps-stat-apkuk', meta.apkuk_mapped ?? payload.apkuks.length);
             stats('maps-stat-gangguan', meta.gangguan_total ?? payload.gangguans.length);
             updated.textContent = `Data dibaca: ${text(meta.generated_at)} · APKUK tanpa GPS: ${formatCount(meta.apkuk_without_coordinates)}`
+                + (allIssues.length ? ` · Koordinat invalid: ${formatCount(allIssues.length)}` : '')
                 + (meta.apkuk_pending_reconciliation ? ` · APKUK menunggu rekonsiliasi (tidak dihitung aktif): ${formatCount(meta.apkuk_pending_reconciliation)}` : '');
             loaded = true;
             updateFilterOptions();
@@ -323,6 +351,7 @@ document.addEventListener('DOMContentLoaded', () => {
     moreButton.addEventListener('click', () => { visibleRows += PAGE_SIZE; renderList(); });
     tabLocations.addEventListener('click', () => { activeTab = 'locations'; visibleRows = PAGE_SIZE; renderList(); });
     tabGangguan.addEventListener('click', () => { activeTab = 'gangguan'; visibleRows = PAGE_SIZE; renderList(); });
+    tabIssues.addEventListener('click', () => { activeTab = 'issues'; visibleRows = PAGE_SIZE; renderList(); });
 
     map.on('click', (event) => {
         const { lat, lng } = event.latlng;

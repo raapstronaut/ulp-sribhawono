@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 class ImportSourceSheets extends Command
 {
     protected $signature = 'sources:import
-                            {--replace : Hapus data staging lama sebelum import}
+                            {--replace : Hapus data staging lama sebelum import; wajib bila staging tujuan sudah berisi}
                             {--only=* : Hanya sheet tertentu (ASSET_RAW, VEGETASI_RAW, SECTION_PIC_RAW); default semua}';
 
     protected $description = 'Import ASSET_RAW, VEGETASI_RAW, SECTION_PIC_RAW, KEYPOINT_RAW dari Google Sheets ke PostgreSQL';
@@ -85,14 +85,14 @@ class ImportSourceSheets extends Command
             [
                 'sheet' => 'ASSET_RAW',
                 'model' => AssetSourceRow::class,
-                'column_count' => 7,
+                'column_count' => 10,
                 'headers' => [
                     'ID_ASET', 'NAMA_ASET', 'JENIS_ASET', 'PENYULANG',
-                    'LATITUDE', 'LONGITUDE', 'STATUS',
+                    'LATITUDE', 'LONGITUDE', 'STATUS', 'Foto', 'Section', 'Posko',
                 ],
                 'db_columns' => [
                     'id_aset_raw', 'nama_aset_raw', 'jenis_aset_raw', 'penyulang_raw',
-                    'latitude_raw', 'longitude_raw', 'status_raw',
+                    'latitude_raw', 'longitude_raw', 'status_raw', 'foto_raw', 'section_raw', 'posko_raw',
                 ],
             ],
             [
@@ -161,6 +161,14 @@ class ImportSourceSheets extends Command
         $this->line(str_repeat('═', 60));
         $this->info("Import: {$sheetName}");
         $this->line(str_repeat('─', 60));
+
+        // Tab ini snapshot utuh: tanpa --replace baris baru tertumpuk di atas baris lama dan tergandakan.
+        // SECTION_PIC_RAW memakai pengamannya sendiri (guardSectionReferences).
+        if ($modelClass !== SectionPicSourceRow::class && ! $this->option('replace') && $modelClass::query()->exists()) {
+            $this->error("Staging {$sheetName} sudah berisi {$modelClass::count()} baris: import tanpa --replace ditolak agar data tidak tergandakan. Data lama tidak diubah. Lihat docs/SOURCE_IMPORT_RUNBOOK.md sebelum memakai --only={$sheetName} --replace.");
+
+            return false;
+        }
 
         // ─── Phase 1: Fetch dari Google Sheets ───
 
@@ -433,7 +441,7 @@ class ImportSourceSheets extends Command
             $warnings = [];
             for ($i = 0; $i < $columnCount; $i++) {
                 if ($header[$i] !== $expectedHeaders[$i]) {
-                    $warnings[] = "  Kolom ".($i + 1).": expected \"{$expectedHeaders[$i]}\", actual \"{$header[$i]}\"";
+                    $warnings[] = '  Kolom '.($i + 1).": expected \"{$expectedHeaders[$i]}\", actual \"{$header[$i]}\"";
                 }
             }
 
@@ -441,7 +449,7 @@ class ImportSourceSheets extends Command
                 'header_row_index' => $headerRowIndex,
                 'data_rows' => $allRows,
                 'error' => "Header \"{$sheetName}\" tidak sesuai.",
-                'detail' => "Expected: ".implode(' | ', $expectedHeaders)."\nActual:   ".implode(' | ', $header),
+                'detail' => 'Expected: '.implode(' | ', $expectedHeaders)."\nActual:   ".implode(' | ', $header),
                 'warnings' => $warnings,
             ];
         }

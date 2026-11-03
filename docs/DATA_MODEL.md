@@ -20,8 +20,8 @@
 | Kelompok | Nama | Status |
 |---|---|---|
 | Staging | apkuk_source_rows | Migration & importer |
-| Staging | asset_source_rows | Migration & importer |
-| Staging | vegetasi_source_rows | Migration & importer |
+| Staging | asset_source_rows | Migration & importer (10 kolom ASSET_RAW; lihat SOURCE_IMPORT_RUNBOOK.md) |
+| Staging | vegetasi_source_rows | Migration & importer (lihat SOURCE_IMPORT_RUNBOOK.md) |
 | Staging | gangguan_source_rows | Migration & importer |
 | Staging | section_pic_source_rows | Migration & importer |
 | Staging | keypoint_source_rows | Migration & importer |

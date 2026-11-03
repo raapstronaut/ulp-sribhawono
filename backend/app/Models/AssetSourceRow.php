@@ -4,6 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * Snapshot mentah ASSET_RAW. section_raw dan posko_raw adalah nilai sumber yang belum terverifikasi,
+ * bukan referensi kepemilikan Section → Posko (lihat SectionPoskoMap).
+ */
 class AssetSourceRow extends Model
 {
     protected $fillable = [
@@ -14,6 +18,9 @@ class AssetSourceRow extends Model
         'latitude_raw',
         'longitude_raw',
         'status_raw',
+        'foto_raw',
+        'section_raw',
+        'posko_raw',
         'source_row_number',
         'imported_at',
     ];
