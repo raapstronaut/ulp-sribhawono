@@ -10,6 +10,7 @@
     ]);
 @endphp
 <div class="max-w-7xl mx-auto space-y-6 pb-12">
+    <x-admin.posko-tabs />
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
             <nav class="flex text-[10px] text-slate-500 font-medium mb-2">
@@ -70,8 +71,9 @@
                         <p class="mt-1 text-[10px] text-slate-500">Dipilih manual; sistem tidak menebak POSKO dari penyulang.</p>
                     </div>
                     <div>
-                        <label for="work_date" class="mb-1 block text-xs font-semibold text-slate-700">Tanggal kerja <span class="text-red-600">*</span></label>
+                        <label for="work_date" class="mb-1 block text-xs font-semibold text-slate-700">Tanggal operasional <span class="text-red-600">*</span></label>
                         <input id="work_date" type="date" name="work_date" required min="{{ $default_work_date }}" value="{{ old('work_date', $default_work_date) }}" class="w-full rounded-lg border px-3 py-2 text-sm {{ $errors->has('work_date') ? 'border-red-400' : 'border-slate-300' }}">
+                        <p class="mt-1 text-[10px] text-slate-500">Hari operasional dimulai pukul 08.00 WIB; Shift C setelah pukul 00.00 masih memakai tanggal operasional sebelumnya.</p>
                     </div>
                     <div>
                         <label for="shift_code" class="mb-1 block text-xs font-semibold text-slate-700">Shift <span class="text-red-600">*</span></label>

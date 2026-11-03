@@ -24,6 +24,9 @@
     $decisionTone = ['MENUNGGU_ACC' => 'amber', 'DISETUJUI' => 'emerald', 'DITOLAK' => 'red', 'TERBUKA' => 'amber', 'SELESAI' => 'emerald'];
 @endphp
 <div class="mx-auto max-w-7xl space-y-6 pb-12">
+    @if ($wo->team_type === \App\Models\WorkOrder::TEAM_POSKO && $wo->work_type === \App\Models\WorkOrder::TYPE_PEMASANGAN_APKUK)
+        <x-admin.posko-tabs />
+    @endif
     <x-admin.page-header section="Pekerjaan" :parent="$back[1]" :parent-url="route($back[0])" :title="$wo->code"
         :description="$wo->teamLabel().' · '.$wo->workTypeLabel().' · '.$wo->sourceLabel()">
         <x-slot:actions>

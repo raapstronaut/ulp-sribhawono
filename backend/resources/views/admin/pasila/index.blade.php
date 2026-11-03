@@ -17,11 +17,12 @@
     ];
 @endphp
 <div class="mx-auto max-w-7xl space-y-6">
+    <x-admin.posko-tabs />
     <x-admin.page-header
         section="Pekerjaan"
         title="PASILA Monitor"
         state="partial"
-        description="Sesi PASILA dibuka otomatis pada awal Shift A, B, dan C untuk setiap Posko, tanpa menunggu WO APKUK selesai. Section yang dipatroli dipilih dari Section terverifikasi milik Posko; kepemilikan Section tidak berpindah antar-Posko."
+        description="Monitoring sesi PASILA per Posko dan shift; pembukaan sesi mengikuti konfigurasi sistem yang sedang aktif. Section yang dipatroli dipilih dari Section terverifikasi milik Posko; kepemilikan Section tidak berpindah antar-Posko."
     >
         <x-slot:actions>
             @if ($blockedReason)

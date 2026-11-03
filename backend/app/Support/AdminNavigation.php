@@ -3,15 +3,13 @@
 namespace App\Support;
 
 /**
- * Satu sumber menu Web Admin untuk sidebar desktop dan navigasi seluler.
- *
- * Item memakai `svg` (daftar path ikon) atau `icon` (singkatan dua huruf).
+ * Satu sumber navigasi Web Admin (desktop + mobile).
+ * POSKO hanya satu item di sidebar; WO APKUK / PASILA / P0 / Kuota Shift
+ * adalah subhalaman melalui tab di masing-masing halaman POSKO.
  */
 final class AdminNavigation
 {
-    /**
-     * @return array<int, array{label: ?string, items: array<int, array{label: string, route: string, active: string, icon?: string, svg?: array<int, string>}>}>
-     */
+    /** @return array<int, array<string, mixed>> */
     public static function sections(): array
     {
         return [
@@ -22,26 +20,31 @@ final class AdminNavigation
                         'label' => 'Dashboard',
                         'route' => 'admin.dashboard',
                         'active' => 'admin.dashboard',
-                        'svg' => ['M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'],
+                        'svg' => ['M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z'],
                     ],
                 ],
             ],
             [
                 'label' => 'Pekerjaan',
                 'items' => [
-                    ['label' => 'P0', 'route' => 'admin.p0.index', 'active' => 'admin.p0.*', 'icon' => 'P0'],
                     [
-                        'label' => 'Work Order',
+                        'label' => 'POSKO',
                         'route' => 'admin.work-orders.index',
-                        'active' => 'admin.work-orders.*',
-                        'svg' => ['M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 7h6m-6 4h4'],
+                        'active' => ['admin.work-orders.*', 'admin.pasila.*', 'admin.p0.*', 'admin.shift-quota.*'],
+                        'related_routes' => ['admin.pasila.index', 'admin.p0.index', 'admin.shift-quota.index'],
+                        'icon' => 'PO',
                     ],
-                    ['label' => 'APKUK', 'route' => 'admin.apkuk.index', 'active' => 'admin.apkuk.*', 'icon' => 'AP'],
-                    ['label' => 'Kuota Shift APKUK', 'route' => 'admin.shift-quota.index', 'active' => 'admin.shift-quota.*', 'icon' => 'KS'],
-                    ['label' => 'PASILA', 'route' => 'admin.pasila.index', 'active' => 'admin.pasila.*', 'icon' => 'PS'],
-                    ['label' => 'Inspeksi', 'route' => 'admin.inspeksi.index', 'active' => 'admin.inspeksi.*', 'icon' => 'IN'],
                     ['label' => 'ROW', 'route' => 'admin.row.index', 'active' => 'admin.row.*', 'icon' => 'RW'],
                     ['label' => 'HARSUS', 'route' => 'admin.harsus.index', 'active' => 'admin.harsus.*', 'icon' => 'HS'],
+                    ['label' => 'INSPEKSI', 'route' => 'admin.inspeksi.index', 'active' => 'admin.inspeksi.*', 'icon' => 'IN'],
+                ],
+            ],
+            [
+                'label' => 'Data',
+                'items' => [
+                    ['label' => 'APKUK — Data Sumber', 'route' => 'admin.apkuk.index', 'active' => 'admin.apkuk.*', 'icon' => 'AP'],
+                    ['label' => 'Master Data', 'route' => 'admin.master-data.index', 'active' => 'admin.master-data.*', 'icon' => 'MD'],
+                    ['label' => 'Rekonsiliasi APKUK', 'route' => 'admin.apkuk-reconciliation.index', 'active' => 'admin.apkuk-reconciliation.*', 'icon' => 'RK'],
                 ],
             ],
             [
@@ -49,15 +52,18 @@ final class AdminNavigation
                 'items' => [
                     ['label' => 'Peta Jaringan', 'route' => 'admin.maps.index', 'active' => 'admin.maps.*', 'icon' => 'PJ'],
                     ['label' => 'Review & Validasi', 'route' => 'admin.reviews.index', 'active' => 'admin.reviews.*', 'icon' => 'RV'],
-                    ['label' => 'Rekonsiliasi APKUK', 'route' => 'admin.apkuk-reconciliation.index', 'active' => 'admin.apkuk-reconciliation.*', 'icon' => 'RK'],
                     ['label' => 'Special Case', 'route' => 'admin.special-case.index', 'active' => 'admin.special-case.*', 'icon' => 'SC'],
                 ],
             ],
             [
-                'label' => 'Data & Admin',
+                'label' => 'Analitik',
                 'items' => [
-                    ['label' => 'Master Data', 'route' => 'admin.master-data.index', 'active' => 'admin.master-data.*', 'icon' => 'MD'],
                     ['label' => 'Analitik', 'route' => 'admin.analytics.index', 'active' => 'admin.analytics.*', 'icon' => 'AN'],
+                ],
+            ],
+            [
+                'label' => 'Pengaturan & Admin',
+                'items' => [
                     ['label' => 'User & Hak Akses', 'route' => 'admin.users.index', 'active' => 'admin.users.*', 'icon' => 'UA'],
                     ['label' => 'Audit Log', 'route' => 'admin.audit-logs.index', 'active' => 'admin.audit-logs.*', 'icon' => 'AL'],
                     [
@@ -74,13 +80,13 @@ final class AdminNavigation
         ];
     }
 
-    /**
-     * @return array<int, string>
-     */
+    /** @return array<int, string> */
     public static function routeNames(): array
     {
         return collect(self::sections())
-            ->flatMap(fn (array $section): array => array_column($section['items'], 'route'))
+            ->flatMap(fn (array $section): array => $section['items'])
+            ->flatMap(fn (array $item): array => array_merge([$item['route']], $item['related_routes'] ?? []))
+            ->unique()
             ->values()
             ->all();
     }

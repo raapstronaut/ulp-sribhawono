@@ -123,7 +123,7 @@
                     @endif
                     <div class="space-y-1">
                         @foreach ($navigationSection['items'] as $navigationItem)
-                            @php($isActiveItem = request()->routeIs($navigationItem['active']))
+                            @php($isActiveItem = request()->routeIs(...(array) $navigationItem['active']))
                             <a href="{{ route($navigationItem['route']) }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ $isActiveItem ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}" @if ($isActiveItem) aria-current="page" @endif>{{ $navigationItem['label'] }}</a>
                         @endforeach
                     </div>

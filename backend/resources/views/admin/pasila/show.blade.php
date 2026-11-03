@@ -16,6 +16,7 @@
     ];
 @endphp
 <div class="mx-auto max-w-7xl space-y-6">
+    <x-admin.posko-tabs />
     <x-admin.page-header
         section="Pekerjaan"
         parent="PASILA"

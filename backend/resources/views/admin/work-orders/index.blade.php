@@ -15,6 +15,7 @@
     $hasFilter = collect($filters)->filter(fn ($v) => $v !== '')->isNotEmpty();
 @endphp
 <div class="max-w-7xl mx-auto space-y-6">
+    <x-admin.posko-tabs />
 
     <!-- Header Section -->
     <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">

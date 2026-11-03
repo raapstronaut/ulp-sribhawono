@@ -12,6 +12,7 @@
     $snapshot = $item->source_snapshot;
 @endphp
 <div class="mx-auto max-w-7xl space-y-6">
+    <x-admin.posko-tabs />
     <x-admin.page-header section="Pekerjaan" parent="P0" :parent-url="route('admin.p0.index')" :title="$item->code" state="live"
         :description="$item->originLabel().' · '.$item->stageLabel().' · sesi PASILA '.$item->session->code" />
 

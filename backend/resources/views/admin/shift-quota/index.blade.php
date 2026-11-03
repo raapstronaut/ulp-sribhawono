@@ -21,6 +21,7 @@
     $poskoStatus = [ApkukShiftGenerator::POSKO_PREVIEW => 'Pratinjau', ApkukShiftGenerator::POSKO_GENERATED => 'Digenerate', ApkukShiftGenerator::POSKO_ALREADY_GENERATED => 'Sudah digenerate sebelumnya'];
 @endphp
 <div class="mx-auto max-w-7xl space-y-6 pb-12">
+    <x-admin.posko-tabs />
     <x-admin.page-header section="Pekerjaan" title="Kuota Shift APKUK" state="partial"
         :description="'Target '.$target.' WO pemasangan APKUK per Posko per shift (6 pekerjaan, bukan 6 unit). Shift '.$code.' hari operasional '.\Illuminate\Support\Carbon::parse($date)->format('d/m/Y').': '.$fmt($window['start']).' – '.$fmt($window['end']).($isCurrent ? ' (berjalan)' : '')">
         <x-slot:actions>

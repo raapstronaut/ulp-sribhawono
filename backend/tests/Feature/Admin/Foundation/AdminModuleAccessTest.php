@@ -60,19 +60,55 @@ class AdminModuleAccessTest extends FoundationTestCase
         }
     }
 
-    public function test_desktop_and_mobile_navigation_link_every_module_and_no_pending_menu_remains(): void
+    public function test_desktop_and_mobile_navigation_link_sidebar_modules_and_posko_tabs(): void
     {
         $html = $this->actingAs($this->admin)->get('/admin/dashboard')->assertOk()->getContent();
+        $sections = AdminNavigation::sections();
 
-        foreach (AdminNavigation::routeNames() as $routeName) {
-            $href = 'href="'.route($routeName).'"';
-            $this->assertGreaterThanOrEqual(2, substr_count($html, $href), "Menu {$routeName} harus ada di sidebar desktop dan navigasi seluler.");
+        // Hanya item menu tingkat utama wajib muncul dua kali: desktop dan mobile.
+        foreach ($sections as $section) {
+            foreach ($section['items'] as $item) {
+                $routeName = $item['route'];
+                $href = 'href="'.route($routeName).'"';
+                $this->assertGreaterThanOrEqual(
+                    2,
+                    substr_count($html, $href),
+                    "Menu utama {$routeName} harus tersedia di sidebar desktop dan navigasi seluler.",
+                );
+            }
+        }
+
+        // Empat tujuan POSKO adalah satu menu sidebar dengan empat subhalaman.
+        $workSection = collect($sections)->firstWhere('label', 'Pekerjaan');
+        $this->assertNotNull($workSection);
+        $posko = $workSection['items'][0];
+        $this->assertSame('POSKO', $posko['label']);
+        $this->assertSame('admin.work-orders.index', $posko['route']);
+
+        $tabRoutes = [
+            'admin.work-orders.index',
+            'admin.pasila.index',
+            'admin.p0.index',
+            'admin.shift-quota.index',
+        ];
+        $this->assertSame(array_slice($tabRoutes, 1), $posko['related_routes']);
+
+        // Tab harus benar-benar bisa dibuka dan tersedia pada setiap halaman POSKO.
+        foreach ($tabRoutes as $pageRoute) {
+            $pageHtml = $this->actingAs($this->admin)->get(route($pageRoute))->assertOk()->getContent();
+            foreach ($tabRoutes as $tabRoute) {
+                $this->assertStringContainsString(
+                    'href="'.route($tabRoute).'"',
+                    $pageHtml,
+                    "Tab {$tabRoute} harus bisa diakses dari halaman {$pageRoute}.",
+                );
+            }
         }
 
         $this->assertStringNotContainsString('modul belum tersedia', $html);
         $this->assertStringNotContainsString('Modul lainnya belum tersedia', $html);
         $this->assertStringContainsString('id="mobile-sidebar"', $html);
-        // 18 menu: + Kuota Shift APKUK (Batch B2).
+        // Tetap 18 tujuan route, tetapi tiga di antaranya merupakan subtab POSKO.
         $this->assertCount(18, AdminNavigation::routeNames());
     }
 
