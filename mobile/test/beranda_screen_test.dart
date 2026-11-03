@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/mock/mock_beranda.dart';
 import 'package:mobile/screens/beranda_screen.dart';
+import 'package:mobile/screens/detail_wo_screen.dart';
 import 'package:mobile/theme/app_theme.dart';
 
 Future<void> pumpBeranda(
@@ -56,7 +57,7 @@ void main() {
     expect(find.text('Belum ada tugas pada shift ini.'), findsOneWidget);
   });
 
-  testWidgets('menu yang belum dibuat memberi tahu belum tersedia', (
+  testWidgets('tombol lanjutkan membuka detail tugas berikutnya', (
     tester,
   ) async {
     await pumpBeranda(tester);
@@ -65,9 +66,21 @@ void main() {
     await tester.ensureVisible(find.text('Lanjutkan pekerjaan'));
     await tester.pump();
     await tester.tap(find.text('Lanjutkan pekerjaan'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(DetailWoScreen), findsOneWidget);
+    expect(find.text('Tiang JP-045'), findsOneWidget);
+  });
+
+  testWidgets('menu yang belum dibuat memberi tahu belum tersedia', (
+    tester,
+  ) async {
+    await pumpBeranda(tester);
+
+    await tester.tap(find.byTooltip('Notifikasi'));
     await tester.pump();
 
-    expect(find.text('Detail WO belum tersedia'), findsOneWidget);
+    expect(find.text('Notifikasi belum tersedia'), findsOneWidget);
   });
 
   testWidgets('tidak overflow pada HP kecil', (tester) async {

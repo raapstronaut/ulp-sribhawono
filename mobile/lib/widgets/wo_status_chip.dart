@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
 /// Status WO pada Panduan Gaya. Nilainya mengikuti WorkOrderStatus di backend;
@@ -25,6 +26,10 @@ enum WoStatus {
   final String label;
   final Color background;
   final Color foreground;
+
+  /// Warna tegas untuk titik riwayat dan cincin nomor urut.
+  Color get accent =>
+      this == WoStatus.dikerjakan ? AppColors.progressActive : foreground;
 }
 
 class WoStatusChip extends StatelessWidget {

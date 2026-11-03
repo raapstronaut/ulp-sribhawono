@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/screens/beranda_screen.dart';
 import 'package:mobile/screens/daftar_wo_screen.dart';
+import 'package:mobile/screens/detail_wo_screen.dart';
 import 'package:mobile/theme/app_theme.dart';
 
 Future<void> pumpScreen(
@@ -45,13 +46,14 @@ void main() {
     expect(find.text('Tidak ada WO pada filter ini.'), findsOneWidget);
   });
 
-  testWidgets('kartu WO memberi tahu detail belum tersedia', (tester) async {
+  testWidgets('kartu WO membuka detail WO tersebut', (tester) async {
     await pumpScreen(tester, const DaftarWoScreen());
 
-    await tester.tap(find.text('Tiang JP-045'));
-    await tester.pump();
+    await tester.tap(find.text('Tiang JP-052'));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Detail WO belum tersedia'), findsOneWidget);
+    expect(find.byType(DetailWoScreen), findsOneWidget);
+    expect(find.text('WO-APKUK-20261024-0004'), findsOneWidget);
   });
 
   testWidgets('beranda membuka daftar WO dan tab Beranda kembali', (

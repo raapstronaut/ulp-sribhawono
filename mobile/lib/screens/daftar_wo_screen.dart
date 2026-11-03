@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../mock/mock_work_orders.dart';
 import '../theme/app_colors.dart';
@@ -7,7 +6,9 @@ import '../theme/app_text.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_bottom_nav.dart';
 import '../widgets/not_ready.dart';
+import '../widgets/subpage_app_bar.dart';
 import '../widgets/wo_status_chip.dart';
+import 'detail_wo_screen.dart';
 
 enum _WoFilter {
   semua('Semua'),
@@ -50,25 +51,10 @@ class _DaftarWoScreenState extends State<DaftarWoScreen> {
     final visible = widget.items.where(_filter.matches).toList();
 
     return Scaffold(
-      appBar: AppBar(
-        toolbarHeight: 60,
-        backgroundColor: AppColors.surface,
-        surfaceTintColor: Colors.transparent,
-        systemOverlayStyle: SystemUiOverlayStyle.dark,
-        titleSpacing: 0,
-        shape: const Border(bottom: BorderSide(color: AppColors.border)),
-        leading: IconButton(
-          tooltip: 'Kembali ke beranda',
-          icon: const Icon(Icons.arrow_back_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('WO APKUK', style: AppText.titleSmall),
-            Text(widget.subtitle, style: AppText.caption),
-          ],
-        ),
+      appBar: SubpageAppBar(
+        title: 'WO APKUK',
+        subtitle: widget.subtitle,
+        backTooltip: 'Kembali ke beranda',
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -118,7 +104,11 @@ class _DaftarWoScreenState extends State<DaftarWoScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) => _WorkOrderCard(
                       item: visible[index],
-                      onTap: () => showNotReady(context, 'Detail WO'),
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => DetailWoScreen(item: visible[index]),
+                        ),
+                      ),
                     ),
                   ),
           ),
@@ -295,9 +285,7 @@ class _RouteOrderBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDone = status == WoStatus.selesai;
-    final ringColor = status == WoStatus.dikerjakan
-        ? AppColors.progressActive
-        : status.foreground;
+    final ringColor = status.accent;
 
     return Container(
       width: 32,

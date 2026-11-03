@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../mock/mock_beranda.dart';
+import '../mock/mock_work_orders.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../theme/app_theme.dart';
@@ -9,6 +10,7 @@ import '../widgets/app_bottom_nav.dart';
 import '../widgets/not_ready.dart';
 import '../widgets/wo_status_chip.dart';
 import 'daftar_wo_screen.dart';
+import 'detail_wo_screen.dart';
 
 /// Artboard desain "2 · Beranda Shift". Masih memakai data contoh.
 class BerandaScreen extends StatelessWidget {
@@ -22,6 +24,18 @@ class BerandaScreen extends StatelessWidget {
         builder: (_) => DaftarWoScreen(pendingSyncCount: data.pendingSyncCount),
       ),
     );
+  }
+
+  void _openNextTask(BuildContext context) {
+    final code = data.nextTask?.code;
+    final item = mockWorkOrders.where((wo) => wo.code == code).firstOrNull;
+    if (item == null) {
+      showNotReady(context, 'Detail WO');
+      return;
+    }
+
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => DetailWoScreen(item: item)));
   }
 
   @override
@@ -71,7 +85,7 @@ class BerandaScreen extends StatelessWidget {
                     const SizedBox(height: 8),
                     _NextTaskCard(
                       task: data.nextTask,
-                      onContinue: () => showNotReady(context, 'Detail WO'),
+                      onContinue: () => _openNextTask(context),
                     ),
                     const SizedBox(height: 14),
                     IntrinsicHeight(
