@@ -20,14 +20,12 @@ class DashboardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
         $this->withoutVite();
     }
 
     public function test_guest_is_redirected_to_login(): void
     {
-        $this->get('/admin/dashboard')
-            ->assertRedirect(route('login'));
+        $this->get('/admin/dashboard')->assertRedirect(route('login'));
     }
 
     public function test_non_admin_cannot_read_dashboard_json(): void
@@ -38,9 +36,7 @@ class DashboardTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->actingAs($user)
-            ->getJson('/admin/dashboard')
-            ->assertForbidden();
+        $this->actingAs($user)->getJson('/admin/dashboard')->assertForbidden();
     }
 
     public function test_empty_database_shows_zero_not_fake_numbers(): void
@@ -60,12 +56,18 @@ class DashboardTest extends TestCase
             ->assertJsonPath('poskoStatuses.0.apkuk_total', 0)
             ->assertJsonPath('context.active_poskos', 1)
             ->assertJsonPath('context.active_penyulangs', 1)
-            ->assertJsonPath('recentActivities', []);
+            ->assertJsonPath('recentActivities', [])
+            ->assertJsonPath('insights.period', '30d')
+            ->assertJsonPath('insights.charts.POSKO.total_first', 0)
+            ->assertJsonPath('insights.charts.INSPEKSI.total_second', 0);
 
         $this->actingAs($admin)->get('/admin/dashboard')
             ->assertOk()
-            ->assertSee('Belum ada Work Order.')
-            ->assertSee('Posko Utama');
+            ->assertSee('Monitoring Harian')
+            ->assertSee('Ringkasan Per Bidang')
+            ->assertSee('Analitik &amp; Tren', false)
+            ->assertSee('Apresiasi Bulanan')
+            ->assertSee('Belum ditetapkan');
     }
 
     public function test_dashboard_counts_follow_database_changes(): void
@@ -103,17 +105,19 @@ class DashboardTest extends TestCase
                 ->assertJsonPath('kpis.terlambat', 1)
                 ->assertJsonPath('pending.reports', 1)
                 ->assertJsonPath('statusGroups.selesai', 1)
-                ->assertJsonPath('poskoStatuses.0.apkuk_total', 3)
-                ->assertJsonPath('poskoStatuses.0.apkuk_completed', 1)
-                ->assertJsonPath('poskoStatuses.0.overdue', 1);
+                ->assertJsonPath('insights.monitoring.active.POSKO', 2)
+                ->assertJsonPath('insights.monitoring.active.ROW', 1)
+                ->assertJsonPath('insights.monitoring.active.INSPEKSI', null)
+                ->assertJsonPath('insights.monitoring.verification.ROW', 1)
+                ->assertJsonPath('insights.charts.POSKO.total_first', 3)
+                ->assertJsonPath('insights.charts.POSKO.total_second', 1);
             $this->assertSame(1, collect($response->json('teamSummaries'))->firstWhere('team', 'ROW')['waiting']);
 
-            // Perubahan data langsung tercermin: WO selesai dibatalkan dari hitungan selesai.
             DB::table('work_orders')->where('id', $done->id)->update(['status' => WorkOrderStatus::Dibatalkan->value, 'completed_at' => null]);
             $this->actingAs($admin)->getJson('/admin/dashboard')
                 ->assertJsonPath('kpis.selesai_periode', 0)
                 ->assertJsonPath('statusGroups.batal', 1)
-                ->assertJsonPath('poskoStatuses.0.apkuk_total', 2);
+                ->assertJsonPath('insights.charts.POSKO.total_second', 0);
         } finally {
             Carbon::setTestNow();
         }
@@ -124,24 +128,26 @@ class DashboardTest extends TestCase
         $admin = User::factory()->admin()->create();
         Posko::query()->create(['kode_posko' => 'PSK-01', 'nama_posko' => 'Posko Utama', 'is_active' => true]);
 
-        $this->actingAs($admin)->getJson('/admin/dashboard?period=30d')->assertOk()->assertJsonPath('context.period', '30d');
-        $this->actingAs($admin)->getJson('/admin/dashboard?period=bogus')->assertOk()->assertJsonPath('context.period', 'today');
+        $this->actingAs($admin)->getJson('/admin/dashboard?period=30d&trend_period=7d')
+            ->assertOk()->assertJsonPath('context.period', '30d')->assertJsonPath('insights.period', '7d');
+        $this->actingAs($admin)->getJson('/admin/dashboard?period=bogus&trend_period=bogus')
+            ->assertOk()->assertJsonPath('context.period', 'today')->assertJsonPath('insights.period', '30d');
 
         $this->actingAs($admin)->get('/admin/dashboard')
             ->assertOk()
-            ->assertSee('Perkembangan 14 hari')
-            ->assertSee('Ringkasan per tim')
-            ->assertSee('table-fixed', false)
-            ->assertSee('md:hidden', false)
-            ->assertSee('<details', false);
+            ->assertSee('Monitoring Harian')
+            ->assertSee('Ringkasan Per Bidang')
+            ->assertSee('Analitik &amp; Tren', false)
+            ->assertSee('Apresiasi Bulanan')
+            ->assertSee('data-dashboard-open=', false)
+            ->assertSee('<dialog', false);
     }
 
     public function test_admin_layout_provides_resizable_sidebar_and_mobile_drawer(): void
     {
         $admin = User::factory()->admin()->create();
 
-        $this->actingAs($admin)
-            ->get('/admin/dashboard')
+        $this->actingAs($admin)->get('/admin/dashboard')
             ->assertOk()
             ->assertSee('id="admin-sidebar"', false)
             ->assertSee('id="sidebar-collapse-button"', false)
@@ -161,9 +167,7 @@ class DashboardTest extends TestCase
 
         try {
             $admin = User::factory()->admin()->create();
-
-            $this->actingAs($admin)
-                ->getJson('/admin/dashboard')
+            $this->actingAs($admin)->getJson('/admin/dashboard')
                 ->assertOk()
                 ->assertJsonPath('context.updated_at', '2026-10-08T09:15:00+07:00')
                 ->assertJsonPath('context.updated_at_label', '08-10-2026 09:15 WIB')
