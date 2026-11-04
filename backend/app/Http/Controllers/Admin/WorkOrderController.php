@@ -86,6 +86,8 @@ class WorkOrderController extends Controller
         $wo_shift_ini = $currentShift()->count();
         $wo_dikerjakan = $currentShift()->where('status', WorkOrderStatus::Dikerjakan->value)->count();
         $wo_selesai = $currentShift()->where('status', WorkOrderStatus::Selesai->value)->count();
+        // Antrean verifikasi seluruh shift; berbeda dari KPI shift berjalan.
+        $wo_perlu_verifikasi = WorkOrder::query()->apkuk()->where('status', WorkOrderStatus::MenungguVerifikasi->value)->count();
         $wo_terlambat = WorkOrder::query()->apkuk()->overdue()->count();
 
         $poskos = Posko::where('is_active', true)->orderBy('nama_posko')->get();
@@ -112,11 +114,14 @@ class WorkOrderController extends Controller
         $shift_name = $shift['name'];
         $shift_time = $shift['time'];
         $shift_index = $shift['index'];
+        $operational_date = $today;
+        $current_shift_code = $shift['code'];
 
         return view('admin.work-orders.index', compact(
             'wo_shift_ini',
             'wo_dikerjakan',
             'wo_selesai',
+            'wo_perlu_verifikasi',
             'wo_terlambat',
             'poskos',
             'posko_progress',
@@ -128,7 +133,9 @@ class WorkOrderController extends Controller
             'shift_options',
             'shift_name',
             'shift_time',
-            'shift_index'
+            'shift_index',
+            'operational_date',
+            'current_shift_code'
         ));
     }
 

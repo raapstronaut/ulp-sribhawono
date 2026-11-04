@@ -44,8 +44,25 @@
         </x-admin.notice>
     @endif
 
+    @if ($wo->isApkuk())
+        <section aria-label="Ringkasan WO APKUK" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <div><div class="text-[11px] font-bold uppercase text-slate-500">Status pekerjaan</div><div class="mt-1 text-sm font-bold text-slate-900">{{ $wo->status->label() }}@if ($wo->isOverdue()) <span class="text-rose-700">· Terlambat</span>@endif</div></div>
+                <div><div class="text-[11px] font-bold uppercase text-slate-500">POSKO penanggung jawab</div><div class="mt-1 text-sm font-bold text-slate-900">{{ $wo->posko?->nama_posko ?? 'Belum ditentukan' }}</div></div>
+                <div><div class="text-[11px] font-bold uppercase text-slate-500">Jadwal operasional</div><div class="mt-1 text-sm font-bold text-slate-900">{{ $wo->work_date?->format('d/m/Y') ?? '—' }} · Shift {{ $wo->shift_code ?? '—' }}</div></div>
+                <div><div class="text-[11px] font-bold uppercase text-slate-500">Target APKUK</div><div class="mt-1 text-sm font-bold text-slate-900">{{ $target?->target_quantity ?? '—' }} bh</div></div>
+            </div>
+        </section>
+        <nav aria-label="Navigasi detail pekerjaan" class="flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="#penugasan" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Penugasan</a>
+            <a href="#lokasi" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Lokasi & sumber</a>
+            <a href="#laporan" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Laporan & bukti</a>
+            @if ($wo->status->isActive())<a href="#aksi" class="rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-blue-700 hover:border-blue-400">Tindakan Admin</a>@endif
+            <a href="#riwayat" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Riwayat audit</a>
+        </nav>
+    @endif
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <x-admin.panel title="Penugasan" class="lg:col-span-2">
+        <x-admin.panel title="Penugasan" id="penugasan" class="lg:col-span-2">
             <dl class="grid grid-cols-1 gap-5 text-sm sm:grid-cols-3">
                 <x-admin.detail-item label="Tim">{{ $wo->teamLabel() }}</x-admin.detail-item>
                 <x-admin.detail-item label="Jenis pekerjaan">{{ $wo->workTypeLabel() }}</x-admin.detail-item>
@@ -53,7 +70,7 @@
                 <x-admin.detail-item label="POSKO">{{ $wo->posko?->nama_posko }}</x-admin.detail-item>
                 <x-admin.detail-item label="Penyulang">{{ $wo->penyulang?->nama_penyulang }}</x-admin.detail-item>
                 <x-admin.detail-item label="Section">{{ $wo->section_name ?? 'Belum diketahui' }}</x-admin.detail-item>
-                <x-admin.detail-item label="Tanggal kerja">{{ $wo->work_date?->format('d/m/Y') }}</x-admin.detail-item>
+                <x-admin.detail-item label="Tanggal operasional">{{ $wo->work_date?->format('d/m/Y') }}</x-admin.detail-item>
                 <x-admin.detail-item label="Shift">{{ $shift ? 'Shift '.$shift['code'].' — '.$shift['name'].' ('.$shift['time'].')' : 'Tanpa shift' }}</x-admin.detail-item>
                 <x-admin.detail-item label="Batas waktu">{{ $fmt($wo->due_at) }}</x-admin.detail-item>
                 <x-admin.detail-item label="Mulai dikerjakan">{{ $fmt($wo->started_at) }}</x-admin.detail-item>
@@ -97,7 +114,7 @@
     </div>
 
     @if ($target)
-        <x-admin.panel title="Target tiang (snapshot data APKUK)" :description="'Disalin dari baris apkuks #'.$target->apkuk_id.' saat WO dibuat; sinkronisasi berikutnya tidak mengubah target WO.'">
+        <x-admin.panel id="lokasi" title="Target tiang (snapshot data APKUK)" :description="'Disalin dari baris apkuks #'.$target->apkuk_id.' saat WO dibuat; sinkronisasi berikutnya tidak mengubah target WO.'">
             <dl class="grid grid-cols-2 gap-5 text-sm md:grid-cols-4">
                 <x-admin.detail-item label="No. tiang">{{ $target->no_tiang }}</x-admin.detail-item>
                 <x-admin.detail-item label="Penyulang (sumber)">{{ $target->penyulang_source }}</x-admin.detail-item>
@@ -110,6 +127,7 @@
                     @if ($coordinates)<a class="text-blue-600 hover:text-blue-800" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query={{ $coordinates[0] }},{{ $coordinates[1] }}">{{ $coordinates[0] }}, {{ $coordinates[1] }}</a>@endif
                 </x-admin.detail-item>
             </dl>
+            <a href="{{ route('admin.apkuk.show', $target->apkuk_id) }}" class="mt-4 inline-flex text-xs font-bold text-blue-700 hover:underline">Lihat laporan APKUK sumber →</a>
         </x-admin.panel>
     @elseif ($location)
         <x-admin.panel title="Target lokasi" :description="$location->typeLabel().' · snapshot saat WO dibuat'">
@@ -203,7 +221,7 @@
     </div>
 
     @if ($wo->status->isActive())
-        <x-admin.panel title="Catat atas nama tim lapangan" description="Dipakai selama aplikasi Android belum tersedia. Pencatatan memakai aturan yang sama dengan aplikasi (foto BEFORE/AFTER, petugas, status) dan tercatat sebagai input Admin di riwayat audit.">
+        <x-admin.panel id="aksi" title="Catat atas nama tim lapangan" description="Dipakai selama aplikasi Android belum tersedia. Pencatatan memakai aturan yang sama dengan aplikasi (foto BEFORE/AFTER, petugas, status) dan tercatat sebagai input Admin di riwayat audit.">
             <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <div class="space-y-4">
                     @if ($startable)
@@ -294,7 +312,7 @@
         </x-admin.panel>
     @endif
 
-    <x-admin.panel title="Riwayat audit" description="Append-only: setiap perubahan status, data, dan keputusan tercatat dengan pelaku dan waktu.">
+    <x-admin.panel id="riwayat" title="Riwayat audit" description="Append-only: setiap perubahan status, data, dan keputusan tercatat dengan pelaku dan waktu.">
         <ol class="space-y-3">
             @foreach ($wo->statusLogs as $log)
                 <li class="flex gap-3 text-sm">
