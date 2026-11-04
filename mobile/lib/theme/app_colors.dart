@@ -23,4 +23,16 @@ abstract final class AppColors {
   static const onPrimaryMuted = Color(0xFFD6E4F5);
 
   static const danger = Color(0xFFB91C1C);
+
+  // Progres WO
+  static const progressDone = Color(0xFF15803D);
+  static const progressActive = Color(0xFFEA580C);
+  static const progressPending = borderStrong;
+
+  // Status "menunggu sinkronisasi"
+  static const syncWaitingBackground = Color(0xFFFEF3C7);
+  static const syncWaitingBorder = Color(0xFFFCD34D);
+  static const syncWaitingIcon = Color(0xFF92400E);
+  static const syncWaitingText = Color(0xFF78350F);
+  static const syncBadge = Color(0xFFB45309);
 }
