@@ -7,6 +7,7 @@ use App\Models\Penyulang;
 use App\Models\ReferenceCode;
 use App\Models\WorkOrderIssue;
 use App\Services\ShiftService;
+use App\Services\PoskoCrewRotationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -15,7 +16,7 @@ use Illuminate\Http\Request;
  */
 class BootstrapController extends Controller
 {
-    public function show(Request $request, ShiftService $shifts): JsonResponse
+    public function show(Request $request, ShiftService $shifts, PoskoCrewRotationService $crews): JsonResponse
     {
         $user = $request->user();
         $team = $user->fieldTeam()->with(['personnel' => fn ($q) => $q->where('is_active', true)->orderBy('name'), 'posko'])->first();
@@ -43,6 +44,13 @@ class BootstrapController extends Controller
                 'issue_types' => collect(WorkOrderIssue::TYPE_LABELS)->map(fn ($label, $code) => ['code' => $code, 'label' => $label])->values()->all(),
                 'shifts' => array_map(fn (string $code) => $shifts->describe($code), $shifts->codes()),
                 'current_shift' => $shifts->current() + ['operational_date' => $shifts->operationalDate()],
+                // Field POSKO memakai satu akun induk; empat pasangan dibaca dari roster tim.
+                // Rotasi belum dianggap aktif jika tanggal acuan atau pasangan belum lengkap.
+                'posko_crews' => $role === 'POSKO' ? $crews->roster($team) : null,
+                // Untuk akun INSPEKSI/HARSUS individual, petugas yang login bisa dikenali.
+                'account_personnel' => $user->fieldPersonnel
+                    ? ['id' => $user->fieldPersonnel->getKey(), 'name' => $user->fieldPersonnel->name, 'nickname' => $user->fieldPersonnel->nickname]
+                    : null,
                 'penyulangs' => Penyulang::query()->where('is_active', true)->orderBy('kode_penyulang')
                     ->get(['id', 'kode_penyulang', 'nama_penyulang'])
                     ->map(fn ($p) => ['id' => $p->getKey(), 'code' => $p->kode_penyulang, 'name' => $p->nama_penyulang])->all(),
