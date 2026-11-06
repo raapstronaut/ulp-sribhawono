@@ -1,0 +1,40 @@
+name: Backend crew rotation checks
+
+on:
+  push:
+    branches: [feat/presentation-posko-crew-rotation]
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-crew-tests.yml'
+
+jobs:
+  laravel-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_sqlite, sqlite3, intl, zip
+          coverage: none
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Prepare test environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+      - name: PHP syntax checks on changed modules
+        run: |
+          php -l app/Services/PoskoCrewRotationService.php
+          php -l app/Http/Controllers/Api/V1/Mobile/BootstrapController.php
+          php -l app/Services/Admin/UserAccountService.php
+          php -l database/migrations/2026_11_06_000001_add_crew_identity_to_field_personnel.php
+      - name: Crew rotation feature tests
+        run: php artisan test --filter=PoskoCrewRotationTest
+      - name: Laravel regression suite
+        run: php artisan test
