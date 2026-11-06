@@ -38,7 +38,7 @@ jobs:
         run: php artisan test --filter=PoskoCrewRotationTest
       - name: Build Vite assets used by Admin Blade tests
         run: |
-          npm ci --ignore-scripts
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false
           npm run build
       - name: Laravel regression suite
         run: php artisan test
