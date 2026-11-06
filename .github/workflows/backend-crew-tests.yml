@@ -36,5 +36,9 @@ jobs:
           php -l database/migrations/2026_11_06_000001_add_crew_identity_to_field_personnel.php
       - name: Crew rotation feature tests
         run: php artisan test --filter=PoskoCrewRotationTest
+      - name: Build Vite assets used by Admin Blade tests
+        run: |
+          npm ci --ignore-scripts
+          npm run build
       - name: Laravel regression suite
         run: php artisan test
