@@ -55,6 +55,11 @@ class User extends Authenticatable
         ];
     }
 
+    public function fieldPersonnel(): BelongsTo
+    {
+        return $this->belongsTo(FieldPersonnel::class, 'field_personnel_id');
+    }
+
     public function fieldTeam(): BelongsTo
     {
         return $this->belongsTo(FieldTeam::class);

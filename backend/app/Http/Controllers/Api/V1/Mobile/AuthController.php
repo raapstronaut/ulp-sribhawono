@@ -63,6 +63,7 @@ class AuthController extends Controller
             'username' => $user->username,
             'name' => $user->name,
             'role' => $user->role,
+            'field_personnel_id' => $user->field_personnel_id,
             'team' => $team ? [
                 'id' => $team->getKey(),
                 'code' => $team->code,

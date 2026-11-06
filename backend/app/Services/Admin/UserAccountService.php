@@ -4,6 +4,7 @@ namespace App\Services\Admin;
 
 use App\Models\AuditLog;
 use App\Models\FieldTeam;
+use App\Models\FieldPersonnel;
 use App\Models\User;
 use App\Services\Audit\AuditLogger;
 use Illuminate\Support\Facades\DB;
@@ -27,8 +28,9 @@ class UserAccountService
     public function create(User $admin, array $data): User
     {
         $teamId = $this->teamFor($data['role'], $data['field_team_id'] ?? null);
+        $personId = $this->personFor($data['role'], $teamId, $data['field_personnel_id'] ?? null);
 
-        return DB::transaction(function () use ($admin, $data, $teamId): User {
+        return DB::transaction(function () use ($admin, $data, $teamId, $personId): User {
             $user = new User([
                 'name' => trim($data['name']),
                 'username' => trim($data['username']),
@@ -38,6 +40,7 @@ class UserAccountService
             $user->forceFill([
                 'role' => $data['role'],
                 'field_team_id' => $teamId,
+                'field_personnel_id' => $personId,
                 'is_active' => (bool) ($data['is_active'] ?? true),
             ])->save();
 
@@ -53,8 +56,9 @@ class UserAccountService
     public function update(User $admin, User $user, array $data, ?string $reason = null): User
     {
         $teamId = $this->teamFor($data['role'], $data['field_team_id'] ?? null);
+        $personId = $this->personFor($data['role'], $teamId, $data['field_personnel_id'] ?? null);
 
-        return DB::transaction(function () use ($admin, $user, $data, $teamId, $reason): User {
+        return DB::transaction(function () use ($admin, $user, $data, $teamId, $personId, $reason): User {
             $user = User::query()->lockForUpdate()->findOrFail($user->getKey());
             if ($user->is($admin) && $data['role'] !== User::ROLE_ADMIN) {
                 throw ValidationException::withMessages(['role' => 'Anda tidak dapat menurunkan role akun Anda sendiri.']);
@@ -71,8 +75,9 @@ class UserAccountService
             ])->forceFill([
                 'role' => $data['role'],
                 'field_team_id' => $teamId,
+                'field_personnel_id' => $personId,
             ]);
-            $roleChanged = $user->isDirty('role') || $user->isDirty('field_team_id');
+            $roleChanged = $user->isDirty('role') || $user->isDirty('field_team_id') || $user->isDirty('field_personnel_id');
             $user->save();
 
             if ($roleChanged) {
@@ -148,6 +153,26 @@ class UserAccountService
         });
     }
 
+    /**
+     * INSPEKSI/HARSUS bisa memiliki akun per orang tanpa membuat tim baru.
+     * POSKO tetap satu akun induk; identitas pelaksana berasal dari crew saat laporan.
+     */
+    private function personFor(string $role, ?string $teamId, ?string $personId): ?string
+    {
+        if (! filled($personId)) {
+            return null; // kompatibel dengan akun lama sampai migrasi roster diverifikasi
+        }
+        if (! in_array($role, [User::ROLE_INSPEKSI, User::ROLE_HARSUS], true)) {
+            throw ValidationException::withMessages(['field_personnel_id' => 'Identitas akun pribadi hanya untuk INSPEKSI/HARSUS.']);
+        }
+        $person = FieldPersonnel::query()->whereKey($personId)
+            ->where('field_team_id', $teamId)->where('is_active', true)->first();
+        if ($person === null) {
+            throw ValidationException::withMessages(['field_personnel_id' => 'Petugas harus aktif dan terdaftar di tim akun yang dipilih.']);
+        }
+        return $person->getKey();
+    }
+
     private function teamFor(string $role, ?string $teamId): ?string
     {
         if (! array_key_exists($role, User::ROLE_LABELS)) {
@@ -193,6 +218,7 @@ class UserAccountService
             'email' => $user->email,
             'role' => $user->role,
             'field_team_id' => $user->field_team_id,
+            'field_personnel_id' => $user->field_personnel_id,
             'is_active' => (bool) $user->is_active,
         ];
     }

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\FieldTeam;
+use App\Models\FieldPersonnel;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderStatusLog;
@@ -118,7 +119,7 @@ class UserAccessController extends Controller
 
     public function create(): View
     {
-        return view('admin.users.form', ['account' => null, 'teamOptions' => $this->teamOptions()]);
+        return view('admin.users.form', ['account' => null, 'teamOptions' => $this->teamOptions(), 'personnelOptions' => $this->personnelOptions()]);
     }
 
     public function store(Request $request, UserAccountService $accounts): RedirectResponse
@@ -133,7 +134,7 @@ class UserAccessController extends Controller
 
     public function edit(User $user): View
     {
-        return view('admin.users.form', ['account' => $user, 'teamOptions' => $this->teamOptions()]);
+        return view('admin.users.form', ['account' => $user, 'teamOptions' => $this->teamOptions(), 'personnelOptions' => $this->personnelOptions()]);
     }
 
     public function update(Request $request, User $user, UserAccountService $accounts): RedirectResponse
@@ -177,12 +178,23 @@ class UserAccessController extends Controller
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user?->id)],
             'role' => ['required', Rule::in(array_keys(User::ROLE_LABELS))],
             'field_team_id' => ['nullable', 'uuid'],
+            'field_personnel_id' => ['nullable', 'uuid'],
         ];
     }
 
     /**
      * @return array<string, array<string, string>>
      */
+    /** @return array<string, array<string, string>> */
+    private function personnelOptions(): array
+    {
+        return FieldPersonnel::query()->where('is_active', true)
+            ->whereHas('team', fn ($q) => $q->whereIn('role', [User::ROLE_INSPEKSI, User::ROLE_HARSUS]))
+            ->with('team:id,name,role')->orderBy('name')->get()
+            ->groupBy(fn ($p) => $p->team->role.' — '.$p->team->name)
+            ->map(fn ($group) => $group->pluck('name', 'id')->all())->all();
+    }
+
     private function teamOptions(): array
     {
         return FieldTeam::query()->where('is_active', true)->orderBy('role')->orderBy('name')->get()

@@ -19,6 +19,8 @@ class FieldPersonnel extends Model
         'field_team_id',
         'personnel_code',
         'name',
+        'nickname',
+        'crew_number',
         'is_active',
     ];
 
@@ -26,6 +28,7 @@ class FieldPersonnel extends Model
     {
         return [
             'is_active' => 'boolean',
+            'crew_number' => 'integer',
         ];
     }
 
