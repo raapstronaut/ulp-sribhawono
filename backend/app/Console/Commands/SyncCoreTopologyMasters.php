@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\SectionPicSourceRow;
+use App\Support\PenyulangName;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -377,10 +378,7 @@ class SyncCoreTopologyMasters extends Command
     public function canonicalFeeder(?string $feeder): string
     {
         $feeder = mb_strtoupper($this->cleanString($feeder));
-        if ($feeder === 'TANGGAMUS') {
-            return 'TANGGAMUS 2';
-        }
 
-        return $feeder;
+        return PenyulangName::ALIASES[$feeder] ?? $feeder;
     }
 }

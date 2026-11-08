@@ -6,13 +6,21 @@ use App\Enums\WorkOrderStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CancelWorkOrderRequest;
 use App\Http\Requests\Admin\StoreApkukWorkOrderRequest;
+use App\Models\FieldTeam;
 use App\Models\Penyulang;
 use App\Models\Posko;
+use App\Models\ReferenceCode;
 use App\Models\WorkOrder;
+use App\Models\WorkOrderIssue;
+use App\Models\WorkOrderReport;
 use App\Services\ApkukCandidateService;
 use App\Services\ApkukWorkOrderService;
 use App\Services\ShiftService;
+use App\Services\Work\PoskoWorkOrderCrewReview;
+use App\Services\Work\WorkOrderExecutionService;
 use App\Services\WorkOrderLifecycleService;
+use App\Support\DataLoader;
+use App\Support\QueryInput;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -30,14 +38,16 @@ class WorkOrderController extends Controller
     public function index(Request $request, ShiftService $shiftService): View
     {
         $shift = $shiftService->current();
-        $today = $shiftService->today();
+        // WO ber-shift memakai tanggal operasional (Shift C setelah 00:00 milik hari operasional sebelumnya).
+        $today = $shiftService->operationalDate();
 
+        // QueryInput mengabaikan nilai yang ditolak PostgreSQL (UUID/tanggal tidak valid, array).
         $filters = [
-            'status' => (string) $request->query('status', ''),
-            'posko_id' => (string) $request->query('posko_id', ''),
-            'shift_code' => (string) $request->query('shift_code', ''),
-            'work_date' => (string) $request->query('work_date', ''),
-            'q' => trim((string) $request->query('q', '')),
+            'status' => QueryInput::text($request, 'status', 32),
+            'posko_id' => QueryInput::uuid($request, 'posko_id'),
+            'shift_code' => QueryInput::text($request, 'shift_code', 1),
+            'work_date' => QueryInput::date($request, 'work_date'),
+            'q' => QueryInput::text($request, 'q'),
         ];
 
         $query = WorkOrder::query()->apkuk()->with(['posko', 'penyulang', 'apkukTarget']);
@@ -53,7 +63,7 @@ class WorkOrderController extends Controller
         if (in_array($filters['shift_code'], $shiftService->codes(), true)) {
             $query->where('shift_code', $filters['shift_code']);
         }
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['work_date'])) {
+        if ($filters['work_date'] !== '') {
             $query->whereDate('work_date', $filters['work_date']);
         }
         if ($filters['q'] !== '') {
@@ -64,7 +74,10 @@ class WorkOrderController extends Controller
             });
         }
 
-        $work_orders = $query->orderByDesc('created_at')->paginate(20)->withQueryString();
+        $work_orders = $query->orderByDesc('created_at')
+            ->paginate(20)
+            ->withQueryString()
+            ->tap(DataLoader::withinRange(...));
 
         $currentShift = fn () => WorkOrder::query()->apkuk()
             ->whereDate('work_date', $today)
@@ -74,6 +87,8 @@ class WorkOrderController extends Controller
         $wo_shift_ini = $currentShift()->count();
         $wo_dikerjakan = $currentShift()->where('status', WorkOrderStatus::Dikerjakan->value)->count();
         $wo_selesai = $currentShift()->where('status', WorkOrderStatus::Selesai->value)->count();
+        // Antrean verifikasi seluruh shift; berbeda dari KPI shift berjalan.
+        $wo_perlu_verifikasi = WorkOrder::query()->apkuk()->where('status', WorkOrderStatus::MenungguVerifikasi->value)->count();
         $wo_terlambat = WorkOrder::query()->apkuk()->overdue()->count();
 
         $poskos = Posko::where('is_active', true)->orderBy('nama_posko')->get();
@@ -100,11 +115,14 @@ class WorkOrderController extends Controller
         $shift_name = $shift['name'];
         $shift_time = $shift['time'];
         $shift_index = $shift['index'];
+        $operational_date = $today;
+        $current_shift_code = $shift['code'];
 
         return view('admin.work-orders.index', compact(
             'wo_shift_ini',
             'wo_dikerjakan',
             'wo_selesai',
+            'wo_perlu_verifikasi',
             'wo_terlambat',
             'poskos',
             'posko_progress',
@@ -116,15 +134,17 @@ class WorkOrderController extends Controller
             'shift_options',
             'shift_name',
             'shift_time',
-            'shift_index'
+            'shift_index',
+            'operational_date',
+            'current_shift_code'
         ));
     }
 
     public function create(Request $request, ApkukCandidateService $candidateService, ShiftService $shiftService): View
     {
         $filters = [
-            'penyulang_id' => (string) $request->query('penyulang_id', ''),
-            'q' => trim((string) $request->query('q', '')),
+            'penyulang_id' => QueryInput::uuid($request, 'penyulang_id'),
+            'q' => QueryInput::text($request, 'q'),
             'show' => $request->query('show') === 'all' ? 'all' : 'eligible',
         ];
 
@@ -152,7 +172,7 @@ class WorkOrderController extends Controller
         $poskos = Posko::where('is_active', true)->orderBy('nama_posko')->get();
         $penyulangs = Penyulang::where('is_active', true)->orderBy('kode_penyulang')->get();
         $shift_options = array_map(fn (string $code) => $shiftService->describe($code), $shiftService->codes());
-        $default_work_date = $shiftService->today();
+        $default_work_date = $shiftService->operationalDate();
         $default_shift = $shiftService->current()['code'];
         $issue_labels = ApkukCandidateService::LABELS;
 
@@ -176,29 +196,55 @@ class WorkOrderController extends Controller
 
         return redirect()
             ->route('admin.work-orders.show', $workOrder)
-            ->with('status', 'work-order-created');
+            ->with('flash', "WO APKUK {$workOrder->code} berhasil dibuat.");
     }
 
-    public function show(WorkOrder $workOrder, ShiftService $shiftService): View
+    public function show(WorkOrder $workOrder, ShiftService $shiftService, PoskoWorkOrderCrewReview $crewReview): View
     {
         $workOrder->load([
             'posko',
             'penyulang',
+            'fieldTeam',
             'apkukTarget',
+            'locationTarget',
+            'parent',
+            'children',
             'createdBy',
             'cancelledBy',
             'statusLogs.actor',
             'reschedules.reviewedBy',
+            'reschedules.requestedByTeam',
             'reports.personnel',
             'reports.media',
+            'reports.verifiedBy',
+            'reports.submittedByTeam',
+            'escalations.reviewedBy',
+            'escalations.childWorkOrder',
+            'sourceEscalation.sourceWorkOrder',
+            'issues.resolvedBy',
             'media',
         ]);
 
         $shift = $workOrder->shift_code ? $shiftService->describe($workOrder->shift_code) : null;
+        $teams = FieldTeam::query()->where('role', $workOrder->team_type)->where('is_active', true)
+            ->when($workOrder->team_type === WorkOrder::TEAM_POSKO && $workOrder->posko_id, fn ($q) => $q->where('posko_id', $workOrder->posko_id))
+            ->with(['personnel' => fn ($q) => $q->where('is_active', true)->orderBy('name')])
+            ->orderBy('name')
+            ->get();
 
         return view('admin.work-orders.show', [
+            'crewAudit' => ($workOrder->team_type === WorkOrder::TEAM_POSKO && in_array($workOrder->work_type, [WorkOrder::TYPE_P0, WorkOrder::TYPE_PEMASANGAN_APKUK], true)) ? $crewReview->forWorkOrder($workOrder) : null,
             'wo' => $workOrder,
             'shift' => $shift,
+            'teams' => $teams,
+            'reportTypes' => array_intersect_key(WorkOrderReport::TYPE_LABELS, array_flip(WorkOrderExecutionService::reportTypesFor($workOrder))),
+            'escalationReasons' => ReferenceCode::options(ReferenceCode::CATEGORY_ESCALATION_REASON, $workOrder->team_type),
+            'escalationTargets' => collect([WorkOrder::TEAM_HARSUS, WorkOrder::TEAM_ROW])
+                ->reject(fn ($team) => $team === $workOrder->team_type)
+                ->flatMap(fn ($team) => collect(WorkOrder::WORK_TYPES_BY_TEAM[$team])->mapWithKeys(fn ($type) => [$team.'|'.$type => $team.' — '.WorkOrder::WORK_TYPE_LABELS[$type]]))
+                ->all(),
+            'issueTypes' => WorkOrderIssue::TYPE_LABELS,
+            'nowWib' => now(ShiftService::TIMEZONE)->format('Y-m-d\TH:i'),
         ]);
     }
 
@@ -208,6 +254,6 @@ class WorkOrderController extends Controller
 
         return redirect()
             ->route('admin.work-orders.show', $workOrder)
-            ->with('status', 'work-order-cancelled');
+            ->with('flash', 'WO dibatalkan dan tercatat di riwayat audit. Lokasi dapat dibuatkan WO baru.');
     }
 }

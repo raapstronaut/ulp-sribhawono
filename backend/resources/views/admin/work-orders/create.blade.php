@@ -1,5 +1,7 @@
 @extends('layouts.admin')
 
+@section('title', 'Buat WO APKUK')
+
 @section('content')
 @php
     $listQuery = array_filter([
@@ -10,41 +12,34 @@
     ]);
 @endphp
 <div class="max-w-7xl mx-auto space-y-6 pb-12">
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-            <nav class="flex text-[10px] text-slate-500 font-medium mb-2">
-                <ol class="flex items-center space-x-1">
-                    <li>Pekerjaan</li>
-                    <li><svg class="w-3 h-3 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></li>
-                    <li><a href="{{ route('admin.work-orders.index') }}" class="hover:text-blue-600">Work Order</a></li>
-                    <li><svg class="w-3 h-3 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></li>
-                    <li class="text-blue-600">Buat WO APKUK</li>
-                </ol>
-            </nav>
-            <h1 class="text-2xl font-bold text-slate-900 leading-tight">Buat WO APKUK Manual</h1>
-            <p class="text-xs text-slate-500 mt-1">Pilih lokasi tiang dari data APKUK yang tersinkron, lalu tentukan POSKO penanggung jawab, tanggal, dan shift.</p>
+    <x-admin.posko-tabs />
+    <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div class="space-y-1">
+            <nav aria-label="Breadcrumb" class="text-xs font-semibold text-slate-500">Pekerjaan / POSKO / <a class="text-blue-700 hover:underline" href="{{ route('admin.work-orders.index') }}">WO APKUK</a> / Buat WO</nav>
+            <h1 class="text-2xl font-black tracking-tight text-slate-900">Buat WO APKUK Manual</h1>
+            <p class="max-w-3xl text-sm text-slate-600">Tentukan kandidat tiang yang sah, pilih POSKO dan jadwal, lalu terbitkan pekerjaan.</p>
         </div>
-        <a href="{{ route('admin.work-orders.index') }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Kembali ke WO</a>
+        <a href="{{ route('admin.work-orders.index') }}" class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">← Kembali ke daftar WO</a>
+    </header>
+
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Tahapan pembuatan WO">
+        <a href="#kandidat" class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:border-blue-300">
+            <div class="text-xs font-bold text-blue-700">Langkah 1</div><div class="mt-1 text-sm font-semibold text-slate-900">Pilih kandidat APKUK</div><div class="mt-1 text-xs text-slate-500">Data sumber yang lolos validasi</div>
+        </a>
+        <a href="{{ $selected ? '#penugasan' : '#kandidat' }}" class="rounded-xl border {{ $selected ? 'border-blue-200 bg-blue-50' : 'border-slate-200 bg-white' }} px-4 py-3 shadow-sm">
+            <div class="text-xs font-bold {{ $selected ? 'text-blue-700' : 'text-slate-500' }}">Langkah 2</div><div class="mt-1 text-sm font-semibold text-slate-900">Atur penugasan</div><div class="mt-1 text-xs text-slate-500">POSKO, tanggal operasional dan shift</div>
+        </a>
+        <div class="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+            <div class="text-xs font-bold text-slate-500">Langkah 3</div><div class="mt-1 text-sm font-semibold text-slate-900">Konfirmasi & terbitkan</div><div class="mt-1 text-xs text-slate-500">Periksa informasi sebelum menyimpan</div>
+        </div>
     </div>
-
-    @if($errors->any())
-        <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-            <p class="font-semibold">WO belum dibuat:</p>
-            <ul class="mt-1 list-disc pl-5">
-                @foreach($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-        </div>
-    @endif
-
     <!-- Step 2: selected candidate + form -->
     @if($selected)
         @php $a = $selected->apkuk; @endphp
-        <section class="bg-white rounded-xl border {{ $selected->isEligible() ? 'border-blue-200' : 'border-red-200' }} shadow-sm">
+        <section id="penugasan" class="scroll-mt-5 rounded-xl border bg-white shadow-sm {{ $selected->isEligible() ? 'border-blue-200' : 'border-red-200' }}">
             <div class="p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
-                    <p class="text-[10px] font-bold uppercase tracking-wider text-slate-500">Lokasi terpilih</p>
+                    <p class="text-[10px] font-bold uppercase tracking-wider text-blue-700">Langkah 2 · Lokasi terpilih</p>
                     <h2 class="text-lg font-bold text-slate-900">{{ $a->no_tiang }}</h2>
                     <p class="text-xs text-slate-500">{{ $selected->penyulang?->nama_penyulang ?? $a->penyulang }} • {{ $selected->sectionName ?? 'Section belum diketahui' }}</p>
                 </div>
@@ -64,8 +59,14 @@
                 </div>
             @endif
 
+            @if($errors->any())
+                <div role="alert" class="mx-5 mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800">
+                    <strong>WO belum bisa dibuat. Periksa:</strong>
+                    <ul class="mt-1 list-disc pl-4">@foreach($errors->all() as $message)<li>{{ $message }}</li>@endforeach</ul>
+                </div>
+            @endif
             @if($selected->isEligible())
-                <form method="POST" action="{{ route('admin.work-orders.store') }}" class="p-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
+                <form method="POST" action="{{ route('admin.work-orders.store') }}" data-confirm="Terbitkan WO APKUK untuk tiang {{ $a->no_tiang }}? Pastikan POSKO, tanggal operasional, dan shift sudah benar." class="p-5 border-t border-slate-100 grid grid-cols-1 md:grid-cols-4 gap-4">
                     @csrf
                     <input type="hidden" name="apkuk_id" value="{{ $a->id }}">
 
@@ -80,8 +81,9 @@
                         <p class="mt-1 text-[10px] text-slate-500">Dipilih manual; sistem tidak menebak POSKO dari penyulang.</p>
                     </div>
                     <div>
-                        <label for="work_date" class="mb-1 block text-xs font-semibold text-slate-700">Tanggal kerja <span class="text-red-600">*</span></label>
+                        <label for="work_date" class="mb-1 block text-xs font-semibold text-slate-700">Tanggal operasional <span class="text-red-600">*</span></label>
                         <input id="work_date" type="date" name="work_date" required min="{{ $default_work_date }}" value="{{ old('work_date', $default_work_date) }}" class="w-full rounded-lg border px-3 py-2 text-sm {{ $errors->has('work_date') ? 'border-red-400' : 'border-slate-300' }}">
+                        <p class="mt-1 text-[10px] text-slate-500">Hari operasional dimulai pukul 08.00 WIB; Shift C setelah pukul 00.00 masih memakai tanggal operasional sebelumnya.</p>
                     </div>
                     <div>
                         <label for="shift_code" class="mb-1 block text-xs font-semibold text-slate-700">Shift <span class="text-red-600">*</span></label>
@@ -94,6 +96,9 @@
                     <div>
                         <label for="notes" class="mb-1 block text-xs font-semibold text-slate-700">Catatan (opsional)</label>
                         <input id="notes" type="text" name="notes" maxlength="1000" value="{{ old('notes') }}" class="w-full rounded-lg border px-3 py-2 text-sm {{ $errors->has('notes') ? 'border-red-400' : 'border-slate-300' }}">
+                    </div>
+                    <div class="md:col-span-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-relaxed text-blue-900">
+                        <strong>Konfirmasi penerbitan:</strong> Lokasi <strong>{{ $a->no_tiang }}</strong> dengan target <strong>{{ $a->kurang_bh }} bh</strong>. Pastikan POSKO, tanggal operasional dan shift yang dipilih sudah benar. Setelah konfirmasi, sistem tetap memeriksa kandidat, jadwal dan kuota.
                     </div>
                     <div class="md:col-span-4 flex justify-end">
                         <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm">Buat WO APKUK</button>
@@ -115,6 +120,14 @@
         </section>
     @endif
 
+    <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">Langkah 1 · Pilih kandidat APKUK</h2>
+            <p class="mt-1 text-xs text-slate-500">Data sumber tidak otomatis menjadi WO. Hanya baris valid yang boleh dipilih untuk penerbitan pekerjaan.</p>
+        </div>
+        <a href="{{ route('admin.apkuk.index') }}" class="text-xs font-bold text-blue-700 hover:underline">Lihat Data Sumber APKUK →</a>
+    </div>
+
     <!-- Data quality summary -->
     <section class="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
@@ -135,7 +148,7 @@
     </section>
 
     <!-- Step 1: candidate list -->
-    <section class="bg-white rounded-xl border border-slate-200 shadow-sm">
+    <section id="kandidat" class="scroll-mt-5 rounded-xl border border-slate-200 bg-white shadow-sm">
         <form method="GET" action="{{ route('admin.work-orders.create') }}" class="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row gap-3 items-center">
             <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="Cari no. tiang atau section..." class="flex-1 w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm">
             <select name="penyulang_id" aria-label="Penyulang" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600">

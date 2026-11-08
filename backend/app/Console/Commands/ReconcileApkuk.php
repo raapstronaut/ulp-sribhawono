@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Console\Commands\Concerns\ReportsSyncResult;
 use App\Console\Support\ConsoleAdminAuthenticator;
 use App\Models\ApkukReconciliationItem;
+use App\Models\AuditLog;
 use App\Services\Apkuk\ApkukReconciliationPlan;
 use App\Services\Apkuk\ApkukReconciliationPlanner;
 use App\Services\Apkuk\ApkukSourceException;
@@ -12,6 +13,7 @@ use App\Services\Apkuk\ApkukSourceReader;
 use App\Services\Apkuk\ApkukSourceSnapshot;
 use App\Services\Apkuk\ApkukSyncLock;
 use App\Services\ApkukCandidateService;
+use App\Services\Audit\AuditLogger;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -61,7 +63,7 @@ class ReconcileApkuk extends Command
 
     private const MAX_REASON = 1000;
 
-    public function handle(ApkukSourceReader $reader, ApkukReconciliationPlanner $planner, ConsoleAdminAuthenticator $authenticator): int
+    public function handle(ApkukSourceReader $reader, ApkukReconciliationPlanner $planner, ConsoleAdminAuthenticator $authenticator, AuditLogger $audit): int
     {
         $apply = (bool) $this->option('apply');
         $this->line($apply ? '== Rekonsiliasi APKUK (APPLY)' : '== Rekonsiliasi APKUK (DRY-RUN — database tidak diubah)');
@@ -99,7 +101,7 @@ class ReconcileApkuk extends Command
             return $this->finishDryRun($plan);
         }
 
-        return $this->apply($source, $planner, $plan, $authenticator);
+        return $this->apply($source, $planner, $plan, $authenticator, $audit);
     }
 
     private function finishDryRun(ApkukReconciliationPlan $plan): int
@@ -134,7 +136,7 @@ class ReconcileApkuk extends Command
         return self::SUCCESS;
     }
 
-    private function apply(ApkukSourceSnapshot $source, ApkukReconciliationPlanner $planner, ApkukReconciliationPlan $plan, ConsoleAdminAuthenticator $authenticator): int
+    private function apply(ApkukSourceSnapshot $source, ApkukReconciliationPlanner $planner, ApkukReconciliationPlan $plan, ConsoleAdminAuthenticator $authenticator, AuditLogger $audit): int
     {
         $planId = trim((string) $this->option('plan'));
         $expected = trim((string) $this->option('expect-missing'));
@@ -200,7 +202,7 @@ class ReconcileApkuk extends Command
         $ids = $plan->missingApkukIds();
 
         try {
-            [$databaseUser, $resolvedItems] = DB::transaction(function () use ($source, $planner, $plan, $ids, $markedAt, $approvedBy, $reason, $admin): array {
+            [$databaseUser, $resolvedItems] = DB::transaction(function () use ($source, $planner, $plan, $ids, $markedAt, $approvedBy, $reason, $admin, $audit): array {
                 $this->lockTables();
 
                 // Validasi ulang setelah tabel terkunci. Perubahan apkuks, target WO, atau status
@@ -274,6 +276,14 @@ class ReconcileApkuk extends Command
                             ]);
                     }
                 }
+
+                $audit->record('apkuk_reconciliation', $reconciliationId, "Rencana {$plan->id}", AuditLog::ACTION_ARCHIVED, null, [
+                    'plan_id' => $plan->id,
+                    'marked_count' => $affected,
+                    'owner_confirmation' => $approvedBy,
+                    'queue_items_resolved' => $resolved,
+                    'database_user' => $databaseUser,
+                ], $admin, $reason);
 
                 return [$databaseUser, $resolved];
             });

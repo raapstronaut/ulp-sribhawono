@@ -6,6 +6,7 @@ use App\Enums\WorkOrderStatus;
 use App\Models\User;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderApkukTarget;
+use App\Models\WorkOrderLocationTarget;
 use App\Models\WorkOrderStatusLog;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -39,14 +40,21 @@ class WorkOrderLifecycleService
                     'status' => "WO berstatus {$from->label()} tidak dapat diubah menjadi {$to->label()}.",
                 ]);
             }
+            if ($to === WorkOrderStatus::Dibatalkan && $locked->isP0()) {
+                // Pengaman sementara di semua jalur: kebijakan pembatalan P0 belum disahkan.
+                throw ValidationException::withMessages(['status' => 'WO P0 tidak dapat dibatalkan karena kebijakan pembatalan P0 belum disahkan.']);
+            }
 
             $locked->fill($attributes);
             $locked->status = $to;
             $locked->save();
 
             if ($to->isTerminal()) {
-                // WO berakhir: tiang boleh dibuatkan WO baru (mis. sisa kebutuhan).
+                // WO berakhir: tiang/titik boleh dibuatkan WO baru (mis. sisa kebutuhan).
                 WorkOrderApkukTarget::query()
+                    ->where('work_order_id', $locked->getKey())
+                    ->update(['active_target_key' => null]);
+                WorkOrderLocationTarget::query()
                     ->where('work_order_id', $locked->getKey())
                     ->update(['active_target_key' => null]);
             }
@@ -59,6 +67,12 @@ class WorkOrderLifecycleService
 
     public function cancel(WorkOrder $workOrder, User $admin, string $reason): WorkOrder
     {
+        if (! $workOrder->supportsAdminCancellation()) {
+            throw ValidationException::withMessages([
+                'status' => "Pembatalan WO {$workOrder->team_type} {$workOrder->work_type} belum tersedia karena aturan pembatalannya belum disahkan.",
+            ]);
+        }
+
         return $this->transition(
             $workOrder,
             WorkOrderStatus::Dibatalkan,

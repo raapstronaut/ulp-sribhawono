@@ -6,7 +6,9 @@ use App\Console\Support\ConsoleAdminAuthenticator;
 use App\Enums\WorkOrderStatus;
 use App\Models\Apkuk;
 use App\Models\ApkukReconciliationItem;
+use App\Models\ApkukSectionOverride;
 use App\Models\ApkukSyncRun;
+use App\Models\AuditLog;
 use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\User;
@@ -260,6 +262,9 @@ class ApkukResilientSyncTest extends TestCase
             ApkukReconciliationItem::RESOLUTION_SUPERSEDED,
             ApkukReconciliationItem::query()->where('kind', ApkukReconciliationItem::KIND_MISSING)->where('apkuk_id', $second)->value('resolution'),
         );
+        $sibling = ApkukReconciliationItem::query()->where('kind', ApkukReconciliationItem::KIND_MISSING)->where('apkuk_id', $second)->sole();
+        $this->assertSame($this->admin->id, (int) $sibling->resolved_by_user_id);
+        $this->assertSame($identity->id, $sibling->resolution_details['resolved_via_item_id']);
         $this->assertSame([$first], ApkukReconciliationItem::query()->open()->pluck('apkuk_id')->map(fn ($id) => (int) $id)->all());
 
         [, $output] = $this->sync();
@@ -538,6 +543,10 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertSame([3], $items->map(fn (ApkukReconciliationItem $item) => $item->resolution_details['batch_size'])->unique()->values()->all());
         $this->assertSame(['Sdr. Pemilik SPS BOS — WA 28/10 10.15'], $items->pluck('owner_confirmation')->unique()->values()->all());
         $this->assertSame($workOrders, $this->workOrderTables());
+        $audit = AuditLog::query()->where('entity_type', 'apkuk_reconciliation_item')->whereIn('entity_id', array_map('strval', $ids))->get();
+        $this->assertCount(3, $audit);
+        $this->assertSame([AuditLog::ACTION_ARCHIVED], $audit->pluck('action')->unique()->values()->all());
+        $this->assertSame([$this->admin->id], $audit->pluck('actor_user_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
 
         $this->actingAs($this->admin)->from(route('admin.apkuk-reconciliation.index'))->post($url, $payload)->assertSessionHasErrors('item');
         [, $output] = $this->sync();
@@ -572,6 +581,8 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertSame([$reconciliationId], $items->pluck('reconciliation_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
         $this->assertSame([$this->admin->id], $items->pluck('resolved_by_user_id')->map(fn ($id) => (int) $id)->unique()->values()->all());
         $this->assertSame($this->admin->id, (int) DB::table('apkuk_reconciliations')->value('approved_by_user_id'));
+        $audit = AuditLog::query()->where('entity_type', 'apkuk_reconciliation')->sole();
+        $this->assertSame([AuditLog::ACTION_ARCHIVED, $this->admin->id, 'Supervisor Har'], [$audit->action, (int) $audit->actor_user_id, $audit->after['owner_confirmation']]);
 
         [$code, $output] = $this->sync();
         $this->assertSame(0, $code, $output);
@@ -700,6 +711,31 @@ class ApkukResilientSyncTest extends TestCase
         $this->assertTrue(Schema::hasColumn('apkuk_reconciliations', 'approved_by'), 'Kolom lama tidak tersentuh.');
         $admin->up();
         $this->assertTrue(Schema::hasColumn('apkuk_reconciliations', 'approved_by_user_id'));
+    }
+
+    public function test_admin_section_correction_survives_sync_and_source_section_stays_raw(): void
+    {
+        $this->reports['A20'][4] = 'DUMMY';
+        [$code, $output] = $this->sync();
+        $this->assertSame(0, $code, $output);
+        $id = $this->rowId('A20');
+        DB::table('section_pic_source_rows')->insert(['penyulang_raw' => 'REOG', 'pemutus_raw' => 'REC BRAJA DEWA', 'posko_pic_raw' => 'PUGUNG', 'source_row_number' => 2, 'created_at' => now(), 'updated_at' => now()]);
+
+        $this->actingAs($this->admin)->post(route('admin.apkuk.section.update', $id), [
+            'action' => 'set', 'section_name' => 'REC BRAJA DEWA', 'reason' => 'Konfirmasi petugas posko via radio',
+        ])->assertSessionHasNoErrors();
+
+        // Sinkronisasi berikutnya memperbarui kolom lain laporan yang sama tanpa menyentuh koreksi.
+        $this->travel(15)->minutes();
+        $this->reports['A20'][8] = 3;
+        [$code, $output] = $this->sync();
+
+        $this->assertSame(0, $code, $output);
+        $this->assertMatchesRegularExpression('/ updated=1 /', $output);
+        $this->assertSame('DUMMY', DB::table('apkuks')->where('id', $id)->value('section'));
+        $this->assertSame(3, (int) DB::table('apkuks')->where('id', $id)->value('kurang_bh'));
+        $this->assertSame('REC BRAJA DEWA', ApkukSectionOverride::query()->where('apkuk_id', $id)->value('section_name'));
+        $this->assertSame('REC BRAJA DEWA', app(ApkukCandidateService::class)->find($id)->sectionName);
     }
 
     // ---------------------------------------------------------------- helpers

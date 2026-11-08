@@ -23,6 +23,7 @@ class SourceStagingTest extends TestCase
         $this->assertTrue(Schema::hasColumns('asset_source_rows', [
             'id', 'id_aset_raw', 'nama_aset_raw', 'jenis_aset_raw',
             'penyulang_raw', 'latitude_raw', 'longitude_raw', 'status_raw',
+            'foto_raw', 'section_raw', 'posko_raw',
             'source_row_number', 'imported_at', 'created_at', 'updated_at',
         ]));
     }

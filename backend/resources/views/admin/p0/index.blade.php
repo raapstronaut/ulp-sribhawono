@@ -1,186 +1,148 @@
 @extends('layouts.admin')
 
+@section('title', 'P0')
+
 @section('content')
-<div class="max-w-7xl mx-auto space-y-6">
+@php
+    use App\Models\P0Item;
+    $tz = \App\Services\ShiftService::TIMEZONE;
+    $stageTone = [
+        P0Item::STAGE_MENUNGGU_ACC => 'amber',
+        P0Item::STAGE_MENUNGGU_PENGGANTI => 'red',
+        P0Item::STAGE_DIGANTI => 'slate',
+        P0Item::STAGE_AKTIF => 'blue',
+        P0Item::STAGE_MENUNGGU_VERIFIKASI => 'violet',
+        P0Item::STAGE_SELESAI => 'emerald',
+        P0Item::STAGE_TIDAK_DILANJUTKAN => 'slate',
+    ];
+    $pendingAcc = $counts[P0Item::STAGE_MENUNGGU_ACC] ?? 0;
+    $pendingReplacement = $counts[P0Item::STAGE_MENUNGGU_PENGGANTI] ?? 0;
+    $pendingVerification = $counts[P0Item::STAGE_MENUNGGU_VERIFIKASI] ?? 0;
+    $actionCount = $pendingAcc + $pendingReplacement + $pendingVerification;
+    $countAll = array_sum($counts);
+@endphp
+<div class="mx-auto max-w-7xl space-y-5" data-p0-monitor-redesign="v2">
+    <x-admin.posko-tabs />
+    <x-admin.page-header
+        section="Pekerjaan"
+        title="P0 POSKO"
+        state="partial"
+        description="Monitor usulan, persetujuan, penugasan, dan penyelesaian P0 dari sumber masalah yang tercatat pada sesi PASILA."
+    >
+        <x-slot:actions>
+            <a href="{{ route('admin.pasila.index') }}" class="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100">Buka PASILA</a>
+        </x-slot:actions>
+    </x-admin.page-header>
 
-    <!-- Header Section -->
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-            <nav class="flex text-[10px] text-slate-500 font-medium mb-2">
-                <ol class="flex items-center space-x-1">
-                    <li>Pekerjaan</li>
-                    <li><svg class="w-3 h-3 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></li>
-                    <li class="text-blue-600">P0 (Pekerjaan Prioritas)</li>
-                </ol>
-            </nav>
-            <h1 class="text-2xl font-bold text-slate-900 leading-tight">P0</h1>
-            <p class="text-xs text-slate-500 mt-1">Pemantauan P0 POSKO yang terhubung PASILA pada Section yang sama.</p>
-        </div>
-        <button class="bg-blue-600/50 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 shadow-sm cursor-not-allowed opacity-75" disabled title="Fitur pembuatan P0 belum diimplementasikan">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            Buat P0
-        </button>
+    <div class="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(280px,1fr)]">
+        <section class="rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm sm:p-5" aria-label="Ringkasan P0">
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded-md bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">Monitor P0</span>
+                <span class="rounded-md border border-blue-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-800">Pekerjaan POSKO</span>
+            </div>
+            <h2 class="mt-3 text-lg font-bold text-slate-900">Kendali pekerjaan P0 dari PASILA</h2>
+            <p class="mt-1 max-w-3xl text-sm leading-6 text-slate-600">P0 harus memiliki sumber temuan yang sah dan Section milik POSKO. Usulan SYSTEM memerlukan ACC Admin sebelum menjadi pekerjaan; P0 manual dibuat dari detail sesi PASILA.</p>
+            <div class="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-600">
+                <span class="rounded-lg border border-blue-100 bg-white px-3 py-2"><strong class="text-slate-900">{{ $load->failed('items') ? '—' : $countAll }}</strong> P0 tercatat dalam batas daftar{{ $filters['posko_id'] !== '' ? ' untuk POSKO terpilih' : '' }}</span>
+                <span class="rounded-lg border border-amber-100 bg-white px-3 py-2"><strong class="text-amber-700">{{ $load->failed('items') ? '—' : $actionCount }}</strong> menunggu tindak lanjut Admin/verifikasi</span>
+            </div>
+        </section>
+        <aside class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5" aria-label="Alur pekerjaan P0">
+            <h2 class="text-sm font-bold text-slate-900">Alur singkat P0</h2>
+            <ol class="mt-3 space-y-3 text-xs text-slate-600">
+                <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-700">1</span><span><strong class="text-slate-800">Sumber tercatat</strong><br>Temuan PASILA atau inspeksi tervalidasi pada Section yang sesuai.</span></li>
+                <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-700">2</span><span><strong class="text-slate-800">P0 disetujui / dibuat manual</strong><br>Usulan SYSTEM wajib ACC; P0 manual memakai sumber sah.</span></li>
+                <li class="flex gap-3"><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-50 font-bold text-blue-700">3</span><span><strong class="text-slate-800">Pekerjaan dan verifikasi</strong><br>Target shift dihitung hanya dari P0 yang selesai.</span></li>
+            </ol>
+        </aside>
     </div>
 
-    <!-- 4 KPI Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">PO AKTIF</span>
-                <div class="p-1.5 bg-blue-50 text-blue-600 rounded">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                </div>
-            </div>
-            <div class="text-3xl font-black text-slate-800">{{ $p0_aktif }}</div>
-            <div class="mt-3 flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 pt-2">
-                <span>Total pekerjaan prio...</span>
-                <span class="text-blue-600 font-bold">Prioritas Utama</span>
-            </div>
+    <details class="group rounded-xl border border-amber-200 bg-amber-50/60" data-p0-readiness>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-xs font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
+            <span>Aturan P0 dan kesiapan usulan otomatis</span>
+            <span class="shrink-0 text-amber-800 group-open:hidden">Lihat detail +</span>
+            <span class="hidden shrink-0 text-amber-800 group-open:inline">Tutup −</span>
+        </summary>
+        <div class="space-y-2 border-t border-amber-200 px-4 py-3 text-xs leading-5 text-slate-700">
+            <p>Usulan SYSTEM wajib di-ACC Admin. Penolakan mewajibkan P0 manual pengganti pada sesi PASILA yang sama. Pengganti yang baru dibuat belum memenuhi target.</p>
+            <p>Target minimal <strong>{{ \App\Services\Pasila\P0Service::TARGET_PER_SHIFT }} P0 selesai per POSKO per shift</strong>; status P0 terpisah dari kuota enam WO APKUK.</p>
+            <p>Usulan SYSTEM otomatis: <strong>{{ $strategy->notReadyReason() ?? ($strategy->name().' '.$strategy->version()) }}</strong></p>
         </div>
+    </details>
 
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">BARU</span>
-                <div class="p-1.5 bg-amber-50 text-amber-600 rounded">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                </div>
-            </div>
-            <div class="text-3xl font-black text-slate-800">{{ $p0_baru }}</div>
-            <div class="mt-3 flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 pt-2">
-                <span>Telah dibuat, menu...</span>
-                <span class="text-amber-600 font-bold">Menunggu ACC / POSKO</span>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SEDANG DIKERJAKAN</span>
-                <div class="p-1.5 bg-indigo-50 text-indigo-600 rounded">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
-                </div>
-            </div>
-            <div class="text-3xl font-black text-slate-800">{{ $p0_dikerjakan }}</div>
-            <div class="mt-3 flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 pt-2">
-                <span>Tim POSKO di lapangan</span>
-                <span class="text-indigo-600 font-bold">Proses Tim</span>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col relative overflow-hidden">
-            <div class="flex justify-between items-start mb-2">
-                <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">SELESAI HARI INI</span>
-                <div class="p-1.5 bg-emerald-50 text-emerald-600 rounded">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                </div>
-            </div>
-            <div class="text-3xl font-black text-slate-800">{{ $p0_selesai }}</div>
-            <div class="mt-3 flex justify-between items-center text-[10px] text-slate-500 border-t border-slate-100 pt-2">
-                <span>Pekerjaan tuntas & dive...</span>
-                <span class="text-emerald-600 font-bold">Tuntas</span>
-            </div>
-        </div>
+    <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5" aria-label="Ringkasan tahap P0">
+        @foreach ([P0Item::STAGE_MENUNGGU_ACC => 'amber', P0Item::STAGE_MENUNGGU_PENGGANTI => 'red', P0Item::STAGE_AKTIF => 'blue', P0Item::STAGE_MENUNGGU_VERIFIKASI => 'violet', P0Item::STAGE_SELESAI => 'emerald'] as $key => $tone)
+            <x-admin.stat-card :label="P0Item::STAGE_LABELS[$key]" :value="$load->failed('items') ? null : ($counts[$key] ?? 0)" :tone="$tone" :href="route('admin.p0.index', ['stage' => $key, 'posko_id' => $filters['posko_id']])" unavailable-label="Gagal dimuat" />
+        @endforeach
     </div>
 
-    <!-- Info Banner -->
-    <div class="bg-blue-50 rounded-xl border border-blue-100 p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shadow-sm">
-        <div class="flex gap-3">
-            <div class="mt-0.5 text-blue-600">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+    <x-admin.panel flush title="Daftar P0" :description="'Maksimal '.$limit.' P0 terbaru; pilih tahap atau POSKO untuk mempersempit daftar. Status P0 tidak sama dengan status WO APKUK.'">
+        <x-admin.filter-bar :action="route('admin.p0.index')" :reset-url="route('admin.p0.index')" :active="request()->hasAny(['stage', 'posko_id'])">
+            <x-admin.filter-select name="stage" label="Tahap" :options="$stageOptions" :value="$filters['stage']" placeholder="Semua tahap" />
+            <x-admin.filter-select name="posko_id" label="Posko" :options="$poskoOptions" :value="$filters['posko_id']" placeholder="Semua Posko" />
+        </x-admin.filter-bar>
+        @if ($load->failed('items'))
+            <x-admin.error-state />
+        @else
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 text-xs text-slate-600">
+                <span><strong class="text-slate-900">{{ $items->count() }} P0 ditampilkan</strong>{{ $filters['stage'] !== '' ? ' · Tahap: '.(P0Item::STAGE_LABELS[$filters['stage']] ?? $filters['stage']) : '' }}{{ $filters['posko_id'] !== '' ? ' · POSKO terpilih' : '' }}</span>
+                <span>Buat P0 manual melalui detail sesi PASILA</span>
             </div>
-            <p class="text-xs text-blue-800 leading-relaxed max-w-4xl">
-                <strong class="font-semibold">Aturan P0 POSKO:</strong> P0 wajib terkait PASILA pada Section/Posko yang sama. Usulan otomatis membutuhkan ACC Admin; bila ditolak Admin membuat P0 pengganti manual.
-            </p>
-        </div>
-        <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-xs font-bold text-slate-600 shadow-sm shrink-0">
-            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-            P0 TERKAIT SHIFT PASILA
-        </div>
-    </div>
-
-    <!-- Main List Container -->
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
-        <!-- Filter Bar -->
-        <div class="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row gap-4 items-center justify-between">
-            <div class="flex-1 w-full lg:w-auto relative">
-                <svg class="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                <input type="text" placeholder="Cari ID P0, aset, penyulang, atau lokasi..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:opacity-50" disabled>
-            </div>
-            
-            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>Semua Status</option>
-                </select>
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>Semua Sumber</option>
-                </select>
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>Semua Periode</option>
-                </select>
-                <select class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500 disabled:opacity-50" disabled>
-                    <option>Semua Wilayah Posko</option>
-                </select>
-                
-                <button class="text-sm font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1.5 px-2 disabled:opacity-50" disabled>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                    Reset
-                </button>
-            </div>
-        </div>
-
-        <!-- Table -->
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm text-slate-600 min-w-[1000px]">
-                <thead class="bg-white text-[10px] uppercase font-bold text-slate-500 border-b border-slate-200 tracking-wider">
-                    <tr>
-                        <th class="px-6 py-4">PO</th>
-                        <th class="px-6 py-4">SUMBER</th>
-                        <th class="px-6 py-4">ASET / LOKASI</th>
-                        <th class="px-6 py-4">PENYULANG</th>
-                        <th class="px-6 py-4">KONTEKS POSKO</th>
-                        <th class="px-6 py-4">STATUS</th>
-                        <th class="px-6 py-4 text-right">PEMBARUAN TERAKHIR</th>
+            <x-admin.table min-width="min-w-[1100px]">
+                <x-slot:head>
+                    <th class="px-4 py-3">Kode P0</th>
+                    <th class="px-4 py-3">Sesi PASILA</th>
+                    <th class="px-4 py-3">Posko · Section</th>
+                    <th class="px-4 py-3">Asal &amp; sumber</th>
+                    <th class="px-4 py-3">Tahap</th>
+                    <th class="px-4 py-3">WO P0</th>
+                    <th class="px-4 py-3 text-center">Aksi</th>
+                </x-slot:head>
+                @forelse ($items as $item)
+                    <tr class="hover:bg-blue-50/30" data-p0="{{ $item->code }}" data-stage="{{ $item->stage() }}">
+                        <td class="px-4 py-4">
+                            <div class="text-xs font-bold text-slate-900">{{ $item->code }}</div>
+                            <div class="mt-1 text-[11px] text-slate-500">{{ $item->created_at->timezone($tz)->format('d/m/Y H:i') }} WIB</div>
+                        </td>
+                        <td class="px-4 py-4 text-xs">
+                            <a href="{{ route('admin.pasila.show', ['posko' => $item->posko_id, 'work_date' => $item->session->shiftInstance->operational_date->toDateString(), 'shift_code' => $item->session->shiftInstance->shift_code]) }}" class="font-semibold text-blue-600 hover:text-blue-800">{{ $item->session->code }}</a>
+                        </td>
+                        <td class="px-4 py-4 text-xs">
+                            <div class="font-semibold text-slate-900">{{ $item->posko->nama_posko }}</div>
+                            <div class="mt-1 text-slate-500">{{ $item->section_name }} ({{ $item->penyulang->kode_penyulang }})</div>
+                        </td>
+                        <td class="px-4 py-4 text-xs">
+                            <div class="font-semibold text-slate-700">{{ $item->originLabel() }}</div>
+                            <div class="mt-1 text-slate-500">{{ $item->sourceLabel() }} · {{ $item->source_snapshot['finding_code'] ?? '-' }}</div>
+                        </td>
+                        <td class="px-4 py-4"><x-admin.status-badge :tone="$stageTone[$item->stage()]">{{ $item->stageLabel() }}</x-admin.status-badge></td>
+                        <td class="px-4 py-4 text-xs">
+                            @if ($item->workOrder)
+                                <a href="{{ route('admin.work-orders.show', $item->workOrder) }}" class="font-semibold text-blue-600 hover:text-blue-800">{{ $item->workOrder->code }}</a>
+                                <div class="mt-1 text-slate-500">{{ $item->workOrder->status->label() }}</div>
+                            @else
+                                <span class="text-slate-500">Belum ada WO</span>
+                                <div class="mt-1 text-[11px] text-slate-400">Usulan belum menjadi pekerjaan</div>
+                            @endif
+                        </td>
+                        <td class="px-4 py-4 text-center">
+                            <a href="{{ route('admin.p0.show', $item) }}" class="inline-flex items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100">Detail</a>
+                        </td>
                     </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse($p0_list as $p0)
-                        <!-- Rendering real data if exists -->
-                    @empty
-                        <tr>
-                            <td colspan="7" class="px-6 py-16 text-center">
-                                <div class="flex flex-col items-center justify-center">
-                                    <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
-                                        <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
-                                    </div>
-                                    <h3 class="text-base font-bold text-slate-700 mb-1">Belum ada P0.</h3>
-                                    <p class="text-xs text-slate-500 max-w-sm">Data pekerjaan prioritas belum tersedia di sistem atau tidak ada data yang cocok dengan filter yang diterapkan.</p>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Footer / Pagination -->
-        <div class="p-4 border-t border-slate-200 bg-slate-50/30 flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path></svg>
-                <div class="text-[10px] text-slate-500 leading-tight">
-                    Menampilkan <strong class="text-slate-700">0</strong> dari <strong class="text-slate-700">0</strong> data pekerjaan prioritas aktif ULP Sribhawono.
-                </div>
-            </div>
-            
-            <!-- Empty pagination controls -->
-            <div class="flex items-center gap-1">
-                <button class="w-8 h-8 flex items-center justify-center rounded border border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed" disabled>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                </button>
-                <button class="w-8 h-8 flex items-center justify-center rounded border border-blue-500 text-white bg-blue-600 font-medium text-xs">1</button>
-                <button class="w-8 h-8 flex items-center justify-center rounded border border-slate-200 text-slate-400 bg-slate-50 cursor-not-allowed" disabled>
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-                </button>
-            </div>
-        </div>
-    </div>
+                @empty
+                    <tr>
+                        <td colspan="7" class="px-4 py-7">
+                            <div class="mx-auto max-w-md py-5 text-center">
+                                <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-xl text-slate-400">—</div>
+                                <h3 class="mt-3 text-sm font-bold text-slate-900">Belum ada P0 untuk filter ini</h3>
+                                <p class="mt-2 text-xs leading-5 text-slate-600">P0 hanya dibuat dari sumber masalah yang tercatat dan sah pada sesi PASILA. Tidak ada P0 yang dibuat tanpa sumber.</p>
+                                <a href="{{ route('admin.pasila.index') }}" class="mt-4 inline-flex rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-xs font-bold text-blue-700 hover:bg-blue-100">Lihat sesi PASILA</a>
+                            </div>
+                        </td>
+                    </tr>
+                @endforelse
+            </x-admin.table>
+        @endif
+    </x-admin.panel>
 </div>
 @endsection

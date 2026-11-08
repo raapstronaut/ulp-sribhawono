@@ -16,6 +16,12 @@ return [
     'default' => env('FILESYSTEM_DISK', 'local'),
 
     /*
+    | Disk privat untuk foto bukti WO dan temuan inspeksi. Di Railway, disk `local` tidak
+    | persisten antar-deploy; gunakan disk S3-kompatibel atau volume sebelum dipakai produksi.
+    */
+    'media_disk' => env('MEDIA_DISK', 'local'),
+
+    /*
     |--------------------------------------------------------------------------
     | Filesystem Disks
     |--------------------------------------------------------------------------

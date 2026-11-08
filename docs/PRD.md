@@ -33,7 +33,7 @@ Akun login berbeda dari orang: setiap submission memilih satu atau beberapa **pe
 **P0 sumber SYSTEM:** sistem mengusulkan aset pada PASILA; Admin wajib ACC sebelum P0 aktif. Bila ditolak, Admin **wajib membuat P0 manual pengganti** dalam PASILA tersebut.  
 **P0 sumber ADMIN:** Admin dapat membuat P0 langsung dari PASILA; Section/Posko mengikuti PASILA dan tidak boleh disilangkan. Skema detail P0 masih perlu konfirmasi atasan.
 
-Urutan bisnis enam WO lebih dulu tidak berarti layar PASILA baru dibuat setelah WO selesai: PASILA **sudah dibuat pada awal shift**. Keputusan tentang carry-over mengurangi kuota generator shift berikutnya masih **TBD**; jangan asumsi otomatis.
+Urutan bisnis enam WO lebih dulu tidak berarti layar PASILA baru dibuat setelah WO selesai: PASILA **sudah dibuat pada awal shift**. **Keputusan 29 Okt 2026:** WO yang dijadwalkan ulang secara sah ke shift berikutnya dihitung dalam kuota enam WO shift penerima, dan generator hanya mengisi slot kosong. Kelebihan limpahan dipertahankan dan dicatat terpisah, sedangkan kekurangan kandidat dicatat tanpa data fiktif. WO manual Admin yang terjadwal ikut menempati kuota enam; bila shift sudah penuh, WO manual ditolak. Hanya limpahan sah yang boleh membuat total melebihi enam.
 
 # 3. Tim HARSUS
 
@@ -91,7 +91,7 @@ Lokasi WO pada Android mempunyai CTA **Buka Google Maps** yang mengirim koordina
 
 PostgreSQL adalah source of truth server. Semua koreksi data server hanya oleh ADMIN; **original event, nilai sebelum/sesudah, actor, waktu, alasan koreksi wajib dicatat**. Jangan hapus catatan lampau. Form laporan tim tidak otomatis mengedit riwayat lama.
 
-Sistem menggunakan ranking/rule-based yang dapat dijelaskan dan dituning; model ML bukan prasyarat. **Special Case tidak lagi menggunakan rule keras lebih dari tiga trip per bulan**; perlu metode membaca **frekuensi gangguan** dengan periode, normalisasi, ambang, dan tindak lanjut **TBD**.
+Sistem menggunakan ranking/rule-based yang dapat dijelaskan dan dituning sebagai baseline dan fallback. **Keputusan 28 Okt 2026:** model machine learning untuk pemilihan/prioritas WO otomatis **wajib siap, tervalidasi terhadap baseline, dan terintegrasi pada generator sebelum sistem dipakai operasional**; ranking hardcoded atau acak tidak boleh disebut ML. **Special Case tidak lagi menggunakan rule keras lebih dari tiga trip per bulan**; perlu metode membaca **frekuensi gangguan** dengan periode, normalisasi, ambang, dan tindak lanjut **TBD**.
 
 # 10. Batasan data dan penerimaan
 
@@ -104,4 +104,6 @@ Enam staging sumber telah ada dalam repo bersama Posko/Penyulang/pivot. **Sectio
 - Maps global search beralih Penyulang dan menampilkan histori/foto terkini tanpa menghapus foto lama.
 - Hak akses Web hanya ADMIN dan Android hanya empat tim.
 
-**Terbuka/TBD:** kode dan pilihan dropdown, formulir P0 detail, formula prioritas, jam/penugasan shift jika berubah dari jadwal saat ini, aturan approval reschedule, perilaku duplicate ROW, login device limit, SLA sinkronisasi, ketersediaan GIS dan relasi histori pusat.
+**Jam shift FINAL (28 Okt 2026):** A 08.00–16.00, B 16.00–00.00, C 00.00–08.00 WIB. Hari operasional dimulai 08.00 WIB; Shift C milik hari operasional sebelumnya (keputusan 29 Okt 2026).
+
+**Terbuka/TBD:** kode dan pilihan dropdown, formulir P0 detail, formula prioritas, penugasan tim ke shift, aturan approval reschedule, perilaku duplicate ROW, login device limit, SLA sinkronisasi, ketersediaan GIS dan relasi histori pusat.

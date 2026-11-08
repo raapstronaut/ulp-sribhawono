@@ -99,6 +99,7 @@ Minta data resmi Section/aset/koordinat, affected-asset disturbance, media histo
 | SOP kode pekerjaan | Referensi DB + generic code UI | Daftar pilihan resmi |
 | Formula vegetasi | Workflows, scheduler skeleton, data test | Risk engine produksi |
 | Frekuensi gangguan threshold | Skor parametrik/testing | Special-case final |
+| Model ML tervalidasi (wajib sebelum go-live, keputusan 28 Okt 2026) | Generator rule-based sebagai baseline/fallback, dataset ber-versi, backtest | Sistem siap operasional |
 
 # 11. Definition of Done tiap modul
 

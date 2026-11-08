@@ -16,12 +16,32 @@ class WorkOrderReport extends Model
 
     // Pemasangan selesai: langsung SELESAI tanpa ACC Admin.
     public const TYPE_PEMASANGAN_SELESAI = 'PEMASANGAN_SELESAI';
+
     // APKUK di tiang ternyata sudah lengkap: wajib verifikasi Admin.
     public const TYPE_TEMUAN_SUDAH_LENGKAP = 'TEMUAN_SUDAH_LENGKAP';
 
+    // Penyelesaian WO HARSUS/ROW: menunggu verifikasi Admin (aturan sementara, lihat PROJECT_STATUS).
+    public const TYPE_PEKERJAAN_SELESAI = 'PEKERJAAN_SELESAI';
+
+    public const TYPE_LABELS = [
+        self::TYPE_PEMASANGAN_SELESAI => 'Pemasangan selesai',
+        self::TYPE_TEMUAN_SUDAH_LENGKAP => 'Temuan: APKUK sudah lengkap',
+        self::TYPE_PEKERJAAN_SELESAI => 'Pekerjaan selesai',
+    ];
+
+    public const VERIFICATION_LABELS = [
+        'TIDAK_PERLU' => 'Tidak perlu verifikasi',
+        'MENUNGGU_VERIFIKASI' => 'Menunggu verifikasi',
+        'DISETUJUI' => 'Disetujui',
+        'DITOLAK' => 'Ditolak',
+    ];
+
     public const VERIFICATION_TIDAK_PERLU = 'TIDAK_PERLU';
+
     public const VERIFICATION_MENUNGGU = 'MENUNGGU_VERIFIKASI';
+
     public const VERIFICATION_DISETUJUI = 'DISETUJUI';
+
     public const VERIFICATION_DITOLAK = 'DITOLAK';
 
     protected $fillable = [
@@ -81,5 +101,20 @@ class WorkOrderReport extends Model
     public function verifiedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'verified_by_user_id');
+    }
+
+    public function submittedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'submitted_by_user_id');
+    }
+
+    public function typeLabel(): string
+    {
+        return self::TYPE_LABELS[$this->report_type] ?? $this->report_type;
+    }
+
+    public function verificationLabel(): string
+    {
+        return self::VERIFICATION_LABELS[$this->verification_status] ?? $this->verification_status;
     }
 }

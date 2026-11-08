@@ -14,8 +14,8 @@
     </div>
 
     <div class="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Ringkasan lokasi">
-        <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p class="text-xs text-slate-500">Keypoint berkoordinat</p><p id="maps-stat-keypoint" class="mt-1 text-xl font-bold text-blue-700">—</p></div>
-        <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p class="text-xs text-slate-500">APKUK berkoordinat</p><p id="maps-stat-apkuk" class="mt-1 text-xl font-bold text-violet-700">—</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p class="text-xs text-slate-500">Keypoint terpetakan</p><p id="maps-stat-keypoint" class="mt-1 text-xl font-bold text-blue-700">—</p></div>
+        <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p class="text-xs text-slate-500">APKUK terpetakan</p><p id="maps-stat-apkuk" class="mt-1 text-xl font-bold text-violet-700">—</p></div>
         <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p class="text-xs text-slate-500">Gangguan (tanpa GPS)</p><p id="maps-stat-gangguan" class="mt-1 text-xl font-bold text-rose-700">—</p></div>
         <div class="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"><p class="text-xs text-slate-500">Marker ditampilkan</p><p id="maps-stat-visible" class="mt-1 text-xl font-bold text-slate-800">—</p></div>
     </div>
@@ -57,6 +57,7 @@
                 <div class="flex border-b border-slate-200" role="tablist" aria-label="Jenis daftar data">
                     <button id="maps-tab-locations" type="button" role="tab" aria-selected="true" class="flex-1 border-b-2 border-blue-600 px-3 py-3 text-sm font-bold text-blue-700">Titik di Peta</button>
                     <button id="maps-tab-gangguan" type="button" role="tab" aria-selected="false" class="flex-1 border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-slate-600">Daftar Gangguan</button>
+                    <button id="maps-tab-issues" type="button" role="tab" aria-selected="false" class="flex-1 border-b-2 border-transparent px-3 py-3 text-sm font-semibold text-slate-600">Koordinat Invalid</button>
                 </div>
                 <div class="border-b border-slate-100 px-3 py-2 text-xs text-slate-500" id="maps-list-caption">Klik nama untuk menuju lokasi dan membuka detail.</div>
                 <div id="maps-results" class="min-h-0 flex-1 space-y-2 overflow-y-auto p-3" role="list"></div>
@@ -73,7 +74,7 @@
             <span><span class="mr-1 inline-block h-3 w-3 rounded-full bg-slate-500 align-middle"></span>Keypoint lain</span>
         </div>
         <div class="border-t border-slate-100 px-4 py-3 text-xs text-amber-800">
-            <strong>Catatan data:</strong> Gangguan belum menyimpan koordinat, jadi hanya tampil sebagai daftar, bukan marker. APKUK yang tidak mempunyai koordinat atau sudah menjadi histori juga tidak ditampilkan sebagai marker. APKUK yang tidak lagi ada di sumber terbaru tampil merah muda dengan tanda "menunggu rekonsiliasi" dan tidak dihitung sebagai APKUK aktif, sampai muncul kembali atau diarsipkan di <a href="{{ route('admin.apkuk-reconciliation.index') }}" class="font-semibold underline">Antrean Rekonsiliasi APKUK</a>.
+            <strong>Catatan data:</strong> Gangguan belum menyimpan koordinat, jadi hanya tampil sebagai daftar, bukan marker. APKUK yang tidak mempunyai koordinat atau sudah menjadi histori juga tidak ditampilkan sebagai marker. Titik dengan koordinat bernilai 0 atau di luar wilayah operasional ULP tidak dipetakan dan tidak memengaruhi batas tampilan peta; daftarnya ada di tab Koordinat Invalid, dan nilai aslinya di database dan sumber tidak diubah. APKUK yang tidak lagi ada di sumber terbaru tampil merah muda dengan tanda "menunggu rekonsiliasi" dan tidak dihitung sebagai APKUK aktif, sampai muncul kembali atau diarsipkan di <a href="{{ route('admin.apkuk-reconciliation.index') }}" class="font-semibold underline">Antrean Rekonsiliasi APKUK</a>.
         </div>
     </div>
 </div>

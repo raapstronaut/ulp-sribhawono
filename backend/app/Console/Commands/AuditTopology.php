@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\AssetSourceRow;
 use App\Models\SectionPicSourceRow;
+use App\Support\PenyulangName;
 use Illuminate\Console\Command;
 
 class AuditTopology extends Command
@@ -1238,11 +1239,8 @@ class AuditTopology extends Command
     public function canonicalFeeder(?string $feeder): string
     {
         $feeder = mb_strtoupper($this->cleanString($feeder));
-        if ($feeder === 'TANGGAMUS') {
-            return 'TANGGAMUS 2';
-        }
 
-        return $feeder;
+        return PenyulangName::ALIASES[$feeder] ?? $feeder;
     }
 
     /**

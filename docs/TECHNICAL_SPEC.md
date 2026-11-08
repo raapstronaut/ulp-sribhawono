@@ -14,7 +14,8 @@
 - **Laravel Filesystem:** file foto lokal saat dev, object storage S3-compatible saat prod; PostgreSQL menyimpan metadata/path/hash.
 - **Maps ADMIN:** Leaflet + OSM tiles untuk peta dan layer. **Google Maps eksternal Android** untuk navigasi petugas melalui koordinat; bukan Leaflet untuk seluruh mobile.
 - **Scheduler/Queue:** shift generation, prioritization, ROW WO, upload processing, notification retries, cleanup terkendali.
-- **No legacy Next.js/Supabase/PowerSync**, tidak wajib websocket/realtime/ML. Polling atau refresh berskala wajar.
+- **No legacy Next.js/Supabase/PowerSync**, tidak wajib websocket/realtime. Polling atau refresh berskala wajar.
+- **ML (keputusan 28 Okt 2026):** model prioritas/pemilihan WO otomatis wajib tervalidasi dan terintegrasi pada generator sebelum go-live. Aturan keras (pending APKUK, WO aktif ganda, kelayakan) tetap di luar model, dan rule-based menjadi fallback. Lihat `OPERATIONAL_SPEC_GAP_AUDIT.md` §10.
 
 # 2. Status kode yang terverifikasi melalui GitHub
 
@@ -45,11 +46,11 @@ Hanya role: ADMIN / POSKO / HARSUS / INSPEKSI / ROW. Account = tim login; petuga
 
 # 5. Shift generation & business services
 
-Shift aktif A 08:00–16:00, B 16:00–00:00, C 00:00–08:00 **mengikuti konfigurasi lama sampai disahkan ulang**; simpan parametrik di app_configs. Gunakan Asia/Jakarta dan identitas shift-instance (tanggal kerja + kode + Posko) agar aman pada pergantian tengah malam.
+Shift A 08:00–16:00, B 16:00–00:00, C 00:00–08:00 **FINAL (dikonfirmasi 28 Okt 2026)**; tiga shift berurutan 24 jam tanpa jeda. Hari operasional D = 08:00 WIB D sampai 08:00 WIB D+1; Shift C (D+1 00:00–08:00) ber-tanggal operasional D; interval [start, end) (keputusan 29 Okt 2026). Gunakan Asia/Jakarta dan identitas shift-instance (tanggal operasional + kode; alokasi per Posko) agar aman pada pergantian tengah malam.
 
 **Shift scheduler (idempotent):** saat awal tiap shift per Posko ciptakan PASILA dengan rekomendasi Section dan enam tugas WO APKUK sistem yang didukung data, tanpa membuat duplikasi pada rerun; Admin bisa membuat manual. PASILA tidak menunggu enam WO beres untuk dibuat. Route WO berdasarkan titik/Section dan jarak; kecocokan GPS dan rute jalan perlu dibedakan.
 
-**WO APKUK:** enam WO adalah target per shift/Posko, bukan jumlah unit APKUK; result mencatat physical_apkuk_quantity. Sisa WO boleh direschedule dengan target dipilih petugas + alasan dropdown + catatan wajib; POSKO boleh lanjut PASILA+P0. Algoritma kuota carry-over shift berikutnya TBD.
+**WO APKUK:** enam WO adalah target per shift/Posko, bukan jumlah unit APKUK; result mencatat physical_apkuk_quantity. Sisa WO boleh direschedule dengan target dipilih petugas + alasan dropdown + catatan wajib; POSKO boleh lanjut PASILA+P0. Kuota (keputusan 29 Okt 2026): limpahan sah (reschedule disetujui) masuk kuota enam shift penerima; slot_baru = max(0, 6 − terisi); kekurangan dan kelebihan dicatat terpisah. WO manual Admin juga menempati kuota dan ditolak bila shift penuh. Hanya limpahan sah yang boleh melebihi enam. Generator, WO manual, dan pemindahan jadwal APKUK oleh Admin memeriksa slot di bawah kunci advisory kuota per shift (urutan: kunci generator → kuota → ApkukSyncLock). Posko kandidat hanya dari pemetaan SECTION_PIC_RAW terverifikasi. Alokasi generator dibekukan sekali per shift + Posko, jadi kekurangan tidak diisi ulang otomatis (top-up TBD). Generate otomatis ditolak di luar APP_ENV `local`/`testing` sampai model ML dan prosedur readiness tersedia.
 
 **PASILA/P0:** temuan PASILA per item berisi koordinat/foto/asset-link. P0 hanya POSKO dan selalu merujuk PASILA/Section/Posko yang sama; SYSTEM proposal perlu Admin ACC; jika Admin reject, sistem menandai kebutuhan manual replacement dalam PASILA; Admin P0 dibuat manual dengan relasi inherited. Aturan minimum 1 P0/shift dinilai dari realisasi sesuai definisi final.
 
@@ -65,7 +66,7 @@ Shift aktif A 08:00–16:00, B 16:00–00:00, C 00:00–08:00 **mengikuti konfig
 
 # 6. Maps Web architecture
 
-Server endpoint memilih penyulang wajib dan jenis layer serta bbox/zoom/page. Jangan mengembalikan 17k+ aset seluruh ULP setiap request. Cache/cluster sesuai zoom; dukung jenis TIANG, GARDU, FCO, LBSM, REC, APKUK, VEGETASI dan event GANGGUAN. Layer gangguan merender koordinat kejadian dan mereferensikan aset terdampak.
+Server endpoint memilih penyulang wajib dan jenis layer serta bbox/zoom/page. Jangan mengembalikan 17k+ aset seluruh ULP setiap request. Cache/cluster sesuai zoom; dukung jenis TIANG, GARDU, FCO, LBSM, REC, APKUK, VEGETASI dan event GANGGUAN. Layer gangguan merender koordinat kejadian dan mereferensikan aset terdampak. Peta Monitoring yang sudah berjalan hanya memetakan koordinat di dalam wilayah operasional; titik bernilai 0 atau di luar wilayah dilaporkan terpisah tanpa mengubah nilai aslinya (aturan: `SOURCE_IMPORT_RUNBOOK.md` §6).
 
 Search endpoint adalah **global lintas 16 penyulang** meskipun map menampilkan satu penyulang. Hasil harus mengandung asset ID, penyulang ID, koordinat, label. UI **switch dropdown → load markers → zoom → drawer**.
 

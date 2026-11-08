@@ -1,5 +1,7 @@
 @extends('layouts.admin')
 
+@section('title', 'Work Order APKUK')
+
 @section('content')
 @php
     $statusClasses = [
@@ -15,101 +17,91 @@
     $hasFilter = collect($filters)->filter(fn ($v) => $v !== '')->isNotEmpty();
 @endphp
 <div class="max-w-7xl mx-auto space-y-6">
+    <x-admin.posko-tabs />
 
-    <!-- Header Section -->
-    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-            <nav class="flex text-[10px] text-slate-500 font-medium mb-2">
-                <ol class="flex items-center space-x-1">
-                    <li>Pekerjaan</li>
-                    <li><svg class="w-3 h-3 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></li>
-                    <li class="text-blue-600">Work Order</li>
-                </ol>
-            </nav>
-            <h1 class="text-2xl font-bold text-slate-900 leading-tight">Work Order APKUK</h1>
-            <p class="text-xs text-slate-500 mt-1">Pemantauan WO PEMASANGAN_APKUK POSKO. Jenis WO HARSUS dan ROW akan memakai model WO yang sama.</p>
+    <!-- Header monitoring WO APKUK -->
+    <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
+        <div class="min-w-0 space-y-1">
+            <nav aria-label="Breadcrumb" class="text-xs font-semibold text-slate-500">Pekerjaan <span aria-hidden="true">/</span> POSKO <span aria-hidden="true">/</span> <span class="text-blue-700">WO APKUK</span></nav>
+            <h1 class="text-2xl font-black tracking-tight text-slate-900">Work Order APKUK</h1>
+            <p class="max-w-3xl text-sm text-slate-600">Pantau penugasan, pelaksanaan dan tindak lanjut pemasangan APKUK oleh enam POSKO.</p>
         </div>
-        <a href="{{ route('admin.work-orders.create') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold inline-flex items-center gap-2 shadow-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-            Buat WO APKUK
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="{{ route('admin.shift-quota.index') }}" class="inline-flex items-center rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50">Lihat Kuota Shift</a>
+            <a href="{{ route('admin.work-orders.create') }}" class="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-blue-700"><span aria-hidden="true">+</span> Buat WO APKUK</a>
+        </div>
+    </div>
+    <!-- Konteks shift selalu memakai hari operasional WIB -->
+    <section aria-label="Konteks shift POSKO" class="flex flex-col gap-3 rounded-xl border border-blue-100 bg-blue-50 px-5 py-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div class="space-y-1">
+            <p class="text-sm font-bold text-blue-950">Shift {{ $shift_name }} · {{ $shift_time }} WIB</p>
+            <p class="text-xs text-blue-800">Tanggal operasional: <strong>{{ \Illuminate\Support\Carbon::parse($operational_date)->format('d/m/Y') }}</strong> · Acuan {{ $target_per_shift }} WO per POSKO / shift, total {{ $target_total }} WO se-ULP.</p>
+        </div>
+        <p class="max-w-sm text-xs text-blue-800">Satu WO = satu pekerjaan. Jumlah APKUK fisik dicatat terpisah dalam laporan. Alokasi dan limpahan sah dilihat di Kuota Shift.</p>
+    </section>
+    <!-- Empat KPI yang disepakati; label cakupan tidak boleh rancu -->
+    <section aria-label="Ringkasan monitoring WO APKUK" class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">WO Shift Ini</div>
+            <div class="mt-2 text-3xl font-black tabular-nums text-slate-900">{{ $wo_shift_ini }}</div>
+            <p class="mt-1 text-xs text-slate-500">Dari acuan {{ $target_total }} WO · tidak termasuk batal</p>
+        </div>
+        <a href="{{ route('admin.work-orders.index', ['status' => \App\Enums\WorkOrderStatus::Dikerjakan->value, 'work_date' => $operational_date, 'shift_code' => $current_shift_code]) }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Sedang Dikerjakan</div>
+            <div class="mt-2 text-3xl font-black tabular-nums text-blue-700">{{ $wo_dikerjakan }}</div>
+            <p class="mt-1 text-xs text-slate-500">Hanya shift berjalan · klik untuk rinciannya</p>
         </a>
-    </div>
-
-    <!-- Info Banner -->
-    <div class="bg-blue-50 rounded-xl border border-blue-100 p-4 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between shadow-sm">
-        <div class="flex gap-3">
-            <div class="mt-0.5 text-blue-600">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-            </div>
-            <p class="text-xs text-blue-800 leading-relaxed max-w-4xl">
-                <strong class="font-semibold">Shift POSKO Saat Ini:</strong> {{ $shift_name }} ({{ $shift_time }}) • Target preventif {{ $target_per_shift }} WO per shift per Posko (Total referensi kuota shift: {{ $target_total }} WO se-ULP). Satu WO adalah satu pekerjaan tiang; jumlah APKUK fisik dicatat terpisah.
-            </p>
-        </div>
-        <div class="flex items-center gap-2 bg-white px-3 py-1.5 rounded-lg border border-blue-100 text-xs font-bold text-slate-600 shadow-sm shrink-0">
-            Shift-Based POSKO
-        </div>
-    </div>
-
-    <!-- 4 KPI Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
-            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">WO SHIFT INI</span>
-            <div class="text-3xl font-black text-slate-800">{{ $wo_shift_ini }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">Dari referensi target {{ $target_total }} WO</div>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
-            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">SEDANG DIKERJAKAN</span>
-            <div class="text-3xl font-black text-slate-800">{{ $wo_dikerjakan }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">Shift berjalan</div>
-        </div>
-        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
-            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">SELESAI SHIFT INI</span>
-            <div class="text-3xl font-black text-slate-800">{{ $wo_selesai }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">Pemasangan dilaporkan selesai</div>
-        </div>
-        <a href="{{ route('admin.work-orders.index', ['status' => \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE]) }}" class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col hover:border-red-200">
-            <span class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">TERLAMBAT</span>
-            <div class="text-3xl font-black {{ $wo_terlambat > 0 ? 'text-red-600' : 'text-slate-800' }}">{{ $wo_terlambat }}</div>
-            <div class="mt-3 text-[10px] text-slate-500">WO aktif melewati akhir shift</div>
+        <a href="{{ route('admin.work-orders.index', ['status' => \App\Enums\WorkOrderStatus::MenungguVerifikasi->value]) }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-amber-300 hover:shadow-md">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Perlu Verifikasi</div>
+            <div class="mt-2 text-3xl font-black tabular-nums {{ $wo_perlu_verifikasi > 0 ? 'text-amber-700' : 'text-slate-900' }}">{{ $wo_perlu_verifikasi }}</div>
+            <p class="mt-1 text-xs text-slate-500">Antrean laporan seluruh shift · tindak lanjut melalui Review</p>
         </a>
-    </div>
-
-    <!-- Posko Progress Section -->
-    <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm flex flex-col">
-        <div class="flex justify-between items-center mb-4">
+        <a href="{{ route('admin.work-orders.index', ['status' => \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE]) }}" class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:border-rose-300 hover:shadow-md">
+            <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Terlambat</div>
+            <div class="mt-2 text-3xl font-black tabular-nums {{ $wo_terlambat > 0 ? 'text-rose-700' : 'text-slate-900' }}">{{ $wo_terlambat }}</div>
+            <p class="mt-1 text-xs text-slate-500">WO aktif melewati batas shift · seluruh periode</p>
+        </a>
+    </section>
+    <!-- Beban kerja per POSKO: batang = WO terjadwal, angka selesai terpisah -->
+    <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="posko-progress-heading">
+        <div class="mb-4 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
-                <h3 class="font-bold text-slate-800 text-sm">Progres Beban Kerja per Posko (Shift Berjalan)</h3>
-                <p class="text-[10px] text-slate-500 mt-1">Dampak carryover terhadap kuota shift tujuan belum dikunci dalam aturan terbaru.</p>
+                <h2 id="posko-progress-heading" class="text-base font-bold text-slate-900">Progres per POSKO</h2>
+                <p class="mt-1 text-xs text-slate-500">Pekerjaan nyata yang dijadwalkan untuk shift berjalan, dibandingkan acuan {{ $target_per_shift }} WO per POSKO.</p>
             </div>
-            <div class="text-xs font-semibold text-slate-500">
-                Shift {{ $shift_index }} ({{ $shift_name }})
-            </div>
+            <a href="{{ route('admin.shift-quota.index') }}" class="shrink-0 text-xs font-bold text-blue-700 hover:underline">Rincian alokasi & limpahan →</a>
         </div>
-
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             @foreach($poskos as $posko)
-            @php
-                $progress = $posko_progress[$posko->id];
-                $percent = $target_per_shift > 0 ? min(100, (int) round($progress['selesai'] / $target_per_shift * 100)) : 0;
-            @endphp
-            <div class="border border-slate-100 rounded-lg p-3 bg-slate-50">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-xs font-bold text-slate-700">{{ $posko->nama_posko }}</span>
-                    <span class="text-xs font-bold text-slate-900">{{ $progress['total'] }}/{{ $target_per_shift }}</span>
+                @php
+                    $progress = $posko_progress[$posko->id];
+                    $percent = $target_per_shift > 0 ? min(100, (int) round($progress['total'] / $target_per_shift * 100)) : 0;
+                @endphp
+                <div class="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                    <div class="mb-3 flex items-center justify-between gap-2">
+                        <span class="truncate text-xs font-bold text-slate-800" title="{{ $posko->nama_posko }}">{{ $posko->nama_posko }}</span>
+                        <span class="whitespace-nowrap text-xs font-black tabular-nums text-slate-900">{{ $progress['total'] }}/{{ $target_per_shift }}</span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded-full bg-slate-200" role="progressbar" aria-label="WO terjadwal {{ $posko->nama_posko }}" aria-valuenow="{{ min($progress['total'], $target_per_shift) }}" aria-valuemin="0" aria-valuemax="{{ $target_per_shift }}">
+                        <div class="h-full rounded-full bg-blue-600" style="width: {{ $percent }}%"></div>
+                    </div>
+                    <div class="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-600"><span>{{ $progress['selesai'] }} selesai</span><span>{{ $progress['aktif'] }} aktif</span></div>
+                    @if($progress['total'] > $target_per_shift)
+                        <div class="mt-2 text-[10px] font-semibold text-amber-700">Di atas acuan · cek limpahan sah</div>
+                    @endif
                 </div>
-                <div class="w-full bg-slate-200 rounded-full h-1.5 mb-2 overflow-hidden flex">
-                    <div class="bg-emerald-500 h-1.5" style="width: {{ $percent }}%"></div>
-                </div>
-                <div class="text-[9px] text-slate-500">
-                    {{ $progress['selesai'] }} Selesai, {{ $progress['aktif'] }} Aktif
-                </div>
-            </div>
             @endforeach
         </div>
-    </div>
-
-    <!-- Main List Container -->
-    <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
+    </section>
+    <!-- Daftar dan tindak lanjut WO APKUK -->
+    <section class="rounded-xl border border-slate-200 bg-white shadow-sm" aria-labelledby="wo-list-heading">
+        <div class="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 id="wo-list-heading" class="text-base font-bold text-slate-900">Daftar Work Order</h2>
+                <p class="mt-1 text-xs text-slate-500">Cari pekerjaan, buka detail, atau periksa antrean yang membutuhkan tindakan.</p>
+            </div>
+            <a href="{{ route('admin.reviews.index') }}" class="text-xs font-bold text-blue-700 hover:underline">Review & Validasi →</a>
+        </div>
         <!-- Filter Bar -->
         <form method="GET" action="{{ route('admin.work-orders.index') }}" class="p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div class="flex-1 w-full lg:w-auto relative">
@@ -137,7 +129,7 @@
                         <option value="{{ $option['code'] }}" @selected($filters['shift_code'] === $option['code'])>Shift {{ $option['code'] }} ({{ $option['name'] }})</option>
                     @endforeach
                 </select>
-                <input type="date" name="work_date" value="{{ $filters['work_date'] }}" aria-label="Tanggal kerja" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
+                <input type="date" name="work_date" value="{{ $filters['work_date'] }}" aria-label="Tanggal operasional" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
 
                 <button type="submit" class="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Terapkan</button>
                 @if($hasFilter)
@@ -201,8 +193,8 @@
                                     <div class="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
                                         <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                                     </div>
-                                    <h3 class="text-base font-bold text-slate-700 mb-1">Belum ada Work Order.</h3>
-                                    <p class="text-xs text-slate-500 max-w-sm">Belum ada WO APKUK yang tersimpan atau tidak ada data yang cocok dengan filter.</p>
+                                    <h3 class="text-base font-bold text-slate-700 mb-1">{{ $hasFilter ? 'Tidak ada WO yang cocok.' : 'Belum ada Work Order.' }}</h3>
+                                    <p class="text-xs text-slate-500 max-w-sm">{{ $hasFilter ? 'Coba ubah atau reset filter untuk melihat pekerjaan lain.' : 'Belum ada WO APKUK yang tersimpan. Gunakan Buat WO APKUK untuk menerbitkan pekerjaan baru.' }}</p>
                                 </div>
                             </td>
                         </tr>
@@ -232,6 +224,6 @@
                 </div>
             @endif
         </div>
-    </div>
+    </section>
 </div>
 @endsection

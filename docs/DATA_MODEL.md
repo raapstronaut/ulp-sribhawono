@@ -20,8 +20,8 @@
 | Kelompok | Nama | Status |
 |---|---|---|
 | Staging | apkuk_source_rows | Migration & importer |
-| Staging | asset_source_rows | Migration & importer |
-| Staging | vegetasi_source_rows | Migration & importer |
+| Staging | asset_source_rows | Migration & importer (10 kolom ASSET_RAW; lihat SOURCE_IMPORT_RUNBOOK.md) |
+| Staging | vegetasi_source_rows | Migration & importer (lihat SOURCE_IMPORT_RUNBOOK.md) |
 | Staging | gangguan_source_rows | Migration & importer |
 | Staging | section_pic_source_rows | Migration & importer |
 | Staging | keypoint_source_rows | Migration & importer |
@@ -30,6 +30,8 @@
 | Pivot | posko_penyulang | Migration + sync |
 | Auth | users, password_reset_tokens, sessions | Default Laravel skeleton, belum RBAC final |
 | Operasional | work_orders, work_order_apkuk_targets, work_order_status_logs, work_order_reschedules, work_order_reports, work_order_report_personnel, work_order_media | Migration 20 Okt 2026 (branch `feat/workflows-v3-foundation`); WO APKUK manual Admin aktif. Status: DITUGASKAN, DIKERJAKAN, MENUNGGU_VERIFIKASI, RESCHEDULE_DIAJUKAN, DIJADWALKAN_ULANG, SELESAI, SELESAI_DITERUSKAN, DIBATALKAN; "terlambat" dihitung dari `due_at` WO aktif |
+| Shift & generator | shift_instances, apkuk_generation_runs, apkuk_shift_allocations, work_orders.generation_run_id | Migration Batch B2 (29 Okt 2026, belum di production): identitas shift per hari operasional, log pratinjau/generate (ringkasan per Posko, kandidat ditahan, rincian kategori laporan `breakdown`), alokasi kuota per Posko per shift (beku setelah generate), provenance WO SYSTEM |
+| Koreksi data | apkuk_section_overrides | Migration Batch B1 (29 Okt 2026, belum di production): koreksi Section internal Admin untuk laporan APKUK ber-Section kosong/DUMMY; nilai sumber `apkuks.section` tidak diubah, riwayat di `audit_logs` |
 
 Checkpoint historis: 6 Posko, 16 Penyulang, 26 relasi. Snapshot raw angka dapat berubah setelah reimport; 73 tests / 274 assertions adalah laporan sebelumnya, bukan hasil re-run pada revisi ini.
 
@@ -58,10 +60,11 @@ Belum diputuskan: tipe teknis serial aset per kategori, master referensi kode fi
 |---|---|---|
 | work_orders | id, source, team_type, work_type, target_asset_id/vegetation_id, section_id, penyulang_id, posko_id, shift_instance_id nullable, due_at, status, parent_wo_id nullable | POSKO APKUK; HARSUS PEKERJAAN_KHUSUS; ROW RABAS/PANGKAS/TEBANG |
 | work_order_results | work_order_id, action_code, physical_apkuk_quantity nullable, outcome, occurred_at, received_at | Jumlah APKUK fisik bukan jumlah WO |
-| pasila_sessions | id, posko_id, section_id, penyulang_id, shift_instance_id, source SYSTEM/ADMIN, recommendation_rank, status | Auto dibuat awal shift; penambahan manual terkontrol |
-| pasila_findings | id, pasila_id, asset_id nullable, lat/lon, code, status, occurred_at | **Satu temuan satu GPS/foto/petugas** |
-| p0 | id, pasila_id, asset_id, source SYSTEM/ADMIN, approval_status, status, reject/replacement link | Executor POSKO; Section/Posko diwarisi dari PASILA |
-| p0_petugas | p0_id, petugas_id | Petugas aktual; bukan akun login |
+| pasila_sessions | **Dibangun B3.1:** id, code, shift_instance_id, posko_id, status, section_status (MENUNGGU_PENENTUAN/REKOMENDASI_SISTEM/DITETAPKAN_ADMIN), penyulang_id, section_key, section_name, section_hold_reason, recommendation (json), penetapan Admin, opened_at/trigger | Unik per shift_instance + Posko; dibuka awal shift; Section hanya dari `SectionPoskoMap` (kontrak: SECTION_REFERENCE_CONTRACT.md) |
+| pasila_findings | **Dibangun B3.2:** id, pasila_session_id, sequence (unik per sesi), posko_id, penyulang_id, section_key/section_name (Section terverifikasi milik Posko saat dicatat), finding_code (reference_codes PASILA_FINDING), description, keypoint_id/asset_label opsional, lat/lon wajib + akurasi + coordinate_source, occurred_at/received_at, status, pengirim (tim/akun), client_request_id unik; `pasila_finding_media` dan `pasila_finding_personnel` (roster) per temuan | **Satu temuan satu GPS/foto/petugas**; dirujuk P0 kelak |
+| pasila_nil_reports | **Dibangun B3.2:** id, pasila_session_id (unik), note, lat/lon, occurred_at/received_at, status AKTIF/DIGANTIKAN_TEMUAN, superseded_by_finding_id, pengirim, client_request_id; `pasila_nil_report_personnel` | Laporan nihil eksplisit; bukan temuan; daftar temuan kosong ≠ nihil |
+| pasila_closures | **Dibangun B3.4:** id, pasila_session_id (unik), outcome ADA_TEMUAN/NIHIL, finding_count, pasila_nil_report_id (FK, bila nihil), note, lat/lon/akurasi opsional, personnel (json roster), snapshot (json: laporan patroli, kewajiban P0, WO APKUK saat ditutup), occurred_at/received_at, pengirim (tim/akun), client_request_id unik | Satu penutupan per sesi, tidak ditulis ulang; `pasila_sessions.status` → DITUTUP. Temuan yang tiba kemudian tetap tersimpan dan ditandai (dihitung, bukan disimpan) |
+| p0_items | **Dibangun B3.3:** id, code, pasila_session_id + sequence (unik), posko_id, penyulang_id, section_key/section_name (dari sumber, terverifikasi milik Posko), origin SYSTEM/ADMIN, source_type PASILA_FINDING/INSPECTION_FINDING + FK sumber, active_source_key (unik; dikosongkan saat ditolak), source_snapshot, description, recommendation (json, `is_machine_learning`), approval_status MENUNGGU_ACC/DISETUJUI/DITOLAK/TIDAK_PERLU, replacement_status TIDAK_PERLU/WAJIB/TERPENUHI, replaces_p0_item_id (unik), work_order_id (unik), peninjau | Usulan terpisah dari WO aktif; pekerjaan = WO `work_type` P0 (tim POSKO, target lokasi sumber); petugas aktual dicatat di laporan WO |
 | inspections | id, team_id, section_id, visit_at, has_finding, no_finding_record, status | No finding tersimpan jujur |
 | inspection_findings | id, inspection_id, asset_id nullable, lat/lon, finding_code, validation_status, suggested_target_team | ACC Admin sebelum canonical |
 | vegetation_risk_evaluations | id, vegetation_id, computed_at, score, due_reason, algorithm_version | Formula/cycle TBD |
@@ -105,14 +108,15 @@ Tabel polimorfik di atas **desain logis**, bukan nama final yang memaksa impleme
 **WO status proposal:** BARU / DITUGASKAN / DIKERJAKAN / RESCHEDULED / SELESAI / SELESAI_DITERUSKAN / DIBATALKAN. State machine final dan hak mutasi perlu tes.
 **P0 proposal:** MENUNGGU_ACC / DITOLAK / DISETUJUI lalu executable states; Admin manual aktif sesuai validasi. Reject SYSTEM mensyaratkan pengganti manual.
 **Sync local:** QUEUED / SENDING / ACKNOWLEDGED / RETRYABLE_ERROR / ACTION_REQUIRED dengan request_id/idempotency_key.
-**Uniqueness:** shift_instance unik posko+work_date+shift; generator PASILA/WO dan ROW harus idempotent terhadap job retry. Aturan carryover mengurangi kuota WO berikutnya **TBD**. Aturan persis deduplikasi satu vegetasi/multi siklus juga **TBD**, walaupun banyak titik dan WO per hari diperbolehkan.
+**Identitas sumber (keputusan 28 Okt 2026):** target ROW memakai **ID POHON** (unik 16.983/16.983 pada snapshot 28 Okt), bukan ID baris staging. Laporan APKUK yang hilang dari snapshot SPS BOS valid berstatus pending/histori (`source_missing_at`), tidak dihapus.
+**Uniqueness:** shift_instance unik operational_date+shift (alokasi generator unik shift+Posko); generator PASILA/WO dan ROW harus idempotent terhadap job retry. Limpahan sah dihitung dalam kuota enam shift penerima (keputusan 29 Okt 2026). WO manual Admin juga menempati kuota dan ditolak bila shift penuh; hanya limpahan sah yang boleh melebihi enam. Penegakannya memakai kunci advisory kuota per shift, bukan constraint tabel. Aturan persis deduplikasi satu vegetasi/multi siklus juga **TBD**, walaupun banyak titik dan WO per hari diperbolehkan.
 
 # 8. Index & query
 
 - assets(penyulang_id,asset_type,section_id), external IDs unique under source/namespace; spatial index bila PostGIS digunakan.
 - disturbance_events(penyulang_id,occurred_at) dan affected_assets(asset_id).
 - work_orders(team_type,work_type,status,due_at), (posko_id,shift_instance_id).
-- pasila_sessions(shift_instance_id), pasila_findings(pasila_id).
+- pasila_sessions unique(shift_instance_id, posko_id) dan (posko_id, section_key) untuk rotasi; pasila_findings unique(pasila_session_id, sequence), (posko_id, occurred_at), (section_key); pasila_nil_reports unique(pasila_session_id); pasila_closures unique(pasila_session_id), unique(client_request_id).
 - p0(pasila_id,approval_status,status).
 - media_attachments(asset_id,captured_at) dan asset_history_events(asset_id,occurred_at).
 - approvals(kind,decision,created_at), work_escalations(admin_decision).

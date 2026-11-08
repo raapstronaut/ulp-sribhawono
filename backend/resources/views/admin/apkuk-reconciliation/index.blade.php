@@ -1,5 +1,7 @@
 @extends('layouts.admin')
 
+@section('title', 'Rekonsiliasi APKUK')
+
 @section('content')
 @php
     use App\Models\ApkukReconciliationItem;
@@ -17,17 +19,12 @@
 @endphp
 <div class="max-w-7xl mx-auto space-y-6">
 
-    <div>
-        <nav class="flex text-[10px] text-slate-500 font-medium mb-2">
-            <ol class="flex items-center space-x-1">
-                <li>Data Sumber</li>
-                <li><svg class="w-3 h-3 mx-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg></li>
-                <li class="text-blue-600">Rekonsiliasi APKUK</li>
-            </ol>
-        </nav>
-        <h1 class="text-2xl font-bold text-slate-900 leading-tight">Antrean Rekonsiliasi APKUK</h1>
-        <p class="text-xs text-slate-500 mt-1 max-w-4xl">SPS BOS adalah sumber live: laporan yang hilang bisa memang tidak berlaku, atau hanya sementara (sedang diedit/dipindahkan). Laporan yang hilang berstatus pending: tetap tersimpan, tidak dihitung sebagai laporan aktif, dan tidak dapat dipilih untuk WO baru. Pending tidak pernah diarsipkan otomatis berdasarkan lamanya hilang; laporan diarsipkan hanya oleh Admin atas konfirmasi pemilik data, atau pulih sendiri bila muncul kembali di sumber. WO yang sudah ada tidak pernah diubah.</p>
-    </div>
+    <x-admin.page-header
+        section="Data Sumber"
+        title="Antrean Rekonsiliasi APKUK"
+        state="live"
+        description="SPS BOS adalah sumber live: laporan yang hilang bisa memang tidak berlaku, atau hanya sementara (sedang diedit/dipindahkan). Laporan yang hilang berstatus pending: tetap tersimpan, tidak dihitung sebagai laporan aktif, dan tidak dapat dipilih untuk WO baru. Pending tidak pernah diarsipkan otomatis berdasarkan lamanya hilang; laporan diarsipkan hanya oleh Admin atas konfirmasi pemilik data, atau pulih sendiri bila muncul kembali di sumber. WO yang sudah ada tidak pernah diubah."
+    />
 
     @if(session('status'))
         <div class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800" role="status">{{ session('status') }}</div>
@@ -250,7 +247,15 @@
                         <td class="px-4 py-2">{{ $done->kindLabel() }}</td>
                         <td class="px-4 py-2">ID {{ $done->source_id ?? '—' }} · {{ $done->no_tiang ?? '—' }}</td>
                         <td class="px-4 py-2">{{ $done->resolutionLabel() }}</td>
-                        <td class="px-4 py-2">{{ $done->resolvedBy ? $done->resolvedBy->name.' ('.$done->resolvedBy->username.')'.($done->reconciliation_id ? ' via apkuk:reconcile #'.$done->reconciliation_id : '') : 'Otomatis (sync #'.$done->resolved_run_id.')' }}</td>
+                        <td class="px-4 py-2">
+                            @if ($done->resolvedBy)
+                                {{ $done->resolvedBy->name }} ({{ $done->resolvedBy->username }}){{ $done->reconciliation_id ? ' via apkuk:reconcile #'.$done->reconciliation_id : '' }}
+                            @elseif ($done->resolved_run_id)
+                                Otomatis (sync #{{ $done->resolved_run_id }})
+                            @else
+                                Sistem (penyelesaian terkait)
+                            @endif
+                        </td>
                         <td class="px-4 py-2 max-w-xs">{{ $done->owner_confirmation ?? '—' }}</td>
                         <td class="px-4 py-2 max-w-md">{{ \Illuminate\Support\Str::limit($done->resolution_reason, 160) }}</td>
                         <td class="px-4 py-2 whitespace-nowrap">{{ $wib($done->resolved_at) }}</td>

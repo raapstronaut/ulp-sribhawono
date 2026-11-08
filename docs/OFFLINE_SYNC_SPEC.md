@@ -58,7 +58,15 @@ Rancang test perangkat nyata saat jaringan OFF→ON, task background, reboot, ba
 
 # 7. Offline per role
 
-**POSKO:** cached APKUK WO, PASILA shift, P0 yang sudah ACC, reschedule reason+manual note, temuan terpisah; setiap submit tercatat outbox. PASILA dibentuk server awal shift, sehingga tugas yang belum sempat didownload tidak dapat dibuat-buat lokal tanpa kontrak khusus.
+**POSKO:** cached APKUK WO, PASILA shift, P0 yang sudah ACC, reschedule reason+manual note, temuan terpisah; setiap submit tercatat outbox. PASILA dibentuk server awal shift, sehingga tugas yang belum sempat didownload tidak dapat dibuat-buat lokal tanpa kontrak khusus. Server B3.2: setiap temuan dan laporan nihil membawa `client_request_id` sendiri (kiriman ulang mengembalikan record yang sama; isi berbeda dengan kunci sama → 422). Kiriman yang tiba setelah shift berakhir diterima bila `occurred_at` di dalam jendela shift sesi. Temuan yang tiba setelah laporan nihil menggantikan laporan nihil, sedangkan laporan nihil untuk sesi yang sudah memiliki temuan ditolak 409.
+
+Endpoint aktual, contoh payload/respons, dan tabel penanganan 401/403/404/409/422 untuk outbox: `MOBILE_API_GUIDE.md` §8.
+
+Penutupan sesi (B3.4, `POST pasila/{id}/close`) juga membawa `client_request_id` sendiri; kiriman ulang mengembalikan penutupan yang sama. Aturan urutan dan kiriman terlambat:
+- **Urutan outbox:** penutupan bergantung pada laporan patroli sesi itu. Kirim semua temuan/laporan nihil sesi lebih dulu; bila penutupan tiba sebelum laporan apa pun diterima server, server menolak 409 "belum ada laporan patroli" tanpa membuat penutupan, dan klien mengirim ulang penutupan dengan key sama setelah laporan terkirim.
+- **Penutupan terlambat:** `occurred_at` penutupan boleh setelah shift berakhir (HP offline sampai lewat shift); diterima dan ditandai `DITUTUP_SETELAH_SHIFT`. `occurred_at` sebelum awal shift atau lebih dari 10 menit di depan jam server ditolak 422.
+- **Temuan setelah ditutup:** temuan dengan `occurred_at` di dalam jendela shift tetap diterima setelah sesi ditutup (tidak dibuang senyap). Catatan penutupan tidak ditulis ulang; sesi ditandai `TEMUAN_SETELAH_DITUTUP`, dan bila sesi ditutup nihil, laporan nihil digantikan temuan (riwayat tetap) serta ditandai `NIHIL_TERBANTAH`. Audit temuan mencatat "Diterima setelah sesi PASILA ditutup". Laporan nihil baru untuk sesi yang sudah ditutup selalu ditolak 409 (sesi tertutup selalu sudah memiliki laporan patroli).
+- **Balapan:** penutupan dan temuan sama-sama mengunci baris sesi; temuan yang datang saat penutupan belum commit menunggu, lalu tercatat sebagai temuan setelah ditutup.
 
 **HARSUS:** cached WO PEKERJAAN_KHUSUS dan target aset. Tidak ada P0 HARSUS.
 
@@ -84,3 +92,4 @@ File lokal sukses hanya dibersihkan setelah ACK server dan kebijakan retensi yan
 - Invalid session setelah masa lama → outbox tetap ada; reauth lalu retry.
 - Dua perangkat akun tim submit tugas sama → server mendeteksi duplikat/konflik.
 - PASILA multiple findings masing-masing foto/GPS tetap terhubung benar.
+- PASILA: penutupan offline dikirim setelah temuan/nihil sesi itu; retry penutupan dengan key sama tidak membuat penutupan ganda; temuan yang dikirim setelah penutupan tetap diterima dan ditandai.
