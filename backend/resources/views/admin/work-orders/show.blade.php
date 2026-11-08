@@ -338,5 +338,9 @@
             @endforeach
         </ol>
     </x-admin.panel>
+    @if (isset($crewAudit) && $crewAudit !== null)
+        @include('admin.partials.posko-crew-audit', ['crewAudit' => $crewAudit])
+    @endif
+
 </div>
 @endsection

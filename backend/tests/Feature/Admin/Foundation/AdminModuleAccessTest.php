@@ -51,12 +51,14 @@ class AdminModuleAccessTest extends FoundationTestCase
         ];
 
         foreach ($expectations as $url => $title) {
-            $this->actingAs($this->admin)
-                ->get($url)
-                ->assertOk()
-                ->assertSee('<h1 class="text-2xl font-bold leading-tight text-slate-900">'.e($title).'</h1>', false)
-                ->assertSee('rounded-md border px-2 py-0.5 text-[10px] font-bold', false)
+            $response = $this->actingAs($this->admin)->get($url)->assertOk();
+            $response->assertSee('rounded-md border px-2 py-0.5 text-[10px] font-bold', false)
                 ->assertDontSee('href="#"', false);
+            $this->assertMatchesRegularExpression(
+                '/<h1 class="text-2xl font-bold leading-tight text-slate-900">[^<]*'.preg_quote(e($title), '/').'[^<]*<\/h1>/iu',
+                $response->getContent(),
+                'Judul halaman harus tetap sesuai modul walaupun memiliki prefix/suffix redesign.',
+            );
         }
     }
 

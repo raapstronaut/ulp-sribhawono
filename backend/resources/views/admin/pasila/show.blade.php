@@ -15,7 +15,7 @@
         'BELUM_MULAI' => 'Shift belum dimulai. Sesi PASILA dibuka pada awal shift.',
     ];
 @endphp
-<div class="mx-auto max-w-7xl space-y-6">
+<div class="mx-auto max-w-7xl space-y-5">
     <x-admin.posko-tabs />
     <x-admin.page-header
         section="Pekerjaan"
@@ -34,6 +34,69 @@
         </x-slot:actions>
     </x-admin.page-header>
 
+    {{-- PASILA DETAIL V2: ringkasan; data tetap berasal dari controller yang sama. --}}
+    <section data-pasila-detail-v2 class="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm sm:p-5" aria-label="Ringkasan PASILA per POSKO">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <div class="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
+                    <span class="rounded-md bg-blue-600 px-2.5 py-1 text-white">DETAIL POSKO</span>
+                    @if ($context['is_current'])
+                        <span class="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700">Shift berjalan</span>
+                    @else
+                        <span class="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600">Riwayat shift</span>
+                    @endif
+                </div>
+                <h2 class="text-xl font-bold text-slate-900">{{ $posko->nama_posko }}</h2>
+                <p class="mt-1 text-sm text-slate-600">Shift {{ $context['shift']['code'] }} &middot; {{ $context['shift']['name'] }} &middot; {{ $workDateLabel }}</p>
+                <p class="mt-1 text-xs text-slate-500">{{ $fmt($context['window']['start']) }} - {{ $fmt($context['window']['end']) }}</p>
+            </div>
+            <a href="{{ route('admin.pasila.index', $filters) }}" class="inline-flex rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Kembali ke Monitor</a>
+        </div>
+        <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Sesi PASILA</div>
+                <div class="mt-1 text-base font-bold text-blue-700">
+                    @if ($load->failed('sessions')) Gagal dimuat
+                    @else {{ $session?->statusLabel() ?? 'Belum dibuka' }} @endif
+                </div>
+                <div class="mt-1 break-all text-xs text-slate-500">{{ $session?->code ?? 'Belum ada sesi untuk shift ini' }}</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Section patroli</div>
+                <div class="mt-1 text-base font-bold text-slate-900">
+                    @if ($load->failed('sections')) Gagal dimuat
+                    @else {{ $session?->section_name ?? 'Belum ditentukan' }} @endif
+                </div>
+                <div class="mt-1 text-xs text-slate-500">{{ $session?->penyulang?->nama_penyulang ?? 'Penyulang belum tersedia' }}</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Laporan patroli</div>
+                <div class="mt-1 text-base font-bold {{ $session && ! $load->failed('findings', 'nil_report') && $session->patrolStatus() !== PasilaSession::PATROL_BELUM ? 'text-emerald-700' : 'text-amber-700' }}">
+                    @if (! $session) Belum ada sesi
+                    @elseif ($load->failed('findings', 'nil_report')) Gagal dimuat
+                    @else {{ $session->patrolStatusLabel() }} @endif
+                </div>
+                <div class="mt-1 text-xs text-slate-500">{{ ! $load->failed('findings') && $session ? $findings->count().' temuan tercatat' : 'Belum dapat dihitung' }}</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Target P0</div>
+                <div class="mt-1 text-base font-bold {{ $session && $p0Obligation['fulfilled'] ? 'text-emerald-700' : 'text-amber-700' }}">
+                    {{ $session ? $p0Obligation['completed'].' / '.$p0Obligation['target'].' selesai' : 'Belum ada sesi' }}
+                </div>
+                <div class="mt-1 text-xs text-slate-500">Indikator P0 terpisah dari status patroli</div>
+            </div>
+        </div>
+        <nav aria-label="Navigasi detail PASILA" class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+            <a href="#pasila-detail-filter" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Filter shift</a>
+            <a href="#pasila-section" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Section</a>
+            <a href="#pasila-laporan" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Laporan patroli</a>
+            <a href="#p0" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">P0</a>
+            <a href="#pasila-wo" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">WO APKUK</a>
+            <a href="#pasila-referensi" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Referensi</a>
+        </nav>
+    </section>
+
+    <div id="pasila-detail-filter" class="scroll-mt-6"></div>
     <x-admin.panel flush>
         <x-admin.filter-bar :action="route('admin.pasila.show', $posko)" :reset-url="route('admin.pasila.show', $posko)" :active="request()->hasAny(['work_date', 'shift_code'])">
             <x-admin.filter-input type="date" name="work_date" label="Tanggal operasional" :value="$filters['work_date']" />
@@ -45,6 +108,27 @@
             <x-admin.detail-item label="Shift">{{ 'Shift '.$context['shift']['code'].' · '.$context['shift']['name'] }}{{ $context['is_current'] ? ' (berjalan)' : '' }}</x-admin.detail-item>
             <x-admin.detail-item label="Jendela shift">{{ $fmt($context['window']['start']) }} – {{ $fmt($context['window']['end']) }}</x-admin.detail-item>
         </dl>
+    </x-admin.panel>
+
+    {{-- PASILA_CREW_PREVIEW_V1: hanya baca, bukan pengaktifan penugasan. --}}
+    <x-admin.panel title="Pratinjau pasangan POSKO" description="Berdasarkan tanggal operasional dan shift terpilih. Tidak mengubah sesi PASILA, WO, atau akun Android.">
+        @if ($load->failed('posko_crew_preview'))
+            <x-admin.error-state :inset="false" />
+        @elseif (($crewPreview['status'] ?? '') === 'ready')
+            <div class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+                <div><div class="text-xs text-slate-500">Pasangan terjadwal</div><div class="font-bold text-slate-900">TIM {{ $crewPreview['crew_number'] }}</div></div>
+                <div><div class="text-xs text-slate-500">Hari rotasi</div><div class="font-bold text-slate-900">{{ $crewPreview['cycle_day'] }} / 4</div></div>
+                <div><div class="text-xs text-slate-500">Pasangan libur</div><div class="font-bold text-slate-900">TIM {{ $crewPreview['off_crew_number'] }}</div></div>
+            </div>
+            <ul class="mt-3 space-y-1 text-sm text-slate-800" data-posko-crew="{{ $crewPreview['crew_number'] }}">
+                @foreach ($crewPreview['members'] as $member)
+                    <li class="font-medium">{{ $member['name'] }} @if ($member['nickname'] && $member['nickname'] !== $member['name']) <span class="text-xs font-normal text-slate-500">({{ $member['nickname'] }})</span> @endif</li>
+                @endforeach
+            </ul>
+            <p class="mt-3 text-xs text-amber-700">Ini pratinjau roster, bukan bukti penerimaan tugas, laporan patroli, atau penugasan otomatis.</p>
+        @else
+            <p class="text-sm text-slate-600">{{ $crewPreview['message'] ?? 'Pratinjau belum tersedia.' }}</p>
+        @endif
     </x-admin.panel>
 
     <x-admin.panel title="Sesi PASILA shift ini" description="Satu sesi per Posko per shift. Status sesi terpisah dari status WO APKUK dan kewajiban P0.">
@@ -97,6 +181,10 @@
         @endif
     </x-admin.panel>
 
+    <div id="pasila-section" class="scroll-mt-6">
+        <h2 class="mb-2 text-base font-bold text-slate-900">Penugasan Section</h2>
+        <p class="mb-3 text-xs text-slate-500">Section hanya dapat ditetapkan dari referensi terverifikasi milik POSKO ini. Perubahan oleh Admin tetap dicatat dalam Audit Log.</p>
+    </div>
     <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <x-admin.panel title="Tentukan / ubah Section" description="Hanya Section terverifikasi milik Posko ini. Section milik Posko lain, tidak dikenal, atau ambigu ditolak. Alasan wajib; perubahan tercatat di Audit Log.">
             @if (! $session)
@@ -142,6 +230,10 @@
         </x-admin.panel>
     </div>
 
+    <div id="pasila-laporan" class="scroll-mt-6">
+        <h2 class="mb-2 text-base font-bold text-slate-900">Laporan dan penutupan patroli</h2>
+        <p class="mb-3 text-xs text-slate-500">Belum ada temuan bukan berarti nihil. Laporan nihil harus dikirim petugas; sesi ditutup dari aplikasi POSKO.</p>
+    </div>
     <x-admin.panel flush title="Laporan patroli & temuan per titik" description="Dicatat petugas POSKO lewat aplikasi: satu record per titik dengan Section, kode, uraian, GPS perangkat, waktu, foto, dan petugas sendiri. Daftar kosong tanpa laporan nihil berarti belum ada laporan patroli, bukan nihil.">
         @if (! $session)
             <div class="p-4 text-xs text-slate-500">Tersedia setelah sesi PASILA shift ini dibuka.</div>
@@ -234,6 +326,10 @@
         @endif
     </x-admin.panel>
 
+    <div class="scroll-mt-6">
+        <h2 class="mb-2 text-base font-bold text-slate-900">Pekerjaan P0</h2>
+        <p class="mb-3 text-xs text-slate-500">P0 dihitung berdasarkan pekerjaan yang selesai, bukan sekadar usulan atau sesi PASILA yang dibuka.</p>
+    </div>
     <x-admin.panel flush title="P0 sesi ini" description="P0 POSKO dari sumber masalah yang tercatat (temuan PASILA atau temuan inspeksi tervalidasi) pada Section milik Posko ini. Usulan SYSTEM perlu ACC; usulan ditolak wajib diganti P0 manual. Target terpenuhi hanya oleh P0 yang selesai.">
         <div id="p0"></div>
         @if (! $session)
@@ -285,7 +381,9 @@
         @endif
     </x-admin.panel>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <details id="pasila-referensi" class="group scroll-mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="cursor-pointer list-none px-4 py-4 text-sm font-bold text-slate-800 hover:bg-slate-50">Referensi POSKO &amp; tim lapangan <span class="float-right text-xs font-semibold text-blue-600 group-open:hidden">Buka +</span><span class="float-right hidden text-xs font-semibold text-blue-600 group-open:inline">Tutup -</span></summary>
+        <div class="grid grid-cols-1 gap-4 border-t border-slate-100 p-3 lg:grid-cols-2">
         <x-admin.panel title="Penyulang terkait" description="Relasi posko_penyulang (many-to-many); bukan dasar kepemilikan aset atau Section.">
             @if ($load->failed('penyulangs'))
                 <x-admin.error-state :inset="false" />
@@ -315,8 +413,12 @@
                 </ul>
             @endif
         </x-admin.panel>
-    </div>
+        </div>
+    </details>
 
+    <details id="pasila-wo" class="group scroll-mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="cursor-pointer list-none px-4 py-4 text-sm font-bold text-slate-800 hover:bg-slate-50">WO APKUK pada shift ini <span class="ml-2 text-xs font-normal text-slate-500">Target {{ $targetPerShift }} WO per shift</span><span class="float-right text-xs font-semibold text-blue-600 group-open:hidden">Buka +</span><span class="float-right hidden text-xs font-semibold text-blue-600 group-open:inline">Tutup -</span></summary>
+        <div class="border-t border-slate-100 p-3">
     <x-admin.panel flush title="WO APKUK pada shift ini" description="Status WO APKUK terpisah dari sesi PASILA. WO yang belum selesai atau sedang diajukan reschedule tidak menahan sesi. Enam WO adalah target pekerjaan per shift ({{ $targetPerShift }}); jumlah APKUK fisik dicatat terpisah.">
         @if ($load->failed('work_orders'))
             <x-admin.error-state />
@@ -329,7 +431,12 @@
             <x-admin.pagination :paginator="$workOrders" label="WO APKUK" />
         @endif
     </x-admin.panel>
+        </div>
+    </details>
 
+    <details class="group rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="cursor-pointer list-none px-4 py-4 text-sm font-bold text-slate-800 hover:bg-slate-50">Pengajuan reschedule <span class="float-right text-xs font-semibold text-blue-600 group-open:hidden">Buka +</span><span class="float-right hidden text-xs font-semibold text-blue-600 group-open:inline">Tutup -</span></summary>
+        <div class="border-t border-slate-100 p-3">
     <x-admin.panel flush title="Pengajuan reschedule" description="Alasan dropdown + catatan manual wajib. Kebijakan approval reschedule per jenis pekerjaan masih TBD.">
         @if ($load->failed('reschedules'))
             <x-admin.error-state />
@@ -354,13 +461,61 @@
             </x-admin.table>
         @endif
     </x-admin.panel>
+        </div>
+    </details>
 
-    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+    <details class="group rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="cursor-pointer list-none px-4 py-4 text-sm font-bold text-slate-800 hover:bg-slate-50">Fitur lanjutan dan eskalasi <span class="float-right text-xs font-semibold text-blue-600 group-open:hidden">Buka +</span><span class="float-right hidden text-xs font-semibold text-blue-600 group-open:inline">Tutup -</span></summary>
+        <div class="grid grid-cols-1 gap-4 border-t border-slate-100 p-3 lg:grid-cols-2">
         <x-admin.unavailable-panel
             title="Eskalasi & Pekerjaan Tertunda"
             description="Permintaan eskalasi dari temuan PASILA dan tindakan yang tertunda akan tampil setelah alur eskalasi tersedia."
             :requirements="['Tabel work_escalations', 'Keputusan Admin melalui Review & Validasi']"
         />
-    </div>
+        </div>
+    </details>
 </div>
+
+    {{-- AUDIT_PELAPOR_PASILA_V1: perbandingan informatif, tidak menolak laporan. --}}
+    <x-admin.panel title="Audit kesesuaian pelapor PASILA" description="Membandingkan petugas tercatat dengan pasangan pada tanggal/shift sesi. Tidak mengubah laporan, penugasan, atau status PASILA.">
+        @if (! $session)
+            <p class="text-sm text-slate-600">Belum ada sesi PASILA untuk tanggal dan shift ini; belum ada laporan untuk diaudit.</p>
+        @elseif ($load->failed('pasila_crew_report_review'))
+            <x-admin.error-state :inset="false" />
+        @else
+            @if (($crewReportReview['schedule']['status'] ?? '') === 'ready')
+                <p class="text-sm font-semibold text-slate-800">Jadwal: TIM {{ $crewReportReview['schedule']['crew_number'] }} ({{ collect($crewReportReview['schedule']['members'])->pluck('name')->implode(' dan ') }})</p>
+            @else
+                <p class="text-sm font-semibold text-amber-700">Jadwal belum bisa diverifikasi: {{ $crewReportReview['schedule']['message'] ?? 'Data belum lengkap' }}</p>
+            @endif
+            <p class="mt-1 text-xs text-slate-500">Waktu acuan adalah tanggal operasional dan shift SESI, bukan waktu laporan diterima. Perbandingan memakai roster aktif saat ini; jika ada perubahan roster historis, hasil perlu ditinjau manual.</p>
+            @if (empty($crewReportReview['rows']))
+                <p class="mt-3 text-sm text-slate-600">Belum ada temuan, laporan nihil, atau penutupan sesi yang perlu dibandingkan.</p>
+            @else
+                <div class="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+                    <div>Sesuai: <strong>{{ $crewReportReview['counts']['match'] }}</strong></div>
+                    <div>Sebagian: <strong>{{ $crewReportReview['counts']['partial'] }}</strong></div>
+                    <div>Perlu tinjauan: <strong>{{ $crewReportReview['counts']['different'] }}</strong></div>
+                    <div>Belum terverifikasi: <strong>{{ $crewReportReview['counts']['unverifiable'] }}</strong></div>
+                </div>
+                <x-admin.table min-width="min-w-[820px]">
+                    <x-slot:head>
+                        <th class="px-4 py-3">Laporan</th>
+                        <th class="px-4 py-3">Petugas tercatat</th>
+                        <th class="px-4 py-3">Hasil audit</th>
+                        <th class="px-4 py-3">Catatan</th>
+                    </x-slot:head>
+                    @foreach ($crewReportReview['rows'] as $reviewRow)
+                        <tr>
+                            <td class="px-4 py-3 text-xs font-semibold">{{ $reviewRow['label'] }}</td>
+                            <td class="px-4 py-3 text-xs">{{ implode(', ', $reviewRow['personnel_names']) ?: '-' }}</td>
+                            <td class="px-4 py-3"><x-admin.status-badge :tone="['match' => 'emerald', 'partial' => 'amber', 'different' => 'red', 'unverifiable' => 'slate'][$reviewRow['status']]">{{ $reviewRow['status_label'] }}</x-admin.status-badge></td>
+                            <td class="px-4 py-3 text-xs text-slate-600">{{ $reviewRow['note'] }}</td>
+                        </tr>
+                    @endforeach
+                </x-admin.table>
+                <p class="mt-2 text-xs text-amber-700">Perbedaan pasangan bukan bukti pelanggaran. Penggantian petugas dan laporan offline harus tetap dapat ditinjau Admin.</p>
+            @endif
+        @endif
+    </x-admin.panel>
 @endsection

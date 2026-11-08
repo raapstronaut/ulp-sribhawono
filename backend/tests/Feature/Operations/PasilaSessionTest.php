@@ -246,7 +246,7 @@ class PasilaSessionTest extends OperationsTestCase
 
         $this->actingAs($this->admin)->get(route('admin.pasila.index'))
             ->assertOk()
-            ->assertSeeInOrder(['PUGUNG', 'Dibuka', 'PSL-20261029-A-PUGUNG', 'Rekomendasi sistem', 'LBSM BEDANA', '0 / 6', '2 WO tercatat · 2 aktif', '1 menunggu', 'Target belum terpenuhi']);
+            ->assertSeeInOrder(['PUGUNG', 'Dibuka', 'PSL-20261029-A-PUGUNG', 'Rekomendasi sistem', 'LBSM BEDANA', '0/6', '2 WO · 2 aktif', '1 reschedule menunggu', 'Target belum terpenuhi']);
     }
 
     public function test_sessions_are_still_recorded_when_no_section_reference_exists(): void
@@ -341,9 +341,9 @@ class PasilaSessionTest extends OperationsTestCase
 
         $response = $this->actingAs($this->admin)->get(route('admin.pasila.index'))->assertOk();
 
-        $response->assertSee('Shift A · Pagi — 29/10/2026')
+        $response->assertSee('Shift A · Pagi')->assertSee('29 Oct 2026')
             ->assertSee('ROTASI_SECTION baseline-1')
-            ->assertSee('bukan skor risiko, bukan ML')
+            ->assertSee('bukan ML atau skor risiko')
             ->assertSeeInOrder(['JABUNG', 'Dibuka', 'Menunggu penentuan Section', 'Posko belum memiliki Section terverifikasi'])
             ->assertSeeInOrder(['WAY JEPARA', 'PSL-20261029-A-WAYJEPARA', 'Rekomendasi sistem', 'REC BRAJA DEWA', 'REOG'])
             ->assertSee('Dibuka 5 menit setelah awal shift')
@@ -358,7 +358,8 @@ class PasilaSessionTest extends OperationsTestCase
             ->assertOk()
             ->assertSee('Tidak ada sesi')
             ->assertSee('Shift sudah berakhir; sesi tidak dibuat mundur.')
-            ->assertSee('Hanya shift yang sedang berjalan yang dapat dibuka');
+            ->assertSee('Hanya shift berjalan yang dapat dibuka.')
+	    ->assertSee('aria-disabled="true"', false);
     }
 
     public function test_detail_shows_session_owned_sections_and_assignment_form(): void

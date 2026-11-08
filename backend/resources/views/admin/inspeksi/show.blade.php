@@ -12,7 +12,27 @@
     <x-admin.page-header section="Pekerjaan" parent="Inspeksi" :parent-url="route('admin.inspeksi.index')" :title="$inspection->code"
         :description="($inspection->has_finding ? $inspection->findings->count().' temuan' : 'Tidak ada temuan').' · '.($inspection->source === 'ADMIN' ? 'input Admin' : 'aplikasi lapangan')" />
 
-    <x-admin.panel title="Kunjungan">
+    <section class="rounded-xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm sm:p-5">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+                <div class="mb-2 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wide">
+                    <span class="rounded-md bg-blue-600 px-2 py-1 text-white">DETAIL INSPEKSI</span>
+                    <span class="rounded-md border border-blue-200 bg-white px-2 py-1 text-blue-700">{{ $inspection->source === 'ADMIN' ? 'Input Admin' : 'Aplikasi lapangan' }}</span>
+                </div>
+                <h2 class="text-lg font-bold text-slate-900">{{ $inspection->code }}</h2>
+                <p class="mt-1 text-xs text-slate-600">{{ $inspection->penyulang?->nama_penyulang ?? '-' }} - {{ $inspection->section_name ?? 'Section belum dicatat' }} - {{ $fmt($inspection->visited_at) }}</p>
+            </div>
+            <a href="{{ route('admin.inspeksi.index') }}" class="inline-flex rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">Kembali ke daftar</a>
+        </div>
+        <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-3"><div class="text-[10px] font-bold uppercase text-slate-500">Hasil kunjungan</div><div class="mt-1 text-sm font-bold text-slate-900">{{ $inspection->has_finding ? 'Ada temuan' : 'Tanpa temuan' }}</div></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3"><div class="text-[10px] font-bold uppercase text-slate-500">Jumlah temuan</div><div class="mt-1 text-xl font-bold text-blue-700">{{ $inspection->findings->count() }}</div></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3"><div class="text-[10px] font-bold uppercase text-slate-500">Menunggu validasi</div><div class="mt-1 text-xl font-bold text-amber-700">{{ $inspection->findings->where('validation_status', 'MENUNGGU_VALIDASI')->count() }}</div></div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3"><div class="text-[10px] font-bold uppercase text-slate-500">Disetujui</div><div class="mt-1 text-xl font-bold text-emerald-700">{{ $inspection->findings->where('validation_status', 'DISETUJUI')->count() }}</div></div>
+        </div>
+    </section>
+
+    <x-admin.panel title="Informasi kunjungan" description="Identitas pelaksana, penyulang, waktu, dan catatan yang tercatat di sistem.">
         <dl class="grid grid-cols-1 gap-5 text-sm sm:grid-cols-3">
             <x-admin.detail-item label="Tim">{{ $inspection->fieldTeam?->name }}</x-admin.detail-item>
             <x-admin.detail-item label="Penyulang">{{ $inspection->penyulang?->nama_penyulang }}</x-admin.detail-item>
@@ -28,6 +48,13 @@
             <p class="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">{{ $inspection->summary }}</p>
         @endif
     </x-admin.panel>
+
+    <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">Temuan dan keputusan Admin</h2>
+            <p class="text-xs text-slate-500">Setiap temuan memiliki status validasi tersendiri. Persetujuan atau penolakan tidak dijalankan otomatis.</p>
+        </div>
+    </div>
 
     @forelse ($inspection->findings as $finding)
         <x-admin.panel :id="'temuan-'.$finding->id" :title="($findingCodes[$finding->finding_code] ?? $finding->finding_code)">

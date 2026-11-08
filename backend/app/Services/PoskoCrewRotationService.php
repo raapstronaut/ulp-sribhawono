@@ -47,6 +47,9 @@ final class PoskoCrewRotationService
             return null;
         }
 
+        if ($date->lessThan($base)) {
+            return null;
+        }
         $days = (int) $base->diffInDays($date, false);
         $index = (($days % 4) + 4) % 4;
         $cycle = self::CYCLE[$index];

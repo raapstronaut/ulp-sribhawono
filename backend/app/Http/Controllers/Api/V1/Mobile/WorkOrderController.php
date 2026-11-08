@@ -9,6 +9,7 @@ use App\Models\WorkOrderIssue;
 use App\Services\Work\FieldActor;
 use App\Services\Work\FieldWorkScope;
 use App\Services\Work\MediaStore;
+use App\Services\Work\PoskoWorkOrderCrewReview;
 use App\Services\Work\WorkOrderExecutionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -44,12 +45,19 @@ class WorkOrderController extends Controller
         ]);
     }
 
-    public function show(Request $request, string $workOrder): JsonResponse
+    public function show(Request $request, string $workOrder, PoskoWorkOrderCrewReview $crewReview): JsonResponse
     {
         $wo = $this->scoped($request, $workOrder);
         $wo->load(['apkukTarget', 'locationTarget', 'penyulang', 'posko', 'reports.personnel', 'reschedules', 'escalations', 'issues']);
 
-        return $this->respond($this->detail($wo));
+        $detail = $this->detail($wo);
+        if ($wo->team_type === WorkOrder::TEAM_POSKO
+            && in_array($wo->work_type, [WorkOrder::TYPE_P0, WorkOrder::TYPE_PEMASANGAN_APKUK], true)) {
+            // Audit informatif dihitung setelah pemeriksaan scope; tidak mengubah POST/status WO.
+            $detail['crew_audit'] = $crewReview->forWorkOrder($wo);
+        }
+
+        return $this->respond($detail);
     }
 
     public function start(Request $request, string $workOrder): JsonResponse

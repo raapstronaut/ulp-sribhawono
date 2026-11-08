@@ -11,6 +11,7 @@ use App\Models\ReferenceCode;
 use App\Models\WorkOrder;
 use App\Services\Apkuk\SectionPoskoMap;
 use App\Services\Pasila\PasilaFindingService;
+use App\Services\Pasila\PasilaCrewReportReview;
 use App\Services\ShiftService;
 use App\Services\Work\MediaStore;
 use Illuminate\Http\JsonResponse;
@@ -46,7 +47,7 @@ class PasilaController extends Controller
         ]);
     }
 
-    public function show(Request $request, string $pasilaSession, ShiftService $shifts): JsonResponse
+    public function show(Request $request, string $pasilaSession, ShiftService $shifts, PasilaCrewReportReview $reviewer): JsonResponse
     {
         $team = $this->poskoTeam($request);
         $session = $this->scoped($pasilaSession, $team)->load(['shiftInstance', 'penyulang', 'nilReport.personnel', 'closure'])->loadCount('findings');
@@ -60,6 +61,8 @@ class PasilaController extends Controller
                     ->map(fn (ReferenceCode $code) => ['code' => $code->code, 'label' => $code->label])->all(),
                 'findings' => $findings->map(fn (PasilaFinding $finding) => $this->findingData($finding))->all(),
                 'nil_report' => $session->nilReport ? $this->nilData($session->nilReport) : null,
+                // Informatif: bukan otorisasi/pemblokiran, dihitung dari tanggal dan shift sesi.
+                'crew_audit' => $reviewer->forSession($session),
             ],
             'meta' => ['server_time' => now()->toIso8601String()],
         ]);

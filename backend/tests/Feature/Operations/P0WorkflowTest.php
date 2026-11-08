@@ -316,7 +316,7 @@ class P0WorkflowTest extends OperationsTestCase
         $this->actingAs($this->admin)->get($this->pasilaUrl())->assertOk()
             ->assertSee('Target P0 shift: belum terpenuhi')->assertSee('Belum ada P0 untuk sesi ini.')->assertSee('Belum ada sumber P0 yang sah.')
             ->assertSee('Nihil (dilaporkan petugas)');
-        $this->actingAs($this->admin)->get(route('admin.p0.index'))->assertOk()->assertSee('Usulan P0 SYSTEM otomatis belum siap')->assertSee('Belum ada P0.');
+        $this->actingAs($this->admin)->get(route('admin.p0.index'))->assertOk()->assertSee('Usulan P0 SYSTEM otomatis belum siap')->assertSee('Belum ada P0 untuk filter ini');
     }
 
     public function test_admin_monitor_detail_and_access(): void
@@ -326,7 +326,7 @@ class P0WorkflowTest extends OperationsTestCase
 
         $this->actingAs($this->admin)->get(route('admin.p0.index'))->assertOk()
             ->assertSee('data-stage="MENUNGGU_ACC"', false)->assertSee('data-stage="AKTIF"', false)
-            ->assertSee('PSL-20261029-A-PUGUNG')->assertSee('Usulan SYSTEM')->assertSee('Manual Admin')->assertSee('Belum ada (bukan pekerjaan)');
+            ->assertSee('PSL-20261029-A-PUGUNG')->assertSee('Usulan SYSTEM')->assertSee('Manual Admin')->assertSee('Belum ada WO')->assertSee('Usulan belum menjadi pekerjaan');
         $this->actingAs($this->admin)->get(route('admin.p0.index', ['stage' => P0Item::STAGE_MENUNGGU_ACC]))->assertOk()
             ->assertSee($pending->code)->assertDontSee('P0-20261029-A-PUGUNG-02');
         $this->actingAs($this->admin)->get(route('admin.p0.show', $pending))->assertOk()

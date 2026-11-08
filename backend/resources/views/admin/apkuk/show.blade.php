@@ -50,7 +50,41 @@
         </x-slot:actions>
     </x-admin.page-header>
 
-    <x-admin.panel title="Data sumber APKUK_RAW (kolom A–L)" description="Nilai tersimpan dari sinkronisasi SPS BOS, apa adanya. Kosong berarti sel sumber kosong; aplikasi tidak mengisi atau mengganti nilai sumber.">
+    {{-- APKUK-DETAIL-REDESIGN-V2 --}}
+    <section class="rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm sm:p-5" aria-label="Ringkasan laporan APKUK">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <span class="rounded-md bg-blue-600 px-2.5 py-1 text-[10px] font-bold text-white">DETAIL LAPORAN APKUK</span>
+                <h2 class="mt-3 text-lg font-bold text-slate-900">{{ $apkuk->no_tiang }}</h2>
+                <p class="mt-1 text-xs text-slate-600">Penyulang {{ $apkuk->penyulang ?? '-' }} &bull; {{ $apkuk->tanggal?->format('d/m/Y') ?? 'Tanggal tidak tersedia' }} &bull; ID sumber {{ $apkuk->source_id }}</p>
+            </div>
+            <x-admin.status-badge :tone="$stateInfo[1]">{{ $stateInfo[0] }}</x-admin.status-badge>
+        </div>
+        <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Terpasang menurut SPS BOS</p>
+                <p class="mt-1 text-2xl font-black text-slate-900">{{ $apkuk->terpasang_bh ?? '-' }} <span class="text-xs font-medium text-slate-500">BH</span></p>
+            </div>
+            <div class="rounded-lg border border-amber-200 bg-white p-3">
+                <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Kurang menurut SPS BOS</p>
+                <p class="mt-1 text-2xl font-black text-amber-700">{{ $apkuk->kurang_bh ?? '-' }} <span class="text-xs font-medium text-slate-500">BH</span></p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-3">
+                <p class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Status laporan sumber</p>
+                <p class="mt-1 text-sm font-bold text-slate-800">{{ $apkuk->status ?? '-' }}</p>
+                <p class="mt-1 text-xs text-slate-500">Bukan status Work Order</p>
+            </div>
+        </div>
+        <nav class="mt-4 flex flex-wrap gap-2" aria-label="Navigasi detail APKUK">
+            <a href="#apkuk-nilai-sistem" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">Kelayakan &amp; Section</a>
+            <a href="#apkuk-data-sumber" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">12 kolom data sumber</a>
+            <a href="#apkuk-koreksi-section" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">Koreksi Section</a>
+            <a href="#apkuk-wo-terkait" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">WO terkait</a>
+        </nav>
+        <p class="mt-3 text-xs text-slate-600">Status sumber, evaluasi kelayakan, dan pelaksanaan WO adalah informasi yang berbeda. Nilai asli tidak diubah oleh koreksi internal.</p>
+    </section>
+
+    <x-admin.panel id="apkuk-data-sumber" title="Data sumber APKUK_RAW (kolom A–L)" description="Nilai tersimpan dari sinkronisasi SPS BOS, apa adanya. Kosong berarti sel sumber kosong; aplikasi tidak mengisi atau mengganti nilai sumber.">
         <dl class="grid grid-cols-1 gap-x-6 gap-y-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
             @foreach ($sourceColumns as [$column, $header, $value])
                 <div data-source-column="{{ $column }}">
@@ -74,7 +108,7 @@
         </p>
     </x-admin.panel>
 
-    <x-admin.panel title="Nilai turunan sistem" description="Dihitung aplikasi dari nilai sumber untuk pencocokan dan WO; tidak mengubah nilai sumber.">
+    <x-admin.panel id="apkuk-nilai-sistem" title="Nilai turunan sistem" description="Dihitung aplikasi dari nilai sumber untuk pencocokan dan WO; tidak mengubah nilai sumber.">
         <dl class="grid grid-cols-1 gap-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <x-admin.detail-item label="Penyulang master">
                 @if ($load->failed('penyulang'))
@@ -125,7 +159,7 @@
         </dl>
     </x-admin.panel>
 
-    <x-admin.panel title="Koreksi Section internal" description="Untuk laporan yang Section sumbernya kosong/DUMMY. Nilai sumber tetap tersimpan; koreksi tercatat di audit dan tidak mengubah WO yang sudah dibuat.">
+    <x-admin.panel id="apkuk-koreksi-section" title="Koreksi Section internal" description="Untuk laporan yang Section sumbernya kosong/DUMMY. Nilai sumber tetap tersimpan; koreksi tercatat di audit dan tidak mengubah WO yang sudah dibuat.">
         <div class="space-y-4 text-sm">
             @if ($override)
                 <dl class="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -212,7 +246,7 @@
             @endif
         </x-admin.panel>
 
-        <x-admin.panel title="Work Order terkait" description="WO APKUK yang menargetkan laporan ini (snapshot target saat WO dibuat).">
+        <x-admin.panel id="apkuk-wo-terkait" title="Work Order terkait" description="WO APKUK yang menargetkan laporan ini (snapshot target saat WO dibuat).">
             @if ($load->failed('work_orders'))
                 <x-admin.error-state :inset="false" />
             @elseif ($workOrderTargets->isEmpty())

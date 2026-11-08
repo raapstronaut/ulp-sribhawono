@@ -127,7 +127,7 @@ class PasilaClosureTest extends OperationsTestCase
         $this->actingAs($this->admin)->get(route('admin.pasila.index'))->assertOk()
             ->assertSee('data-session-status="DITUTUP"', false)->assertSee('Ditutup nihil')
             ->assertSee('data-patrol-status="NIHIL"', false)->assertSee('Target belum terpenuhi')
-            ->assertSeeInOrder(['data-posko="PUGUNG"', '2 WO tercatat · 2 aktif'], false);
+            ->assertSeeInOrder(['data-posko="PUGUNG"', '2 WO · 2 aktif'], false);
         $this->assertSame(1, $this->get(route('admin.pasila.index'))->viewData('totals')['closed']);
     }
 

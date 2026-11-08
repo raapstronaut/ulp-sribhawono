@@ -8,16 +8,61 @@
     $resultFilters = \App\Http\Controllers\Admin\InspectionController::RESULT_FILTERS;
 @endphp
 <div class="mx-auto max-w-7xl space-y-6 pb-12">
-    <x-admin.page-header section="Pekerjaan" title="Inspeksi" state="live"
-        description="Kunjungan tim INSPEKSI beserta temuan per titik. Hasil 'Tidak Ada Temuan' dicatat jujur dan tidak dihitung sebagai temuan. Temuan wajib divalidasi Admin sebelum menjadi dasar tindakan.">
+    <x-admin.page-header section="Pekerjaan" title="INSPEKSI" state="partial"
+        description="Monitoring kunjungan, temuan per titik, dan proses validasi Admin. Kunjungan tanpa temuan tetap dicatat, tetapi tidak dianggap sebagai temuan.">
         <x-slot:actions>
-            <x-admin.button :href="route('admin.inspeksi.create')">Catat inspeksi</x-admin.button>
+            <x-admin.button :href="route('admin.inspeksi.create')">Catat kunjungan</x-admin.button>
         </x-slot:actions>
     </x-admin.page-header>
 
-    <x-admin.notice title="Belum otomatis:">
-        Ranking/rotasi area kunjungan dan rekomendasi tim penerima temuan masih menunggu formula prioritas (TBD). Saran tim diisi petugas atau Admin; Admin menentukan tindak lanjut saat validasi.
-    </x-admin.notice>
+    <section class="rounded-xl border border-blue-200 bg-blue-50/50 p-4 shadow-sm sm:p-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div class="max-w-2xl">
+                <div class="mb-2 flex flex-wrap gap-2 text-[10px] font-bold uppercase tracking-wide">
+                    <span class="rounded-md bg-blue-600 px-2 py-1 text-white">MONITOR INSPEKSI</span>
+                    <span class="rounded-md border border-blue-200 bg-white px-2 py-1 text-blue-700">Kunjungan dan validasi</span>
+                </div>
+                <h2 class="text-lg font-bold text-slate-900">Pantau kunjungan sampai tindak lanjut</h2>
+                <p class="mt-1 text-sm leading-relaxed text-slate-600">Kunjungan dicatat oleh tim INSPEKSI atau Admin. Temuan yang dilaporkan harus divalidasi terlebih dahulu sebelum dijadikan dasar pekerjaan.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:min-w-[300px]">
+                @if ($load->failed('summary'))
+                    <div class="col-span-2 rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">Ringkasan belum dapat dimuat.</div>
+                @else
+                    <div class="rounded-lg border border-blue-100 bg-white p-3">
+                        <div class="text-[10px] font-bold uppercase text-slate-500">Kunjungan hari ini</div>
+                        <div class="mt-1 text-2xl font-bold text-blue-700">{{ $summary['visits_today'] }}</div>
+                    </div>
+                    <a href="{{ route('admin.reviews.index', ['category' => 'findings']) }}" class="rounded-lg border border-amber-200 bg-white p-3 hover:bg-amber-50">
+                        <div class="text-[10px] font-bold uppercase text-slate-500">Butuh validasi</div>
+                        <div class="mt-1 text-2xl font-bold text-amber-700">{{ $summary['pending'] }}</div>
+                    </a>
+                @endif
+            </div>
+        </div>
+        @if (! $load->failed('teams') && $teams->isEmpty())
+            <p class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Tim INSPEKSI belum tersedia di Master Data. Data roster harus dilengkapi sebelum kunjungan operasional dicatat.</p>
+        @endif
+    </section>
+
+    <details class="group rounded-xl border border-amber-200 bg-white shadow-sm">
+        <summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-xs font-semibold text-amber-800">
+            <span>Aturan inspeksi dan kesiapan otomatisasi</span>
+            <span class="text-amber-700 group-open:hidden">Lihat aturan +</span>
+            <span class="hidden text-amber-700 group-open:inline">Tutup -</span>
+        </summary>
+        <div class="border-t border-amber-100 px-4 py-3 text-xs leading-relaxed text-slate-600">
+            Ranking/rotasi area kunjungan dan rekomendasi tim penerima temuan belum otomatis karena formula prioritas resmi belum tersedia. Saran tim dapat dicatat petugas atau Admin; keputusan tindak lanjut tetap dilakukan Admin saat validasi. Temuan tidak boleh dianggap disetujui sebelum ada keputusan validasi.
+        </div>
+    </details>
+
+    <div class="flex flex-wrap items-end justify-between gap-2">
+        <div>
+            <h2 class="text-base font-bold text-slate-900">Ringkasan kunjungan dan temuan</h2>
+            <p class="text-xs text-slate-500">Indikator hari ini dan antrean validasi; jumlah temuan berbeda dari jumlah kunjungan.</p>
+        </div>
+        <a href="{{ route('admin.reviews.index', ['category' => 'findings']) }}" class="text-xs font-semibold text-blue-700 hover:underline">Buka Review &amp; Validasi</a>
+    </div>
 
     @if ($load->failed('summary'))
         <x-admin.error-state :inset="false" />
@@ -31,7 +76,7 @@
         </div>
     @endif
 
-    <x-admin.panel flush title="Daftar kunjungan inspeksi">
+    <x-admin.panel flush title="Daftar kunjungan inspeksi" description="Gunakan filter untuk menelusuri kunjungan. Detail menampilkan seluruh temuan dan keputusan validasi.">
         <x-admin.filter-bar :action="route('admin.inspeksi.index')" :reset-url="route('admin.inspeksi.index')" :active="$hasFilter">
             <x-admin.filter-input name="q" label="Cari" :value="$filters['q']" placeholder="Kode atau Section" />
             <x-admin.filter-select name="field_team_id" label="Tim" :options="$teamOptions" :value="$filters['field_team_id']" placeholder="Semua tim" />
@@ -72,7 +117,14 @@
         @endif
     </x-admin.panel>
 
-    <x-admin.panel title="Tim INSPEKSI" description="Roster dari Master Data.">
+    <details class="group rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800">
+            <span>Roster tim INSPEKSI dan petugas</span>
+            <span class="text-xs text-blue-700 group-open:hidden">Buka +</span>
+            <span class="hidden text-xs text-blue-700 group-open:inline">Tutup -</span>
+        </summary>
+        <div class="border-t border-slate-100 p-3">
+            <x-admin.panel title="Tim INSPEKSI" description="Roster dari Master Data; tim yang belum tersedia tidak dibuat secara otomatis.">
         @if ($load->failed('teams'))
             <x-admin.error-state />
         @elseif ($teams->isEmpty())
@@ -84,6 +136,8 @@
                 @endforeach
             </ul>
         @endif
-    </x-admin.panel>
+            </x-admin.panel>
+        </div>
+    </details>
 </div>
 @endsection

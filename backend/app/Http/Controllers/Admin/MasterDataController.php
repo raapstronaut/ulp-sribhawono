@@ -10,7 +10,9 @@ use App\Models\Penyulang;
 use App\Models\Posko;
 use App\Models\WorkOrder;
 use App\Services\Apkuk\ApkukSourceState;
+use App\Services\PoskoCrewRotationService;
 use App\Services\ShiftService;
+use Carbon\CarbonImmutable;
 use App\Support\DataLoader;
 use App\Support\PenyulangName;
 use App\Support\QueryInput;
@@ -151,6 +153,7 @@ class MasterDataController extends Controller
                 break;
 
             case 'jadwal':
+                $data['rosterPoskos'] = $load->attempt('roster_poskos', fn () => Posko::query()->where('is_active', true)->orderBy('nama_posko')->get(['id', 'nama_posko']), collect());
                 $data['rows'] = $load->attempt('rows', fn () => FieldTeamShiftAssignment::query()
                     ->with('team.posko')
                     ->when($filters['q'] !== '', fn ($query) => $query->whereHas('team', fn ($team) => $team
@@ -197,7 +200,7 @@ class MasterDataController extends Controller
         return view('admin.master-data.index', [
             'tab' => $tab,
             // Tab yang dapat dikelola dari Web => slug MasterDataManageController.
-            'manageable' => ['tim' => 'tim', 'petugas' => 'petugas', 'kode' => 'kode', 'jadwal' => 'jadwal'],
+            'manageable' => ['tim' => 'tim', 'petugas' => 'petugas', 'kode' => 'kode'],
             'filters' => $filters,
             'hasFilter' => collect($filters)->contains(fn ($value) => $value !== ''),
             'counts' => $counts,
@@ -206,23 +209,81 @@ class MasterDataController extends Controller
         ]);
     }
 
-    public function showPosko(Posko $posko, DataLoader $load): View
+    public function showPosko(Posko $posko, DataLoader $load, Request $request, PoskoCrewRotationService $rotation): View
     {
+        $isValidDate = static function (string $date): bool {
+            if (! preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $date, $parts)) {
+                return false;
+            }
+
+            return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
+        };
+
+        $configuredAnchor = config('field_ops.posko_crew_anchor_date');
+        $anchor = is_string($configuredAnchor) && $isValidDate($configuredAnchor) ? $configuredAnchor : null;
+        $today = app(ShiftService::class)->operationalDate();
+        $defaultDate = $anchor !== null && $today < $anchor ? $anchor : $today;
+        $requestedDate = $request->query('date');
+        $rosterDate = is_string($requestedDate) && $isValidDate($requestedDate)
+            && ($anchor === null || $requestedDate >= $anchor)
+                ? $requestedDate
+                : $defaultDate;
+
+        $teams = $load->attempt('teams', fn () => FieldTeam::query()
+            ->where('posko_id', $posko->id)
+            ->with('personnel')
+            ->withCount(['personnel as active_personnel_count' => fn ($query) => $query->where('is_active', true)])
+            ->orderBy('name')
+            ->get(), collect());
+        $poskoTeams = $teams->where('role', 'POSKO');
+        $poskoTeam = $poskoTeams->count() === 1 ? $poskoTeams->first() : null;
+        $roster = $poskoTeam === null ? null : $rotation->roster(
+            $poskoTeam,
+            CarbonImmutable::parse($rosterDate.' 08:00:00', ShiftService::TIMEZONE),
+        );
+
+        $rosterDays = [];
+        if ($anchor !== null) {
+            for ($i = 0; $i < 4; $i++) {
+                $date = CarbonImmutable::parse($rosterDate, ShiftService::TIMEZONE)->addDays($i)->toDateString();
+                $pagi = $rotation->forDate($date, 'A');
+                $sore = $rotation->forDate($date, 'B');
+                $malam = $rotation->forDate($date, 'C');
+                if ($pagi === null || $sore === null || $malam === null) {
+                    $rosterDays = [];
+                    break;
+                }
+                $rosterDays[] = [
+                    'date' => $date,
+                    'cycle_day' => $pagi['cycle_day'],
+                    'by_crew' => [
+                        $pagi['crew_number'] => 'Pagi',
+                        $sore['crew_number'] => 'Sore',
+                        $malam['crew_number'] => 'Malam',
+                        $pagi['off_crew_number'] => 'Libur',
+                    ],
+                ];
+            }
+        }
+
         return view('admin.master-data.posko', [
             'posko' => $posko,
             'penyulangs' => $load->attempt('penyulangs', fn () => $posko->penyulangs()->orderBy('kode_penyulang')->get(), collect()),
-            'teams' => $load->attempt('teams', fn () => FieldTeam::query()
-                ->where('posko_id', $posko->id)
-                ->withCount(['personnel as active_personnel_count' => fn ($query) => $query->where('is_active', true)])
-                ->orderBy('name')
-                ->get(), collect()),
+            'teams' => $teams,
             'workOrders' => $load->attempt('work_orders', fn () => [
                 'total' => WorkOrder::query()->where('posko_id', $posko->id)->count(),
                 'active' => WorkOrder::query()->where('posko_id', $posko->id)->active()->count(),
             ]),
+            'rosterAnchor' => $anchor,
+            'rosterDate' => $rosterDate,
+            'roster' => $roster,
+            'poskoTeamCount' => $poskoTeams->count(),
+            'poskoTeamActive' => $poskoTeam?->is_active ?? false,
+            'rosterDays' => $rosterDays,
             'load' => $load,
         ]);
     }
+
 
     public function showPenyulang(Penyulang $penyulang, DataLoader $load): View
     {

@@ -8,6 +8,7 @@ use App\Models\PasilaSession;
 use App\Models\Posko;
 use App\Services\Pasila\P0Service;
 use App\Services\ShiftService;
+use App\Services\Work\PoskoWorkOrderCrewReview;
 use App\Support\DataLoader;
 use App\Support\QueryInput;
 use Illuminate\Http\RedirectResponse;
@@ -48,11 +49,12 @@ class P0Controller extends Controller
         ]);
     }
 
-    public function show(P0Item $p0Item, ShiftService $shifts): View
+    public function show(P0Item $p0Item, ShiftService $shifts, PoskoWorkOrderCrewReview $crewReview): View
     {
         $p0Item->load(['session.shiftInstance', 'session.posko', 'posko', 'penyulang', 'workOrder', 'replaces', 'replacement', 'createdBy:id,name,username', 'reviewedBy:id,name,username']);
 
         return view('admin.p0.show', [
+            'crewAudit' => $p0Item->workOrder ? $crewReview->forWorkOrder($p0Item->workOrder) : null,
             'item' => $p0Item,
             'schedule' => $this->defaultSchedule($p0Item->session, $shifts),
             'shiftOptions' => $this->shiftOptions($shifts),

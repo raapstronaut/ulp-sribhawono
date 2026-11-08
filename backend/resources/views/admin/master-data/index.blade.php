@@ -208,6 +208,20 @@
                     @break
 
                 @case('jadwal')
+                    <div class="border-b border-slate-200 bg-blue-50/60 px-4 py-4">
+                        <h3 class="text-sm font-bold text-slate-900">Rotasi 4 pasangan petugas POSKO</h3>
+                        <p class="mt-1 text-xs leading-relaxed text-slate-600">Mulai 9 November 2026, tiap POSKO memakai 4 pasangan: Pagi, Sore, Malam, dan Libur. Pilih POSKO untuk melihat nama petugas serta pratinjau rotasi per tanggal. Jadwal tim induk di tabel lama di bawah <strong>bukan</strong> penugasan 4 pasangan.</p>
+                        @if ($load->failed('roster_poskos'))
+                            <x-admin.error-state :inset="false" />
+                        @else
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                @foreach ($rosterPoskos as $rosterPosko)
+                                    <a href="{{ route('admin.master-data.posko.show', $rosterPosko) }}" class="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-800 hover:bg-blue-100">{{ $rosterPosko->nama_posko }} · Lihat rotasi</a>
+                                @endforeach
+                            </div>
+                        @endif
+                    </div>
+                    <p class="border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-500">Data di bawah adalah jadwal manual tim induk (model lama), hanya untuk pemeriksaan. Penambahan jadwal lama disembunyikan agar tidak bentrok dengan rotasi pasangan.</p>
                     <x-admin.table min-width="min-w-[720px]">
                         <x-slot:head>
                             <th class="px-4 py-3">Tim POSKO</th>
@@ -219,7 +233,7 @@
                         @forelse ($rows as $assignment)
                             <tr class="hover:bg-slate-50/60">
                                 <td class="px-4 py-3 font-semibold text-slate-900">{{ $assignment->team?->name ?? '-' }} <span class="text-[10px] text-slate-500">{{ $assignment->team?->posko?->nama_posko }}</span></td>
-                                <td class="px-4 py-3"><x-admin.status-badge tone="blue">Shift {{ $assignment->shift_code }}</x-admin.status-badge></td>
+                                <td class="px-4 py-3"><x-admin.status-badge tone="blue">{{ ['A' => 'Pagi', 'B' => 'Sore', 'C' => 'Malam'][$assignment->shift_code] ?? $assignment->shift_code }}</x-admin.status-badge></td>
                                 <td class="px-4 py-3 text-xs">{{ $assignment->effective_from?->format('d/m/Y') }}</td>
                                 <td class="px-4 py-3 text-xs">{{ $assignment->effective_until?->format('d/m/Y') ?? 'Tanpa batas' }}</td>
                                 <td class="px-4 py-3 text-center"><a href="{{ route('admin.master-data.manage.edit', ['jadwal', $assignment->id]) }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800">Ubah</a></td>

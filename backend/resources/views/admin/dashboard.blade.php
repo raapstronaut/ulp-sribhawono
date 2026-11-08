@@ -40,14 +40,17 @@
     $awardMonth = is_string($requestedAwardMonth) && array_key_exists($requestedAwardMonth, $awardMonths)
         ? $requestedAwardMonth
         : array_key_first($awardMonths);
+    $trendHasActivity = collect($insights['charts'])->contains(
+        fn ($chart) => (int) ($chart['total_first'] ?? 0) > 0 || (int) ($chart['total_second'] ?? 0) > 0
+    );
 @endphp
 
 <div class="mx-auto max-w-7xl space-y-6 pb-12">
     <x-admin.page-header
         section="Ringkasan"
         title="Dashboard Operasional"
-        state="live"
-        :description="'Diperbarui '.$context['updated_at_label'].' - Shift '.$shiftData['code'].' ('.$shiftData['time'].') - '.$context['active_poskos'].' POSKO aktif - '.$context['active_penyulangs'].' penyulang aktif'"
+        state="partial"
+        :description="'Ringkasan pekerjaan, verifikasi, dan tren dari data operasional yang tersimpan. Diperbarui '.$context['updated_at_label']"
     />
 
     {{-- Pemberitahuan rekonsiliasi APKUK --}}
@@ -77,34 +80,46 @@
     @endif
 
     {{-- AKSES-CEPAT-DASHBOARD: BEGIN --}}
-    <section aria-labelledby="quick-access-heading" class="space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-2">
-            <h2 id="quick-access-heading" class="text-sm font-bold text-slate-900">Akses Cepat</h2>
-            <p class="text-xs text-slate-500">Buka modul operasional secara langsung.</p>
+    <section aria-label="Kondisi shift dan akses cepat" class="rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-sm sm:p-5">
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="rounded-md bg-blue-600 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-white">PUSAT MONITORING</span>
+                    <span class="rounded-md border border-blue-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-blue-700">Shift {{ $shiftData['code'] }}</span>
+                </div>
+                <h2 class="mt-3 text-lg font-bold text-slate-900">Situasi operasional saat ini</h2>
+                <p class="mt-1 text-sm leading-6 text-slate-600">Shift {{ $shiftData['code'] }} ({{ $shiftData['time'] }}). Data pekerjaan, kunjungan, dan verifikasi ditampilkan sesuai sumbernya, bukan digabung sebagai jumlah pekerjaan yang sama.</p>
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:min-w-[280px]">
+                <div class="rounded-lg border border-blue-100 bg-white p-3">
+                    <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500">POSKO aktif</div>
+                    <div class="mt-1 text-2xl font-bold text-blue-700">{{ $context['active_poskos'] }}</div>
+                    <p class="mt-1 text-[10px] text-slate-500">Terdaftar dan aktif</p>
+                </div>
+                <div class="rounded-lg border border-blue-100 bg-white p-3">
+                    <div class="text-[10px] font-bold uppercase tracking-wide text-slate-500">Penyulang aktif</div>
+                    <div class="mt-1 text-2xl font-bold text-slate-900">{{ $context['active_penyulangs'] }}</div>
+                    <p class="mt-1 text-[10px] text-slate-500">Dari master penyulang</p>
+                </div>
+            </div>
         </div>
-        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-            <a href="{{ route('admin.maps.index') }}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-50">
-                Buka Peta Jaringan
-            </a>
-            <a href="{{ route('admin.apkuk.index') }}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-50">
-                Buka APKUK
-            </a>
-            <a href="{{ route('admin.pasila.index') }}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-50">
-                Buka halaman PASILA
-            </a>
-            <a href="{{ route('admin.inspeksi.index') }}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-50">
-                Buka Inspeksi
-            </a>
-            <a href="{{ route('admin.harsus.index') }}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-50">
-                Buka HARSUS
-            </a>
-            <a href="{{ route('admin.row.index') }}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm font-semibold text-blue-700 shadow-sm hover:border-blue-300 hover:bg-blue-50">
-                Buka ROW
-            </a>
+        <div class="mt-4 border-t border-blue-100 pt-4">
+            <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <h3 class="text-xs font-bold text-slate-800">Akses operasional</h3>
+                <span class="text-[11px] text-slate-500">Pilih halaman untuk rincian</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                <a href="{{ route('admin.work-orders.index') }}" class="rounded-lg border border-blue-100 bg-white px-3 py-2.5 text-center text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-50">POSKO</a>
+                <a href="{{ route('admin.pasila.index') }}" class="rounded-lg border border-blue-100 bg-white px-3 py-2.5 text-center text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-50">PASILA</a>
+                <a href="{{ route('admin.row.index') }}" class="rounded-lg border border-blue-100 bg-white px-3 py-2.5 text-center text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-50">ROW</a>
+                <a href="{{ route('admin.harsus.index') }}" class="rounded-lg border border-blue-100 bg-white px-3 py-2.5 text-center text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-50">HARSUS</a>
+                <a href="{{ route('admin.inspeksi.index') }}" class="rounded-lg border border-blue-100 bg-white px-3 py-2.5 text-center text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-50">INSPEKSI</a>
+                <a href="{{ route('admin.apkuk.index') }}" class="rounded-lg border border-blue-100 bg-white px-3 py-2.5 text-center text-xs font-semibold text-blue-700 hover:border-blue-300 hover:bg-blue-50">Data APKUK</a>
+            </div>
+            <a href="{{ route('admin.maps.index') }}" class="mt-3 inline-flex text-xs font-semibold text-blue-700 hover:underline">Lihat Peta Jaringan</a>
         </div>
     </section>
     {{-- AKSES-CEPAT-DASHBOARD: END --}}
-
     {{-- 1. Monitoring harian --}}
     <section aria-labelledby="monitor-heading" class="space-y-3">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -180,7 +195,19 @@
                 <noscript><button type="submit" class="rounded-md border px-2 py-1 text-sm">Terapkan</button></noscript>
             </form>
         </div>
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        @unless ($trendHasActivity)
+            <div class="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-600">
+                <strong class="text-slate-800">Belum ada aktivitas tercatat pada periode ini.</strong>
+                Grafik lengkap tetap tersedia untuk pemeriksaan, tanpa membuat data simulasi.
+            </div>
+        @endunless
+        <details class="group rounded-xl border border-slate-200 bg-white p-4 shadow-sm" @if ($trendHasActivity) open @endif>
+            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
+                <span>Grafik per bidang (POSKO, ROW, HARSUS, INSPEKSI)</span>
+                <span class="text-xs text-blue-700 group-open:hidden">Lihat grafik +</span>
+                <span class="hidden text-xs text-blue-700 group-open:inline">Tutup grafik -</span>
+            </summary>
+            <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             @foreach ($insights['charts'] as $team => $chart)
                 <article class="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" aria-label="Grafik {{ $team }}">
                     <div class="flex flex-wrap items-start justify-between gap-2">
@@ -210,7 +237,8 @@
                     @endif
                 </article>
             @endforeach
-        </div>
+            </div>
+        </details>
         <p class="text-xs text-slate-500">
             POSKO/ROW/HARSUS: jumlah WO dibuat dan selesai. INSPEKSI: jumlah kunjungan berdasarkan waktu kunjungan dan temuan berdasarkan waktu pencatatan.
             Kedua ukuran INSPEKSI bukan pasangan pekerjaan masuk/selesai dan tidak boleh dipakai sebagai skor kinerja.
@@ -218,7 +246,14 @@
     </section>
 
     {{-- 4. Apresiasi: tempat tampilan saja; tidak ada ranking, input, atau pemenang palsu --}}
-    <section aria-labelledby="awards-heading" class="space-y-3">
+    <details class="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800 [&::-webkit-details-marker]:hidden">
+            <span>Apresiasi bulanan - belum memiliki parameter penilaian</span>
+            <span class="text-xs text-blue-700 group-open:hidden">Lihat rancangan +</span>
+            <span class="hidden text-xs text-blue-700 group-open:inline">Tutup -</span>
+        </summary>
+        <div class="border-t border-slate-100 p-4">
+            <section aria-labelledby="awards-heading" class="space-y-3">
         <div class="flex flex-wrap items-end justify-between gap-3">
             <div>
                 <h2 id="awards-heading" class="text-lg font-bold text-slate-900">Apresiasi Bulanan</h2>
@@ -264,6 +299,8 @@
             </p>
         </div>
     </section>
+        </div>
+    </details>
 </div>
 
 {{-- Modal monitoring: nilai semua bidang; angka INSPEKSI untuk WO sengaja tidak dibuat-buat. --}}
@@ -377,7 +414,18 @@
         .dashboard-dialog[open] { position: fixed; inset: auto 0 0; width: 100%; max-width: 100%; max-height: 90vh; margin: 0; border-radius: 1rem 1rem 0 0; }
     }
     [data-award-panel][hidden], [data-monitor-row][hidden], [data-monitor-item][hidden] { display: none !important; }
+
+    @media (min-width: 640px) {
+        .dashboard-dialog[open] {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            margin: 0;
+            transform: translate(-50%, -50%);
+        }
+    }
 </style>
+
 <script>
     (() => {
         document.addEventListener('click', (event) => {

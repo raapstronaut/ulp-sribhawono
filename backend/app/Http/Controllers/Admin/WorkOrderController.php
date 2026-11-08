@@ -16,6 +16,7 @@ use App\Models\WorkOrderReport;
 use App\Services\ApkukCandidateService;
 use App\Services\ApkukWorkOrderService;
 use App\Services\ShiftService;
+use App\Services\Work\PoskoWorkOrderCrewReview;
 use App\Services\Work\WorkOrderExecutionService;
 use App\Services\WorkOrderLifecycleService;
 use App\Support\DataLoader;
@@ -198,7 +199,7 @@ class WorkOrderController extends Controller
             ->with('flash', "WO APKUK {$workOrder->code} berhasil dibuat.");
     }
 
-    public function show(WorkOrder $workOrder, ShiftService $shiftService): View
+    public function show(WorkOrder $workOrder, ShiftService $shiftService, PoskoWorkOrderCrewReview $crewReview): View
     {
         $workOrder->load([
             'posko',
@@ -232,6 +233,7 @@ class WorkOrderController extends Controller
             ->get();
 
         return view('admin.work-orders.show', [
+            'crewAudit' => ($workOrder->team_type === WorkOrder::TEAM_POSKO && in_array($workOrder->work_type, [WorkOrder::TYPE_P0, WorkOrder::TYPE_PEMASANGAN_APKUK], true)) ? $crewReview->forWorkOrder($workOrder) : null,
             'wo' => $workOrder,
             'shift' => $shift,
             'teams' => $teams,

@@ -17,6 +17,8 @@ use App\Services\Apkuk\SectionPoskoMap;
 use App\Services\Pasila\P0Service;
 use App\Services\Pasila\PasilaSectionService;
 use App\Services\Pasila\PasilaShiftOpener;
+use App\Services\Pasila\PoskoCrewPreview;
+use App\Services\Pasila\PasilaCrewReportReview;
 use App\Services\ShiftService;
 use App\Support\DataLoader;
 use App\Support\QueryInput;
@@ -137,7 +139,7 @@ class PasilaController extends Controller
         ]);
     }
 
-    public function show(Request $request, Posko $posko, ShiftService $shifts, P0Service $p0, DataLoader $load): View
+    public function show(Request $request, Posko $posko, ShiftService $shifts, P0Service $p0, DataLoader $load, PoskoCrewPreview $crewService, PasilaCrewReportReview $crewReviewer): View
     {
         $context = $this->shiftContext($request, $shifts);
         $constrain = fn (Builder $query) => $query
@@ -169,6 +171,8 @@ class PasilaController extends Controller
         return view('admin.pasila.show', [
             'posko' => $posko,
             'context' => $context,
+            'crewPreview' => $load->attempt('posko_crew_preview', fn () => $crewService->forPosko($posko, $context['work_date'], $context['shift_code'])),
+            'crewReportReview' => $session ? $load->attempt('pasila_crew_report_review', fn () => $crewReviewer->forSession($session)) : null,
             'filters' => ['work_date' => $context['work_date'], 'shift_code' => $context['shift_code']],
             'shiftOptions' => $this->shiftOptions($shifts),
             'targetPerShift' => ApkukShiftQuota::TARGET_PER_SHIFT,

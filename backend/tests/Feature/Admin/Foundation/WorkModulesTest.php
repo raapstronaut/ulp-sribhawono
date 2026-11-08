@@ -50,7 +50,7 @@ class WorkModulesTest extends FoundationTestCase
             ->assertSee('PUGUNG')
             ->assertSee('JABUNG')
             // Tanpa sesi tercatat: status sesi, WO APKUK, dan P0 tetap kolom terpisah.
-            ->assertSeeInOrder(['PUGUNG', 'Belum dibuka', 'Pembuka sesi belum dijalankan untuk shift berjalan.', '1 / 6', '2 WO tercatat · 1 aktif', '1 menunggu', 'data-p0-obligation=""'], false)
+            ->assertSeeInOrder(['PUGUNG', 'Belum dibuka', 'Pembuka sesi belum dijalankan untuk shift berjalan.', '1/6', '2 WO · 1 aktif', '1 reschedule menunggu', 'data-p0-obligation=""'], false)
             ->assertSee('Buka sesi shift berjalan')
             ->assertSee('PASILA_OPENER_ENABLED=false')
             ->assertSee('aria-disabled="true"', false)
@@ -64,14 +64,14 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.pasila.index', ['posko_id' => $this->jabung->id, 'shift_code' => 'B', 'work_date' => '2026-02-31']))
             ->assertOk()
-            ->assertSee('Shift B · Sore — 20/10/2026')
+            ->assertSee('Shift B · Sore')->assertSee('20 Oct 2026')
             ->assertSee('JABUNG')
-            ->assertDontSee('2 WO tercatat');
+            ->assertDontSee('2 WO · 1 aktif');
 
         $this->actingAs($this->admin)
             ->get(route('admin.pasila.index', ['shift_code' => 'B']))
             ->assertOk()
-            ->assertSee('1 WO tercatat · 1 aktif');
+            ->assertSee('1 WO · 1 aktif');
     }
 
     public function test_pasila_detail_lists_only_this_posko_shift_work_and_requires_pasila_for_p0(): void
@@ -121,7 +121,7 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.inspeksi.index'))
             ->assertOk()
-            ->assertSee('Data asli')
+            ->assertSee('Sebagian data tersedia')
             ->assertSee('Tim Inspeksi ULP')
             ->assertSee('1 petugas aktif')
             ->assertSee('Belum ada kunjungan inspeksi.')
@@ -276,12 +276,12 @@ class WorkModulesTest extends FoundationTestCase
         $this->actingAs($this->admin)
             ->get(route('admin.dashboard'))
             ->assertOk()
-            ->assertSee('Buka Peta Jaringan')
+            ->assertSee('Lihat Peta Jaringan')
             ->assertSee(route('admin.maps.index'), false)
-            ->assertSee('Buka HARSUS')
-            ->assertSee('Buka Inspeksi')
-            ->assertSee('Buka ROW')
-            ->assertSee('Buka halaman PASILA')
+            ->assertSee('Lihat Halaman HARSUS')
+            ->assertSee('Lihat Halaman INSPEKSI')
+            ->assertSee('Lihat Halaman ROW')
+            ->assertSee(route('admin.pasila.index'), false)
             ->assertDontSee('Halaman tim belum tersedia');
     }
 }
