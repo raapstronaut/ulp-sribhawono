@@ -14,8 +14,9 @@
         'BERAKHIR' => 'Tidak ada sesi PASILA tercatat untuk shift ini. Shift sudah berakhir; sesi tidak dibuat mundur.',
         'BELUM_MULAI' => 'Shift belum dimulai. Sesi PASILA dibuka pada awal shift.',
     ];
+    $pasilaInitialErrorTab = $errors->has('section') || $errors->has('reason') ? 'section' : ($errors->any() ? 'p0' : 'ringkasan');
 @endphp
-<div class="mx-auto max-w-7xl space-y-5">
+<div class="mx-auto max-w-7xl space-y-3" data-pasila-detail-root>
     <x-admin.posko-tabs />
     <x-admin.page-header
         section="Pekerjaan"
@@ -34,26 +35,21 @@
         </x-slot:actions>
     </x-admin.page-header>
 
-    {{-- PASILA DETAIL V2: ringkasan; data tetap berasal dari controller yang sama. --}}
-    <section data-pasila-detail-v2 class="rounded-xl border border-blue-200 bg-blue-50 p-4 shadow-sm sm:p-5" aria-label="Ringkasan PASILA per POSKO">
-        <div class="flex flex-wrap items-start justify-between gap-3">
-            <div>
-                <div class="mb-2 flex flex-wrap items-center gap-2 text-xs font-semibold">
-                    <span class="rounded-md bg-blue-600 px-2.5 py-1 text-white">DETAIL POSKO</span>
-                    @if ($context['is_current'])
-                        <span class="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-emerald-700">Shift berjalan</span>
-                    @else
-                        <span class="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-slate-600">Riwayat shift</span>
-                    @endif
-                </div>
-                <h2 class="text-xl font-bold text-slate-900">{{ $posko->nama_posko }}</h2>
-                <p class="mt-1 text-sm text-slate-600">Shift {{ $context['shift']['code'] }} &middot; {{ $context['shift']['name'] }} &middot; {{ $workDateLabel }}</p>
-                <p class="mt-1 text-xs text-slate-500">{{ $fmt($context['window']['start']) }} - {{ $fmt($context['window']['end']) }}</p>
+    {{-- PASILA DETAIL: ringkas, seluruh status berasal dari data server. --}}
+    <section data-pasila-detail-v2 class="rounded-xl border border-blue-200 bg-blue-50 p-3 shadow-sm sm:p-4" aria-label="Ringkasan PASILA per POSKO">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-slate-700">
+                @if ($context['is_current'])
+                    <span class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">Shift berjalan</span>
+                @else
+                    <span class="rounded-md border border-slate-200 bg-white px-2 py-1 text-slate-600">Riwayat shift</span>
+                @endif
+                <span>Shift {{ $context['shift']['code'] }} · {{ $context['shift']['name'] }} · {{ $workDateLabel }}</span>
             </div>
-            <a href="{{ route('admin.pasila.index', $filters) }}" class="inline-flex rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Kembali ke Monitor</a>
+            <a href="{{ route('admin.pasila.index', $filters) }}" class="rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100">Kembali ke Monitor</a>
         </div>
-        <div class="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div class="rounded-lg border border-slate-200 bg-white p-3">
+        <div class="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-2.5">
                 <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Sesi PASILA</div>
                 <div class="mt-1 text-base font-bold text-blue-700">
                     @if ($load->failed('sessions')) Gagal dimuat
@@ -61,7 +57,7 @@
                 </div>
                 <div class="mt-1 break-all text-xs text-slate-500">{{ $session?->code ?? 'Belum ada sesi untuk shift ini' }}</div>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="rounded-lg border border-slate-200 bg-white p-2.5">
                 <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Section patroli</div>
                 <div class="mt-1 text-base font-bold text-slate-900">
                     @if ($load->failed('sections')) Gagal dimuat
@@ -69,7 +65,7 @@
                 </div>
                 <div class="mt-1 text-xs text-slate-500">{{ $session?->penyulang?->nama_penyulang ?? 'Penyulang belum tersedia' }}</div>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="rounded-lg border border-slate-200 bg-white p-2.5">
                 <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Laporan patroli</div>
                 <div class="mt-1 text-base font-bold {{ $session && ! $load->failed('findings', 'nil_report') && $session->patrolStatus() !== PasilaSession::PATROL_BELUM ? 'text-emerald-700' : 'text-amber-700' }}">
                     @if (! $session) Belum ada sesi
@@ -78,7 +74,7 @@
                 </div>
                 <div class="mt-1 text-xs text-slate-500">{{ ! $load->failed('findings') && $session ? $findings->count().' temuan tercatat' : 'Belum dapat dihitung' }}</div>
             </div>
-            <div class="rounded-lg border border-slate-200 bg-white p-3">
+            <div class="rounded-lg border border-slate-200 bg-white p-2.5">
                 <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Target P0</div>
                 <div class="mt-1 text-base font-bold {{ $session && $p0Obligation['fulfilled'] ? 'text-emerald-700' : 'text-amber-700' }}">
                     {{ $session ? $p0Obligation['completed'].' / '.$p0Obligation['target'].' selesai' : 'Belum ada sesi' }}
@@ -86,14 +82,6 @@
                 <div class="mt-1 text-xs text-slate-500">Indikator P0 terpisah dari status patroli</div>
             </div>
         </div>
-        <nav aria-label="Navigasi detail PASILA" class="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-            <a href="#pasila-detail-filter" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Filter shift</a>
-            <a href="#pasila-section" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Section</a>
-            <a href="#pasila-laporan" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Laporan patroli</a>
-            <a href="#p0" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">P0</a>
-            <a href="#pasila-wo" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">WO APKUK</a>
-            <a href="#pasila-referensi" class="rounded-md border border-blue-200 bg-white px-3 py-2 text-blue-700 hover:bg-blue-100">Referensi</a>
-        </nav>
     </section>
 
     <div id="pasila-detail-filter" class="scroll-mt-6"></div>
@@ -102,35 +90,49 @@
             <x-admin.filter-input type="date" name="work_date" label="Tanggal operasional" :value="$filters['work_date']" />
             <x-admin.filter-select name="shift_code" label="Shift" :options="$shiftOptions" :value="$filters['shift_code']" :allow-empty="false" />
         </x-admin.filter-bar>
-        <dl class="grid grid-cols-2 gap-5 p-4 text-sm md:grid-cols-4">
+        <details class="border-t border-slate-100 px-3 py-2">
+            <summary class="cursor-pointer select-none text-xs font-semibold text-slate-600 hover:text-blue-700">Detail shift dan POSKO</summary>
+            <dl class="grid grid-cols-2 gap-3 pt-3 text-sm md:grid-cols-4">
             <x-admin.detail-item label="Kode Posko">{{ $posko->kode_posko }}</x-admin.detail-item>
             <x-admin.detail-item label="Status master">{{ $posko->is_active ? 'Aktif' : 'Nonaktif' }}</x-admin.detail-item>
             <x-admin.detail-item label="Shift">{{ 'Shift '.$context['shift']['code'].' · '.$context['shift']['name'] }}{{ $context['is_current'] ? ' (berjalan)' : '' }}</x-admin.detail-item>
             <x-admin.detail-item label="Jendela shift">{{ $fmt($context['window']['start']) }} – {{ $fmt($context['window']['end']) }}</x-admin.detail-item>
-        </dl>
+            </dl>
+        </details>
     </x-admin.panel>
 
-    {{-- PASILA_CREW_PREVIEW_V1: hanya baca, bukan pengaktifan penugasan. --}}
-    <x-admin.panel title="Pratinjau pasangan POSKO" description="Berdasarkan tanggal operasional dan shift terpilih. Tidak mengubah sesi PASILA, WO, atau akun Android.">
-        @if ($load->failed('posko_crew_preview'))
-            <x-admin.error-state :inset="false" />
-        @elseif (($crewPreview['status'] ?? '') === 'ready')
-            <div class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-                <div><div class="text-xs text-slate-500">Pasangan terjadwal</div><div class="font-bold text-slate-900">TIM {{ $crewPreview['crew_number'] }}</div></div>
-                <div><div class="text-xs text-slate-500">Hari rotasi</div><div class="font-bold text-slate-900">{{ $crewPreview['cycle_day'] }} / 4</div></div>
-                <div><div class="text-xs text-slate-500">Pasangan libur</div><div class="font-bold text-slate-900">TIM {{ $crewPreview['off_crew_number'] }}</div></div>
-            </div>
-            <ul class="mt-3 space-y-1 text-sm text-slate-800" data-posko-crew="{{ $crewPreview['crew_number'] }}">
-                @foreach ($crewPreview['members'] as $member)
-                    <li class="font-medium">{{ $member['name'] }} @if ($member['nickname'] && $member['nickname'] !== $member['name']) <span class="text-xs font-normal text-slate-500">({{ $member['nickname'] }})</span> @endif</li>
-                @endforeach
-            </ul>
-            <p class="mt-3 text-xs text-amber-700">Ini pratinjau roster, bukan bukti penerimaan tugas, laporan patroli, atau penugasan otomatis.</p>
-        @else
-            <p class="text-sm text-slate-600">{{ $crewPreview['message'] ?? 'Pratinjau belum tersedia.' }}</p>
-        @endif
-    </x-admin.panel>
+    <style>
+        [data-pasila-panel][hidden] { display: none !important; }
+        [data-pasila-tab][aria-selected="true"] {
+            background: #2563eb;
+            border-color: #2563eb;
+            color: white;
+        }
+        [data-pasila-tab]:focus-visible { outline: 2px solid #2563eb; outline-offset: 3px; }
+    </style>
+    <nav role="tablist" aria-label="Bagian detail PASILA" class="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2" data-pasila-tablist>
+        <button type="button" id="pasila-tab-ringkasan" role="tab" data-pasila-tab="ringkasan"
+            aria-controls="pasila-panel-ringkasan" aria-selected="true" tabindex="0"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">Ringkasan</button>
+        <button type="button" id="pasila-tab-section" role="tab" data-pasila-tab="section"
+            aria-controls="pasila-panel-section" aria-selected="false" tabindex="-1"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">Section & Petugas</button>
+        <button type="button" id="pasila-tab-laporan" role="tab" data-pasila-tab="laporan"
+            aria-controls="pasila-panel-laporan" aria-selected="false" tabindex="-1"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">Laporan</button>
+        <button type="button" id="pasila-tab-p0" role="tab" data-pasila-tab="p0"
+            aria-controls="pasila-panel-p0" aria-selected="false" tabindex="-1"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">P0</button>
+        <button type="button" id="pasila-tab-wo" role="tab" data-pasila-tab="wo"
+            aria-controls="pasila-panel-wo" aria-selected="false" tabindex="-1"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">WO & Reschedule</button>
+        <button type="button" id="pasila-tab-audit" role="tab" data-pasila-tab="audit"
+            aria-controls="pasila-panel-audit" aria-selected="false" tabindex="-1"
+            class="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-50">Audit & Referensi</button>
+    </nav>
 
+    <section id="pasila-panel-ringkasan" role="tabpanel" aria-labelledby="pasila-tab-ringkasan" tabindex="0"
+        data-pasila-panel="ringkasan" class="space-y-3">
     <x-admin.panel title="Sesi PASILA shift ini" description="Satu sesi per Posko per shift. Status sesi terpisah dari status WO APKUK dan kewajiban P0.">
         @if ($load->failed('sessions'))
             <x-admin.error-state :inset="false" />
@@ -177,9 +179,37 @@
                 @endforeach
             </div>
         @else
-            <x-admin.empty-state title="Belum ada sesi PASILA." :description="$noSession[$context['phase']]" />
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <strong>Belum ada sesi PASILA.</strong>
+                {{ $noSession[$context['phase']] }}
+            </div>
         @endif
     </x-admin.panel>
+    </section>
+
+    <section id="pasila-panel-section" role="tabpanel" aria-labelledby="pasila-tab-section" tabindex="0"
+        data-pasila-panel="section" hidden class="space-y-3">
+    {{-- PASILA_CREW_PREVIEW_V1: hanya baca, bukan pengaktifan penugasan. --}}
+    <x-admin.panel title="Pratinjau pasangan POSKO" description="Berdasarkan tanggal operasional dan shift terpilih. Tidak mengubah sesi PASILA, WO, atau akun Android.">
+        @if ($load->failed('posko_crew_preview'))
+            <x-admin.error-state :inset="false" />
+        @elseif (($crewPreview['status'] ?? '') === 'ready')
+            <div class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+                <div><div class="text-xs text-slate-500">Pasangan terjadwal</div><div class="font-bold text-slate-900">TIM {{ $crewPreview['crew_number'] }}</div></div>
+                <div><div class="text-xs text-slate-500">Hari rotasi</div><div class="font-bold text-slate-900">{{ $crewPreview['cycle_day'] }} / 4</div></div>
+                <div><div class="text-xs text-slate-500">Pasangan libur</div><div class="font-bold text-slate-900">TIM {{ $crewPreview['off_crew_number'] }}</div></div>
+            </div>
+            <ul class="mt-3 space-y-1 text-sm text-slate-800" data-posko-crew="{{ $crewPreview['crew_number'] }}">
+                @foreach ($crewPreview['members'] as $member)
+                    <li class="font-medium">{{ $member['name'] }} @if ($member['nickname'] && $member['nickname'] !== $member['name']) <span class="text-xs font-normal text-slate-500">({{ $member['nickname'] }})</span> @endif</li>
+                @endforeach
+            </ul>
+            <p class="mt-3 text-xs text-amber-700">Ini pratinjau roster, bukan bukti penerimaan tugas, laporan patroli, atau penugasan otomatis.</p>
+        @else
+            <p class="text-sm text-slate-600">{{ $crewPreview['message'] ?? 'Pratinjau belum tersedia.' }}</p>
+        @endif
+    </x-admin.panel>
+
 
     <div id="pasila-section" class="scroll-mt-6">
         <h2 class="mb-2 text-base font-bold text-slate-900">Penugasan Section</h2>
@@ -229,7 +259,10 @@
             @endif
         </x-admin.panel>
     </div>
+    </section>
 
+    <section id="pasila-panel-laporan" role="tabpanel" aria-labelledby="pasila-tab-laporan" tabindex="0"
+        data-pasila-panel="laporan" hidden class="space-y-3">
     <div id="pasila-laporan" class="scroll-mt-6">
         <h2 class="mb-2 text-base font-bold text-slate-900">Laporan dan penutupan patroli</h2>
         <p class="mb-3 text-xs text-slate-500">Belum ada temuan bukan berarti nihil. Laporan nihil harus dikirim petugas; sesi ditutup dari aplikasi POSKO.</p>
@@ -325,7 +358,10 @@
             @endif
         @endif
     </x-admin.panel>
+    </section>
 
+    <section id="pasila-panel-p0" role="tabpanel" aria-labelledby="pasila-tab-p0" tabindex="0"
+        data-pasila-panel="p0" hidden class="space-y-3">
     <div class="scroll-mt-6">
         <h2 class="mb-2 text-base font-bold text-slate-900">Pekerjaan P0</h2>
         <p class="mb-3 text-xs text-slate-500">P0 dihitung berdasarkan pekerjaan yang selesai, bukan sekadar usulan atau sesi PASILA yang dibuka.</p>
@@ -380,42 +416,10 @@
             </div>
         @endif
     </x-admin.panel>
+    </section>
 
-    <details id="pasila-referensi" class="group scroll-mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <summary class="cursor-pointer list-none px-4 py-4 text-sm font-bold text-slate-800 hover:bg-slate-50">Referensi POSKO &amp; tim lapangan <span class="float-right text-xs font-semibold text-blue-600 group-open:hidden">Buka +</span><span class="float-right hidden text-xs font-semibold text-blue-600 group-open:inline">Tutup -</span></summary>
-        <div class="grid grid-cols-1 gap-4 border-t border-slate-100 p-3 lg:grid-cols-2">
-        <x-admin.panel title="Penyulang terkait" description="Relasi posko_penyulang (many-to-many); bukan dasar kepemilikan aset atau Section.">
-            @if ($load->failed('penyulangs'))
-                <x-admin.error-state :inset="false" />
-            @else
-                <ul class="flex flex-wrap gap-2">
-                    @forelse ($penyulangs as $penyulang)
-                        <li><a href="{{ route('admin.master-data.penyulang.show', $penyulang) }}" class="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700">{{ $penyulang->nama_penyulang }}</a></li>
-                    @empty
-                        <li class="text-xs text-slate-500">Belum ada Penyulang terhubung pada master.</li>
-                    @endforelse
-                </ul>
-            @endif
-        </x-admin.panel>
-        <x-admin.panel title="Tim POSKO" description="Akun tim lapangan pada master field_teams; petugas aktual dipilih saat melapor.">
-            @if ($load->failed('teams'))
-                <x-admin.error-state :inset="false" />
-            @else
-                <ul class="space-y-2 text-sm">
-                    @forelse ($fieldTeams as $team)
-                        <li class="flex items-center justify-between gap-2">
-                            <span class="font-semibold text-slate-800">{{ $team->name }} <span class="text-[10px] font-normal text-slate-500">{{ $team->code }} · {{ $team->role }}</span></span>
-                            <span class="text-xs text-slate-500">{{ $team->personnel_count }} petugas aktif</span>
-                        </li>
-                    @empty
-                        <li class="text-xs text-slate-500">Belum ada akun tim untuk Posko ini pada master field_teams.</li>
-                    @endforelse
-                </ul>
-            @endif
-        </x-admin.panel>
-        </div>
-    </details>
-
+    <section id="pasila-panel-wo" role="tabpanel" aria-labelledby="pasila-tab-wo" tabindex="0"
+        data-pasila-panel="wo" hidden class="space-y-3">
     <details id="pasila-wo" class="group scroll-mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
         <summary class="cursor-pointer list-none px-4 py-4 text-sm font-bold text-slate-800 hover:bg-slate-50">WO APKUK pada shift ini <span class="ml-2 text-xs font-normal text-slate-500">Target {{ $targetPerShift }} WO per shift</span><span class="float-right text-xs font-semibold text-blue-600 group-open:hidden">Buka +</span><span class="float-right hidden text-xs font-semibold text-blue-600 group-open:inline">Tutup -</span></summary>
         <div class="border-t border-slate-100 p-3">
@@ -474,7 +478,45 @@
         />
         </div>
     </details>
-</div>
+    </section>
+
+    <section id="pasila-panel-audit" role="tabpanel" aria-labelledby="pasila-tab-audit" tabindex="0"
+        data-pasila-panel="audit" hidden class="space-y-3">
+    <details id="pasila-referensi" class="group scroll-mt-6 rounded-xl border border-slate-200 bg-white shadow-sm">
+        <summary class="cursor-pointer list-none px-4 py-4 text-sm font-bold text-slate-800 hover:bg-slate-50">Referensi POSKO &amp; tim lapangan <span class="float-right text-xs font-semibold text-blue-600 group-open:hidden">Buka +</span><span class="float-right hidden text-xs font-semibold text-blue-600 group-open:inline">Tutup -</span></summary>
+        <div class="grid grid-cols-1 gap-4 border-t border-slate-100 p-3 lg:grid-cols-2">
+        <x-admin.panel title="Penyulang terkait" description="Relasi posko_penyulang (many-to-many); bukan dasar kepemilikan aset atau Section.">
+            @if ($load->failed('penyulangs'))
+                <x-admin.error-state :inset="false" />
+            @else
+                <ul class="flex flex-wrap gap-2">
+                    @forelse ($penyulangs as $penyulang)
+                        <li><a href="{{ route('admin.master-data.penyulang.show', $penyulang) }}" class="inline-flex rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs font-semibold text-slate-700 hover:border-blue-300 hover:text-blue-700">{{ $penyulang->nama_penyulang }}</a></li>
+                    @empty
+                        <li class="text-xs text-slate-500">Belum ada Penyulang terhubung pada master.</li>
+                    @endforelse
+                </ul>
+            @endif
+        </x-admin.panel>
+        <x-admin.panel title="Tim POSKO" description="Akun tim lapangan pada master field_teams; petugas aktual dipilih saat melapor.">
+            @if ($load->failed('teams'))
+                <x-admin.error-state :inset="false" />
+            @else
+                <ul class="space-y-2 text-sm">
+                    @forelse ($fieldTeams as $team)
+                        <li class="flex items-center justify-between gap-2">
+                            <span class="font-semibold text-slate-800">{{ $team->name }} <span class="text-[10px] font-normal text-slate-500">{{ $team->code }} · {{ $team->role }}</span></span>
+                            <span class="text-xs text-slate-500">{{ $team->personnel_count }} petugas aktif</span>
+                        </li>
+                    @empty
+                        <li class="text-xs text-slate-500">Belum ada akun tim untuk Posko ini pada master field_teams.</li>
+                    @endforelse
+                </ul>
+            @endif
+        </x-admin.panel>
+        </div>
+    </details>
+
 
     {{-- AUDIT_PELAPOR_PASILA_V1: perbandingan informatif, tidak menolak laporan. --}}
     <x-admin.panel title="Audit kesesuaian pelapor PASILA" description="Membandingkan petugas tercatat dengan pasangan pada tanggal/shift sesi. Tidak mengubah laporan, penugasan, atau status PASILA.">
@@ -518,4 +560,77 @@
             @endif
         @endif
     </x-admin.panel>
+    </section>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const root = document.querySelector('[data-pasila-detail-root]');
+            if (!root) return;
+
+            const tabs = Array.from(root.querySelectorAll('[data-pasila-tab]'));
+            const panels = Array.from(root.querySelectorAll('[data-pasila-panel]'));
+            const tabNames = tabs.map(tab => tab.dataset.pasilaTab);
+            const hashTabs = {
+                '#pasila-section': 'section',
+                '#pasila-laporan': 'laporan',
+                '#p0': 'p0',
+                '#pasila-wo': 'wo',
+                '#pasila-referensi': 'audit'
+            };
+
+            function activate(name, focus = false) {
+                const chosen = tabNames.includes(name) ? name : 'ringkasan';
+                tabs.forEach(tab => {
+                    const selected = tab.dataset.pasilaTab === chosen;
+                    tab.setAttribute('aria-selected', String(selected));
+                    tab.tabIndex = selected ? 0 : -1;
+                    if (selected && focus) tab.focus();
+                });
+                panels.forEach(panel => {
+                    panel.hidden = panel.dataset.pasilaPanel !== chosen;
+                });
+            }
+
+            tabs.forEach((tab, index) => {
+                tab.addEventListener('click', () => activate(tab.dataset.pasilaTab));
+                tab.addEventListener('keydown', event => {
+                    let next = index;
+                    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length;
+                    else if (event.key === 'ArrowLeft') next = (index + tabs.length - 1) % tabs.length;
+                    else if (event.key === 'Home') next = 0;
+                    else if (event.key === 'End') next = tabs.length - 1;
+                    else return;
+                    event.preventDefault();
+                    activate(tabs[next].dataset.pasilaTab, true);
+                });
+            });
+
+            function openAnchor(hash, shouldScroll = false) {
+                const tab = hashTabs[hash];
+                if (!tab) return false;
+                activate(tab);
+                if (shouldScroll) {
+                    const target = document.getElementById(hash.slice(1));
+                    if (target) requestAnimationFrame(() => target.scrollIntoView({block: 'start'}));
+                }
+                return true;
+            }
+
+            document.addEventListener('click', event => {
+                if (!(event.target instanceof Element)) return;
+                const anchor = event.target.closest('a[href^="#"]');
+                if (anchor) openAnchor(anchor.getAttribute('href'));
+            });
+            window.addEventListener('hashchange', () => openAnchor(window.location.hash, true));
+
+            const formErrorTab = @json($pasilaInitialErrorTab);
+            const pageParam = new URLSearchParams(window.location.search).has('page') ? 'wo' : null;
+            const start = hashTabs[window.location.hash] || pageParam || formErrorTab;
+            activate(start);
+            if (hashTabs[window.location.hash]) openAnchor(window.location.hash, true);
+        });
+    </script>
+
 @endsection
