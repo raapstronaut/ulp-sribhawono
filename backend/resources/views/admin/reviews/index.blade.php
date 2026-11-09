@@ -7,31 +7,61 @@
     $tz = \App\Services\ShiftService::TIMEZONE;
     $fmt = fn ($dt) => $dt ? $dt->copy()->timezone($tz)->format('d/m/Y H:i') : '-';
     $categories = \App\Http\Controllers\Admin\ReviewController::CATEGORIES;
+    $activeCategory = array_key_exists($filters['category'], $categories) ? $filters['category'] : 'reports';
+    $tabUrl = fn (string $key) => route('admin.reviews.index', array_filter([
+        'category' => $key,
+        'team_type' => $key === 'findings' ? null : $filters['team_type'],
+        'posko_id' => $key === 'findings' ? null : $filters['posko_id'],
+    ], fn ($value) => $value !== null && $value !== ''));
+    $hasQueueFilter = $filters['team_type'] !== '' || $filters['posko_id'] !== '';
 @endphp
-<div class="mx-auto max-w-7xl space-y-6 pb-12">
+<div class="mx-auto max-w-7xl space-y-4 pb-8">
     <x-admin.page-header section="Kontrol" title="Review & Validasi" state="live"
-        description="Antrean keputusan Admin. Setiap ACC/Tolak mencatat Admin, waktu, dan alasan; status WO berubah sesuai lifecycle (laporan → Selesai/Ditugaskan, reschedule → Dijadwalkan Ulang/status semula, limpahan → child WO + Selesai Diteruskan)." />
+        description="Tinjau laporan, reschedule, limpahan, dan temuan inspeksi. Semua keputusan Admin dicatat dalam audit." />
 
-    <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+    {{-- Satu antrean per halaman: angka pada tab adalah total global, bukan total setelah filter. --}}
+    <nav aria-label="Kategori antrean review" class="flex flex-wrap gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
         @foreach ($categories as $key => $label)
-            <x-admin.stat-card :label="$label" :value="$load->failed('count_'.$key) ? null : $counts[$key]" :href="route('admin.reviews.index', ['category' => $key])" :tone="($counts[$key] ?? 0) > 0 ? 'amber' : 'slate'" />
+            @php
+                $selected = $activeCategory === $key;
+                $total = $load->failed('count_'.$key) ? null : ($counts[$key] ?? null);
+            @endphp
+            <a href="{{ $tabUrl($key) }}" @if ($selected) aria-current="page" @endif
+                class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition {{ $selected ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white text-blue-700 hover:border-blue-300 hover:bg-blue-50' }}">
+                <span>{{ match ($key) {
+                    'reports' => 'Laporan',
+                    'reschedules' => 'Reschedule',
+                    'escalations' => 'Limpahan',
+                    default => 'Temuan inspeksi',
+                } }}</span>
+                <span class="rounded-md px-1.5 py-0.5 tabular-nums {{ $selected ? 'bg-white/20 text-white' : (($total ?? 0) > 0 ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600') }}">{{ $total === null ? '—' : number_format($total, 0, ',', '.') }}</span>
+            </a>
         @endforeach
-    </div>
+    </nav>
 
-    <x-admin.panel flush>
-        <x-admin.filter-bar :action="route('admin.reviews.index')" :reset-url="route('admin.reviews.index')" :active="$hasFilter" note="Filter tim/POSKO berlaku untuk antrean WO; temuan inspeksi tidak terikat tim WO.">
-            <x-admin.filter-select name="category" label="Kategori" :options="$categories" :value="$filters['category']" placeholder="Semua kategori" />
-            <x-admin.filter-select name="team_type" label="Tim" :options="\App\Http\Controllers\Admin\ReviewController::TEAM_TYPES" :value="$filters['team_type']" placeholder="Semua tim" />
-            <x-admin.filter-select name="posko_id" label="POSKO" :options="$poskoOptions" :value="$filters['posko_id']" placeholder="Semua POSKO" />
-        </x-admin.filter-bar>
-    </x-admin.panel>
+    @if ($activeCategory !== 'findings')
+        <x-admin.panel flush>
+            <x-admin.filter-bar :action="route('admin.reviews.index')" :reset-url="route('admin.reviews.index', ['category' => $activeCategory])"
+                :active="$hasQueueFilter" note="Filter tim/POSKO hanya berlaku untuk antrean WO. Jumlah pada tab adalah total global.">
+                <input type="hidden" name="category" value="{{ $activeCategory }}">
+                <x-admin.filter-select name="team_type" label="Tim" :options="\App\Http\Controllers\Admin\ReviewController::TEAM_TYPES" :value="$filters['team_type']" placeholder="Semua tim" />
+                <x-admin.filter-select name="posko_id" label="POSKO" :options="$poskoOptions" :value="$filters['posko_id']" placeholder="Semua POSKO" />
+            </x-admin.filter-bar>
+        </x-admin.panel>
+    @elseif ($hasQueueFilter)
+        <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+            Filter tim/POSKO tidak berlaku untuk temuan inspeksi.
+            <a href="{{ route('admin.reviews.index', ['category' => 'findings']) }}" class="font-bold underline">Hapus filter WO</a> untuk melihat antrean.
+        </div>
+    @endif
 
     @if ($show['reports'])
-        <x-admin.panel flush title="Laporan menunggu verifikasi" description="Temuan APKUK sudah lengkap dan penyelesaian WO HARSUS/ROW. Periksa bukti foto sebelum ACC.">
+        <div @if ($activeCategory !== 'reports') hidden @endif>
+        <x-admin.panel flush title="Laporan menunggu verifikasi" description="Periksa bukti laporan, termasuk foto, sebelum ACC atau Tolak.">
             @if ($load->failed('reports'))
                 <x-admin.error-state />
             @elseif ($reports->isEmpty())
-                <x-admin.empty-state title="Tidak ada laporan yang menunggu verifikasi." />
+                <p class="px-4 py-5 text-sm text-slate-500">Tidak ada laporan yang menunggu verifikasi.</p>
             @else
                 <div class="divide-y divide-slate-100">
                     @foreach ($reports as $report)
@@ -74,14 +104,16 @@
                 <x-admin.pagination :paginator="$reports" label="laporan" />
             @endif
         </x-admin.panel>
+        </div>
     @endif
 
     @if ($show['reschedules'])
-        <x-admin.panel flush title="Pengajuan reschedule" description="ACC memindahkan jadwal WO ke tanggal/shift usulan; tolak mengembalikan WO ke status kerja semula.">
+        <div @if ($activeCategory !== 'reschedules') hidden @endif>
+        <x-admin.panel flush title="Pengajuan reschedule" description="ACC memindahkan jadwal WO; Tolak mempertahankan jadwal/status sesuai alur sebelumnya.">
             @if ($load->failed('reschedules'))
                 <x-admin.error-state />
             @elseif ($reschedules->isEmpty())
-                <x-admin.empty-state title="Tidak ada pengajuan reschedule yang menunggu." />
+                <p class="px-4 py-5 text-sm text-slate-500">Tidak ada pengajuan reschedule yang menunggu.</p>
             @else
                 <div class="divide-y divide-slate-100">
                     @foreach ($reschedules as $reschedule)
@@ -111,14 +143,16 @@
                 <x-admin.pagination :paginator="$reschedules" label="pengajuan" />
             @endif
         </x-admin.panel>
+        </div>
     @endif
 
     @if ($show['escalations'])
-        <x-admin.panel flush title="Permintaan limpahan" description="ACC membuat child WO pada tim tujuan dan menandai WO sumber Selesai Diteruskan secara atomik. Tolak tidak membuat child WO.">
+        <div @if ($activeCategory !== 'escalations') hidden @endif>
+        <x-admin.panel flush title="Permintaan limpahan" description="ACC membuat child WO dan menutup WO sumber sebagai Selesai Diteruskan; Tolak tidak membuat WO baru.">
             @if ($load->failed('escalations'))
                 <x-admin.error-state />
             @elseif ($escalations->isEmpty())
-                <x-admin.empty-state title="Tidak ada permintaan limpahan yang menunggu." />
+                <p class="px-4 py-5 text-sm text-slate-500">Tidak ada permintaan limpahan yang menunggu.</p>
             @else
                 <div class="divide-y divide-slate-100">
                     @foreach ($escalations as $escalation)
@@ -157,16 +191,18 @@
                 <x-admin.pagination :paginator="$escalations" label="permintaan" />
             @endif
         </x-admin.panel>
+        </div>
     @endif
 
     @if ($show['findings'])
-        <x-admin.panel flush title="Temuan inspeksi menunggu validasi" description="Validasi (ACC/Tolak) dan WO tindak lanjut dilakukan di halaman detail inspeksi.">
+        <div @if ($activeCategory !== 'findings') hidden @endif>
+        <x-admin.panel flush title="Temuan inspeksi menunggu validasi" description="Validasi ACC/Tolak dan WO tindak lanjut dilakukan di halaman detail INSPEKSI.">
             @if ($findings === null)
-                <x-admin.empty-state title="Temuan inspeksi tidak difilter per tim/POSKO." description="Hapus filter tim/POSKO untuk melihat antrean temuan." />
+                <p class="px-4 py-5 text-sm text-slate-500">Temuan inspeksi tidak difilter per tim/POSKO. Hapus filter untuk melihat antrean.</p>
             @elseif ($load->failed('findings'))
                 <x-admin.error-state />
             @elseif ($findings->isEmpty())
-                <x-admin.empty-state title="Tidak ada temuan yang menunggu validasi." />
+                <p class="px-4 py-5 text-sm text-slate-500">Tidak ada temuan yang menunggu validasi.</p>
             @else
                 <x-admin.table>
                     <x-slot:head>
@@ -186,6 +222,7 @@
                 <x-admin.pagination :paginator="$findings" label="temuan" />
             @endif
         </x-admin.panel>
+        </div>
     @endif
 </div>
 @endsection
