@@ -233,7 +233,7 @@
 
     <section id="analytics-panel-sumber" data-analytics-panel="sumber" role="tabpanel" aria-labelledby="analytics-tab-sumber" class="space-y-3" hidden>
         <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
-            <x-admin.panel flush title="Status APKUK sumber" description="Laporan aktif dari snapshot terbaru. Pending dan histori tidak dihitung; kurang = total kurang_bh.">
+            <x-admin.panel flush title="Status APKUK sumber" description="Laporan aktif dari snapshot terbaru; pending rekonsiliasi dan histori tidak dihitung; kurang = total kurang_bh.">
                 @if ($load->failed('apkuks'))
                     <x-admin.error-state />
                 @else
