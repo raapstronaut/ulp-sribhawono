@@ -55,7 +55,7 @@ jobs:
           sh -n backend/railway-sync.sh
           echo "Script syntax OK"
 
-      - name: Verify Google Sheets and Neon (READ ONLY)
+      - name: Verify sources, Neon and dry-run (READ ONLY)
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'verify' }}
         working-directory: backend
         shell: bash
@@ -167,7 +167,28 @@ jobs:
           }
           PHP
 
-          echo "VERIFY SELESAI: Tidak ada perintah sinkronisasi dijalankan."
+          echo "=== DRY RUN GANGGUAN ==="
+          gangguan_code=0
+          php artisan gangguan:sync --dry-run --no-ansi || gangguan_code=$?
+
+          echo "=== DRY RUN APKUK ==="
+          apkuk_code=0
+          php artisan apkuk:sync --dry-run --no-ansi || apkuk_code=$?
+
+          echo "=== DRY RUN KEYPOINT ==="
+          keypoint_code=0
+          php artisan keypoint:sync --dry-run --no-ansi || keypoint_code=$?
+
+          echo "=== RINGKASAN DRY RUN ==="
+          echo "DRY_RUN_SUMMARY gangguan=$gangguan_code apkuk=$apkuk_code keypoint=$keypoint_code"
+
+          if [[ "$gangguan_code" -ne 0 || "$apkuk_code" -ne 0 || "$keypoint_code" -ne 0 ]]; then
+            echo "PREFLIGHT GAGAL: Setidaknya satu command perlu diperiksa."
+            exit 1
+          fi
+
+          echo "PREFLIGHT BERHASIL: Ketiga command lolos dry-run."
+          echo "Tidak ada perintah sinkronisasi penulisan dijalankan."
 
       - name: Run sync after safety checks
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'sync') || (github.event_name == 'schedule' && vars.SPS_SYNC_ENABLED == 'true') }}
