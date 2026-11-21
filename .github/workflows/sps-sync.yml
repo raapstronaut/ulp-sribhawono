@@ -1,0 +1,103 @@
+name: SPS Sync - Development
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Pilih pemeriksaan atau sinkronisasi"
+        required: true
+        type: choice
+        options:
+          - check
+          - sync
+        default: check
+      confirm:
+        description: "Untuk sync manual, ketik SYNC_NEON_PRODUCTION"
+        required: false
+        type: string
+
+  # JADWAL BELUM AKTIF.
+  # Setelah pengujian dan persetujuan, aktifkan:
+  # schedule:
+  #   - cron: '7,37 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sps-neon-sync
+  cancel-in-progress: false
+
+jobs:
+  sps:
+    name: Check / Sync SPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, pdo_pgsql, pgsql, curl, zip, intl, bcmath
+          coverage: none
+
+      - name: Install Composer dependencies
+        working-directory: backend
+        run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader --no-scripts
+
+      - name: Check sync script syntax
+        run: |
+          sh -n backend/railway-sync.sh
+          echo "Script syntax OK"
+
+      - name: Run sync after safety checks
+        if: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'sync') || (github.event_name == 'schedule' && vars.SPS_SYNC_ENABLED == 'true') }}
+        env:
+          MODE: ${{ inputs.mode }}
+          CONFIRM: ${{ inputs.confirm }}
+          APP_ENV: production
+          APP_DEBUG: 'false'
+          APP_KEY: ${{ secrets.SPS_APP_KEY }}
+          DB_CONNECTION: pgsql
+          DB_HOST: ${{ secrets.SPS_DB_HOST }}
+          DB_PORT: '5432'
+          DB_DATABASE: ${{ secrets.SPS_DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.SPS_DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.SPS_DB_PASSWORD }}
+          DB_SSLMODE: require
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.SPS_GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_CREDENTIALS_BASE64: ${{ secrets.SPS_GOOGLE_SHEETS_CREDENTIALS_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$MODE" != "sync" || "$CONFIRM" != "SYNC_NEON_PRODUCTION" ]]; then
+              echo "STOP: Persetujuan sinkronisasi manual tidak sesuai."
+              exit 1
+            fi
+          fi
+
+          if [[ "$DB_HOST" != "ep-twilight-sea-aovninwx.c-2.ap-southeast-1.aws.neon.tech" ]]; then
+            echo "STOP: Host Neon tidak sesuai target yang diaudit."
+            exit 1
+          fi
+
+          if [[ "$DB_DATABASE" != "ulp_sribhawono_shared_dev" ]]; then
+            echo "STOP: Nama database tidak sesuai."
+            exit 1
+          fi
+
+          for variable in APP_KEY DB_USERNAME DB_PASSWORD GOOGLE_SHEETS_SPREADSHEET_ID GOOGLE_SHEETS_CREDENTIALS_BASE64; do
+            if [[ -z "${!variable}" ]]; then
+              echo "STOP: Konfigurasi $variable kosong."
+              exit 1
+            fi
+          done
+
+          cd backend
+          sh ./railway-sync.sh
