@@ -9,6 +9,7 @@ on:
         type: choice
         options:
           - check
+          - verify
           - sync
         default: check
       confirm:
@@ -53,6 +54,120 @@ jobs:
         run: |
           sh -n backend/railway-sync.sh
           echo "Script syntax OK"
+
+      - name: Verify Google Sheets and Neon (READ ONLY)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'verify' }}
+        working-directory: backend
+        shell: bash
+        env:
+          APP_ENV: production
+          APP_DEBUG: 'false'
+          APP_KEY: ${{ secrets.SPS_APP_KEY }}
+          DB_CONNECTION: pgsql
+          DB_HOST: ${{ secrets.SPS_DB_HOST }}
+          DB_PORT: '5432'
+          DB_DATABASE: ${{ secrets.SPS_DB_DATABASE }}
+          DB_USERNAME: ${{ secrets.SPS_DB_USERNAME }}
+          DB_PASSWORD: ${{ secrets.SPS_DB_PASSWORD }}
+          DB_SSLMODE: require
+          GOOGLE_SHEETS_SPREADSHEET_ID: ${{ secrets.SPS_GOOGLE_SHEETS_SPREADSHEET_ID }}
+          GOOGLE_SHEETS_CREDENTIALS_BASE64: ${{ secrets.SPS_GOOGLE_SHEETS_CREDENTIALS_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          # Cocokkan target sebelum koneksi apa pun dilakukan.
+          if [[ "$DB_HOST" != "ep-twilight-sea-aovninwx.c-2.ap-southeast-1.aws.neon.tech" ]]; then
+            echo "STOP: Host Neon tidak sesuai."
+            exit 1
+          fi
+
+          if [[ "$DB_DATABASE" != "ulp_sribhawono_shared_dev" ]]; then
+            echo "STOP: Database Neon tidak sesuai."
+            exit 1
+          fi
+
+          if [[ "$DB_USERNAME" != "ulp_sribhawono_shared_dev_owner" ]]; then
+            echo "STOP: Role database tidak sesuai."
+            exit 1
+          fi
+
+          for name in APP_KEY DB_PASSWORD GOOGLE_SHEETS_SPREADSHEET_ID GOOGLE_SHEETS_CREDENTIALS_BASE64; do
+            if [[ -z "${!name}" ]]; then
+              echo "STOP: Secret $name belum terisi."
+              exit 1
+            fi
+          done
+
+          # File sementara hanya ada di runner GitHub.
+          credentials="$(mktemp)"
+          chmod 600 "$credentials"
+          trap 'rm -f "$credentials"' EXIT
+
+          if ! printf '%s' "$GOOGLE_SHEETS_CREDENTIALS_BASE64" | base64 -d > "$credentials"; then
+            echo "STOP: Kredensial Google tidak valid."
+            exit 1
+          fi
+
+          export GOOGLE_SHEETS_CREDENTIALS_PATH="$credentials"
+          unset GOOGLE_SHEETS_CREDENTIALS_BASE64
+
+          echo "=== VERIFY GOOGLE SHEETS ==="
+
+          if ! php artisan apkuk:check >/dev/null 2>&1; then
+            echo "FAILED: Pemeriksaan Google Sheets gagal."
+            exit 1
+          fi
+
+          echo "PASS: Google Sheets APKUK_RAW dapat dibaca."
+
+          echo "=== VERIFY NEON READ ONLY ==="
+
+          php <<'PHP'
+          <?php
+          try {
+              $dsn = sprintf(
+                  "pgsql:host=%s;port=%s;dbname=%s;sslmode=require",
+                  getenv("DB_HOST"),
+                  getenv("DB_PORT"),
+                  getenv("DB_DATABASE")
+              );
+
+              $pdo = new PDO(
+                  $dsn,
+                  getenv("DB_USERNAME"),
+                  getenv("DB_PASSWORD"),
+                  [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+              );
+
+              $pdo->beginTransaction();
+              $pdo->exec("SET TRANSACTION READ ONLY");
+
+              $result = $pdo->query(
+                  "SELECT current_database() AS db,
+                          current_setting('transaction_read_only') AS ro"
+              )->fetch(PDO::FETCH_ASSOC);
+
+              if (
+                  $result["db"] !== "ulp_sribhawono_shared_dev" ||
+                  $result["ro"] !== "on"
+              ) {
+                  throw new RuntimeException("Target atau mode transaksi salah.");
+              }
+
+              $pdo->rollBack();
+
+              echo "PASS: Neon terhubung ke database yang ditentukan.\n";
+              echo "PASS: Transaksi SQL READ ONLY.\n";
+          } catch (Throwable $error) {
+              fwrite(
+                  STDERR,
+                  "FAILED: Verifikasi Neon gagal. Periksa koneksi dan Secrets.\n"
+              );
+              exit(1);
+          }
+          PHP
+
+          echo "VERIFY SELESAI: Tidak ada perintah sinkronisasi dijalankan."
 
       - name: Run sync after safety checks
         if: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'sync') || (github.event_name == 'schedule' && vars.SPS_SYNC_ENABLED == 'true') }}
