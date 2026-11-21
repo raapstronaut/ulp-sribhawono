@@ -17,10 +17,8 @@ on:
         required: false
         type: string
 
-  # JADWAL BELUM AKTIF.
-  # Setelah pengujian dan persetujuan, aktifkan:
-  # schedule:
-  #   - cron: '7,37 * * * *'
+  schedule:
+    - cron: '7,37 * * * *'
 
 permissions:
   contents: read
@@ -31,6 +29,7 @@ concurrency:
 
 jobs:
   sps:
+    if: ${{ github.event_name != 'schedule' || vars.SPS_SYNC_ENABLED == 'true' }}
     name: Check / Sync SPS
     runs-on: ubuntu-latest
     timeout-minutes: 25
