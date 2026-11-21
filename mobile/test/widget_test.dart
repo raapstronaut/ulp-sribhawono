@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile/main.dart';
-import 'package:mobile/screens/beranda_screen.dart';
+import 'package:mobile/screens/login_screen.dart';
+import 'package:mobile/screens/posko_session_screen.dart';
+
+import 'support/fake_posko_auth.dart';
 
 void main() {
   testWidgets('aplikasi dibuka di layar login tim', (tester) async {
@@ -20,23 +23,24 @@ void main() {
 
     expect(find.text('Username tim wajib diisi'), findsOneWidget);
     expect(find.text('Kata sandi wajib diisi'), findsOneWidget);
-    expect(find.byType(BerandaScreen), findsNothing);
+    expect(find.byType(PoskoSessionScreen), findsNothing);
   });
 
-  testWidgets('login dengan isian lengkap membuka beranda', (tester) async {
-    await tester.pumpWidget(const UlpSribhawonoApp());
-
-    await tester.enterText(
-      find.byType(TextFormField).at(0),
-      'posko.sribhawono',
+  testWidgets('login baru membuka sesi setelah autentikasi', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(home: LoginScreen(auth: FakePoskoAuth())),
     );
-    await tester.enterText(find.byType(TextFormField).at(1), 'rahasia');
+
+    await tester.enterText(find.byType(TextFormField).at(0), 'posko_jabung');
+    await tester.enterText(
+      find.byType(TextFormField).at(1),
+      'fake-password-test',
+    );
     await tester.tap(find.text('Masuk'));
     await tester.pumpAndSettle();
 
-    expect(find.byType(BerandaScreen), findsOneWidget);
+    expect(find.byType(PoskoSessionScreen), findsOneWidget);
   });
-
   testWidgets('tombol mata menampilkan kata sandi', (tester) async {
     await tester.pumpWidget(const UlpSribhawonoApp());
 

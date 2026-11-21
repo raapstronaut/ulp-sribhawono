@@ -4,14 +4,17 @@ import 'package:flutter/services.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../theme/app_theme.dart';
-import 'beranda_screen.dart';
+import '../services/posko_auth.dart';
+import 'posko_session_screen.dart';
 
 /// Artboard desain "1 · Login Tim".
 ///
-/// Belum terhubung ke API: tombol Masuk hanya memvalidasi isian lalu
-/// membuka Beranda. Petugas pelaksana dipilih saat melapor, bukan di sini.
+/// Login pilot memakai API Laravel. Setelah berhasil, tampilkan identitas
+/// dan roster dari server; Beranda mock tidak dianggap data operasional.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.auth});
+
+  final PoskoAuth? auth;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -22,6 +25,15 @@ class _LoginScreenState extends State<LoginScreen> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _hidePassword = true;
+  bool _busy = false;
+  String? _error;
+  late final PoskoAuth _auth;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth = widget.auth ?? HttpPoskoAuth();
+  }
 
   @override
   void dispose() {
@@ -30,12 +42,34 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _submit() async {
+    if (_busy || !_formKey.currentState!.validate()) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
 
-    Navigator.of(
-      context,
-    ).pushReplacement(MaterialPageRoute(builder: (_) => const BerandaScreen()));
+    try {
+      final session = await _auth.login(
+        _usernameController.text,
+        _passwordController.text,
+      );
+      if (!mounted) return;
+      _passwordController.clear();
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => PoskoSessionScreen(session: session, auth: _auth),
+        ),
+      );
+    } on PoskoAuthError catch (error) {
+      if (mounted) setState(() => _error = error.message);
+    } on Exception {
+      if (mounted) {
+        setState(() => _error = 'Login gagal. Periksa koneksi dan coba lagi.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
@@ -161,14 +195,28 @@ class _LoginScreenState extends State<LoginScreen> {
                   : null,
             ),
             const SizedBox(height: 18),
+            if (_error != null) ...[
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 12),
+            ],
             FilledButton(
-              onPressed: _submit,
-              child: const Row(
+              onPressed: _busy ? null : _submit,
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('Masuk'),
-                  SizedBox(width: 8),
-                  Icon(Icons.arrow_forward_rounded, size: 20),
+                  Text(_busy ? 'Menghubungkan...' : 'Masuk'),
+                  const SizedBox(width: 8),
+                  if (_busy)
+                    const SizedBox(
+                      height: 18,
+                      width: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    const Icon(Icons.arrow_forward_rounded, size: 20),
                 ],
               ),
             ),

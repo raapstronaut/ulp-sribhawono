@@ -4,4 +4,6 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Hanya DEBUG: emulator mengakses Laravel localhost via HTTP. Release wajib HTTPS. -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>
