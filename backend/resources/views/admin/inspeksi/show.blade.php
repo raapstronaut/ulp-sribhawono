@@ -94,7 +94,9 @@
                                 <select name="follow_up" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
                                     <option value="">Tanpa WO</option>
                                     @foreach ($followUpTypes as $value => $label)
-                                        <option value="{{ $value }}">{{ $label }}</option>
+                                        @if (! $finding->suggested_team_type || str_starts_with($value, $finding->suggested_team_type.'|'))
+                                            <option value="{{ $value }}">{{ $label }}</option>
+                                        @endif
                                     @endforeach
                                 </select>
                             </label>
@@ -119,6 +121,80 @@
                             @csrf
                             <input type="text" name="review_note" required minlength="5" maxlength="1000" placeholder="Alasan penolakan (wajib)" class="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs">
                             <x-admin.button variant="danger" size="sm" class="w-full">Tolak temuan</x-admin.button>
+                        </form>
+                    </div>
+                @elseif ($finding->validation_status === 'DISETUJUI' && $finding->follow_up_work_order_id === null && $finding->isApprovedPoskoApkukTarget())
+                    <div class="space-y-3">
+                        <form method="POST" action="{{ route('admin.inspeksi.findings.posko-work-order', $finding) }}" class="space-y-2 rounded-lg border border-blue-200 bg-blue-50/40 p-3" data-confirm="Buat WO manual POSKO dari temuan APKUK yang telah disetujui?">
+                            @csrf
+                            <p class="text-xs font-bold text-slate-800">Buat WO POSKO dari INSPEKSI</p>
+                            <p class="text-[11px] text-slate-600">No. tiang {{ $finding->apkuk_no_tiang }} · Kebutuhan {{ $finding->apkuk_target_quantity }} bh. Generator lama belum memisahkan kuota manual dan otomatis; jangan diaktifkan sebelum versi baru selesai.</p>
+                            <label class="block text-[11px] font-semibold text-slate-600">POSKO penanggung jawab
+                                <select name="posko_id" required class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+                                    <option value="">Pilih POSKO</option>
+                                    @foreach ($poskoOptions as $id => $name)
+                                        <option value="{{ $id }}" @selected(old('posko_id') === $id)>{{ $name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="block text-[11px] font-semibold text-slate-600">Tim pelaksana POSKO (opsional)
+                                <select name="field_team_id" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+                                    <option value="">Belum ditentukan</option>
+                                    @foreach ($teamsByRole[\App\Models\WorkOrder::TEAM_POSKO] ?? [] as $id => $name)
+                                        <option value="{{ $id }}" @selected(old('field_team_id') === $id)>{{ $name }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="text-[11px] font-semibold text-slate-600">Tanggal operasional<input type="date" name="work_date" required value="{{ old('work_date', $today) }}" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"></label>
+                                <label class="text-[11px] font-semibold text-slate-600">Shift
+                                    <select name="shift_code" required class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+                                        @foreach ($shiftOptions as $shift)
+                                            <option value="{{ $shift }}" @selected(old('shift_code') === $shift)>Shift {{ $shift }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            </div>
+                            <label class="block text-[11px] font-semibold text-slate-600">Catatan WO (opsional)
+                                <textarea name="notes" maxlength="2000" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">{{ old('notes') }}</textarea>
+                            </label>
+                            <x-admin.button size="sm" class="w-full">Buat WO POSKO</x-admin.button>
+                        </form>
+                    </div>
+                @elseif ($finding->validation_status === 'DISETUJUI' && $finding->follow_up_work_order_id === null)
+                    <div class="space-y-3">
+                        <form method="POST" action="{{ route('admin.inspeksi.findings.work-order', $finding) }}" class="space-y-2 rounded-lg border border-blue-200 bg-blue-50/40 p-3" data-confirm="Buat WO dari temuan yang sudah disetujui ini?">
+                            @csrf
+                            <p class="text-xs font-bold text-slate-800">Buat WO dari temuan disetujui</p>
+                            <p class="text-[11px] text-slate-600">HARSUS/ROW saja pada tahap ini. Temuan POSKO menunggu integrasi target inspeksi tersendiri.</p>
+                            <label class="block text-[11px] font-semibold text-slate-600">Jenis WO
+                                <select name="follow_up" required class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+                                    <option value="">Pilih pekerjaan</option>
+                                    @foreach ($followUpTypes as $value => $label)
+                                        @if (! $finding->suggested_team_type || str_starts_with($value, $finding->suggested_team_type.'|'))
+                                            <option value="{{ $value }}" @selected(old('follow_up') === $value)>{{ $label }}</option>
+                                        @endif
+                                    @endforeach
+                                </select>
+                            </label>
+                            <label class="block text-[11px] font-semibold text-slate-600">Tim pelaksana (opsional)
+                                <select name="field_team_id" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">
+                                    <option value="">Belum ditentukan</option>
+                                    @foreach ($teamsByRole as $role => $teams)
+                                        <optgroup label="{{ $role }}">
+                                            @foreach ($teams as $id => $name)<option value="{{ $id }}" @selected(old('field_team_id') === $id)>{{ $name }}</option>@endforeach
+                                        </optgroup>
+                                    @endforeach
+                                </select>
+                            </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="text-[11px] font-semibold text-slate-600">Tanggal kerja<input type="date" name="work_date" required value="{{ old('work_date', $today) }}" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"></label>
+                                <label class="text-[11px] font-semibold text-slate-600">Target selesai<input type="date" name="due_date" required value="{{ old('due_date', $today) }}" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"></label>
+                            </div>
+                            <label class="block text-[11px] font-semibold text-slate-600">Catatan WO (opsional)
+                                <textarea name="notes" maxlength="2000" rows="2" class="mt-1 w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs">{{ old('notes') }}</textarea>
+                            </label>
+                            <x-admin.button size="sm" class="w-full">Buat WO</x-admin.button>
                         </form>
                     </div>
                 @endif

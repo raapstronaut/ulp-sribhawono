@@ -137,6 +137,7 @@ class ApkukShiftGeneratorTest extends OperationsTestCase
         $this->assertSame(['WO-LIMPAH-BERULANG'], $row['carry_over_codes']);
     }
 
+    /** LEGACY: test will be rewritten when the automatic source switches to INSPEKSI FULL. */
     public function test_manual_work_already_scheduled_occupies_a_slot(): void
     {
         $this->workOrder($this->posko, 'MANUAL', self::SHIFT, WorkOrderStatus::Ditugaskan);
@@ -403,6 +404,7 @@ class ApkukShiftGeneratorTest extends OperationsTestCase
             ->assertSee(SectionPoskoMap::LABELS[SectionPoskoMap::REASON_SECTION_TIDAK_DIKENAL]);
     }
 
+    /** LEGACY: generator still uses APKUK SPS and includes manual work in slot calculation. */
     public function test_manual_work_order_created_before_generator_occupies_the_quota(): void
     {
         $this->candidates(8, 'SEC PUGUNG');
@@ -415,50 +417,49 @@ class ApkukShiftGeneratorTest extends OperationsTestCase
         $this->assertSame(6, WorkOrder::query()->apkuk()->where('posko_id', $this->posko->id)->whereDate('work_date', self::DATE)->where('shift_code', self::SHIFT)->count());
     }
 
-    public function test_manual_work_order_is_refused_once_the_shift_quota_is_full(): void
+    public function test_manual_work_order_is_allowed_above_six_after_legacy_generation(): void
     {
         $this->candidates(8, 'SEC PUGUNG');
         $this->generate();
         $extra = $this->manualCandidate('F.REOG.700003');
 
-        $this->manual($extra)->assertSessionHasErrors(['shift_code' => 'Kuota WO APKUK Posko PUGUNG Shift B hari operasional 29/10/2026 sudah penuh (kuota 6, terisi 6: limpahan sah 0, WO lain 6). WO tidak ditempatkan di shift ini; pilih shift lain atau batalkan WO yang tidak diperlukan.']);
-        $this->assertSame(6, WorkOrder::query()->count(), 'Tidak ada WO ketujuh, tidak ada WO yang dibatalkan.');
-
-        // Posko lain dan shift lain punya kuota sendiri.
-        $this->manual($extra, self::DATE, 'C')->assertSessionHasNoErrors();
+        $this->manual($extra)->assertSessionHasNoErrors();
+        $this->assertSame(7, WorkOrder::query()->count(), 'WO ketujuh manual sah; WO generator tetap enam.');
+        $this->manual($extra, self::DATE, 'C')->assertSessionHasErrors('apkuk_id'); // Tiang dengan WO aktif tidak boleh diduplikasi.
+        $this->manual($this->manualCandidate('F.REOG.700005'), self::DATE, 'C')->assertSessionHasNoErrors();
         $this->manual($this->manualCandidate('F.REOG.700004'), self::DATE, self::SHIFT, $this->wayJepara)->assertSessionHasNoErrors();
-        $this->assertSame(8, WorkOrder::query()->count());
+        $this->assertSame(9, WorkOrder::query()->count());
     }
 
-    public function test_manual_can_fill_shortfall_up_to_quota_and_monitoring_separates_frozen_allocation_from_current_total(): void
+    public function test_manual_can_exceed_six_and_monitoring_separates_frozen_allocation_from_current_total(): void
     {
         $this->candidates(2, 'SEC PUGUNG');
         $this->generate();
         foreach (range(1, 4) as $i) {
             $this->manual($this->manualCandidate('F.REOG.70010'.$i))->assertSessionHasNoErrors();
         }
-        $this->manual($this->manualCandidate('F.REOG.700105'))->assertSessionHasErrors('shift_code');
+        $this->manual($this->manualCandidate('F.REOG.700105'))->assertSessionHasNoErrors();
 
         $allocation = ApkukShiftAllocation::query()->where('posko_id', $this->posko->id)->sole();
         $this->assertSame([2, 2, 4], [$allocation->generated_count, $allocation->total_count, $allocation->shortfall_count], 'Angka alokasi tetap beku.');
 
         $page = $this->actingAs($this->admin)->get(route('admin.shift-quota.index', ['operational_date' => self::DATE, 'shift_code' => self::SHIFT]))->assertOk();
         $row = $page->viewData('rows')->firstWhere('posko.nama_posko', 'PUGUNG');
-        $this->assertSame([6, 4, 2, 0, 4], [$row['total'], $row['manual']->count(), $row['generated']->count(), $row['overload'], $row['allocation_drift']]);
-        $page->assertSee('Saat generate: limpahan 0 + lain 0 + dibuat 2 = 2')->assertSee('Berubah setelah generate: WO nyata kini 6 (+4)');
+        $this->assertSame([7, 5, 2, 1, 5], [$row['total'], $row['manual']->count(), $row['generated']->count(), $row['overload'], $row['allocation_drift']]);
+        $page->assertSee('Saat generate: limpahan 0 + lain 0 + dibuat 2 = 2')->assertSee('Berubah setelah generate: WO nyata kini 7 (+5)');
 
         $preview = $this->summaryFor($this->preview(), 'PUGUNG');
-        $this->assertSame([ApkukShiftGenerator::POSKO_ALREADY_GENERATED, 2, 4, 6], [$preview['status'], $preview['total'], $preview['shortfall'], $preview['current_total']]);
+        $this->assertSame([ApkukShiftGenerator::POSKO_ALREADY_GENERATED, 2, 4, 7], [$preview['status'], $preview['total'], $preview['shortfall'], $preview['current_total']]);
     }
 
-    public function test_eight_carry_overs_are_kept_manual_is_refused_and_approved_reschedule_may_still_overload(): void
+    public function test_eight_carry_overs_are_kept_manual_is_allowed_and_approved_reschedule_may_overload(): void
     {
         $carried = collect(range(1, 8))->map(fn (int $i) => $this->carryOver($this->posko, (string) $i));
         $this->candidates(3, 'SEC PUGUNG');
 
         $row = $this->summaryFor($this->generate(), 'PUGUNG');
         $this->assertSame([8, 0, 8, 2], [$row['carry_over'], $row['new'], $row['total'], $row['overload']]);
-        $this->manual($this->manualCandidate('F.REOG.700201'))->assertSessionHasErrors('shift_code');
+        $this->manual($this->manualCandidate('F.REOG.700201'))->assertSessionHasNoErrors();
 
         // Limpahan sah tetap boleh masuk walau shift sudah di atas kuota.
         $moving = $this->workOrder($this->posko, 'MASUK-LIMPAH', 'A', WorkOrderStatus::RescheduleDiajukan);
@@ -476,11 +477,11 @@ class ApkukShiftGeneratorTest extends OperationsTestCase
 
         $page = $this->actingAs($this->admin)->get(route('admin.shift-quota.index', ['operational_date' => self::DATE, 'shift_code' => self::SHIFT]))->assertOk();
         $pugung = $page->viewData('rows')->firstWhere('posko.nama_posko', 'PUGUNG');
-        $this->assertSame([9, 9, 3, true, 1], [$pugung['total'], $pugung['carry_over']->count(), $pugung['overload'], $pugung['overload_from_carry_over'], $pugung['allocation_drift']]);
-        $page->assertSee('dari limpahan sah, dipertahankan');
+        $this->assertSame([10, 9, 4, true, 2], [$pugung['total'], $pugung['carry_over']->count(), $pugung['overload'], $pugung['overload_from_carry_over'], $pugung['allocation_drift']]);
+        $page->assertSee('WO manual dan limpahan dapat sah');
     }
 
-    public function test_admin_schedule_edit_cannot_move_apkuk_work_order_into_a_full_shift(): void
+    public function test_admin_schedule_edit_can_move_manual_apkuk_work_order_into_full_shift(): void
     {
         $this->candidates(8, 'SEC PUGUNG');
         $this->generate();
@@ -488,11 +489,11 @@ class ApkukShiftGeneratorTest extends OperationsTestCase
         $workOrder = WorkOrder::query()->where('source', WorkOrder::SOURCE_ADMIN_MANUAL)->sole();
 
         $this->actingAs($this->admin)->put(route('admin.work-orders.update', $workOrder), ['work_date' => self::DATE, 'shift_code' => self::SHIFT, 'reason' => 'Pindah ke shift sore'])
-            ->assertSessionHasErrors('shift_code');
-        $this->assertSame('C', $workOrder->fresh()->shift_code);
+            ->assertSessionHasNoErrors();
+        $this->assertSame('B', $workOrder->fresh()->shift_code);
 
-        // Koreksi tanpa pindah jadwal dan pindah ke shift yang masih punya slot tetap boleh.
-        $this->actingAs($this->admin)->put(route('admin.work-orders.update', $workOrder), ['work_date' => self::DATE, 'shift_code' => 'C', 'notes' => 'Bawa tangga', 'reason' => 'Tambah catatan'])
+        // Koreksi tanpa pindah jadwal dan pindah ke hari selanjutnya tetap boleh.
+        $this->actingAs($this->admin)->put(route('admin.work-orders.update', $workOrder), ['work_date' => self::DATE, 'shift_code' => 'B', 'notes' => 'Bawa tangga', 'reason' => 'Tambah catatan'])
             ->assertSessionHasNoErrors();
         $this->actingAs($this->admin)->put(route('admin.work-orders.update', $workOrder), ['work_date' => '2026-10-30', 'shift_code' => 'A', 'reason' => 'Pindah ke besok pagi'])
             ->assertSessionHasNoErrors();
@@ -514,7 +515,7 @@ class ApkukShiftGeneratorTest extends OperationsTestCase
         $this->assertTrue($system->every(fn (WorkOrder $wo) => $wo->work_date->toDateString() === self::DATE && $wo->shift_code === 'C'
             && $wo->scheduled_start_at->utc()->format('Y-m-d H:i') === '2026-10-29 17:00'), 'Shift C hari 29 = 30 Okt 00:00–08:00 WIB.');
 
-        $this->manual($this->manualCandidate('F.REOG.700401'), self::DATE, 'C')->assertSessionHasErrors('shift_code');
+        $this->manual($this->manualCandidate('F.REOG.700401'), self::DATE, 'C')->assertSessionHasNoErrors();
         $this->manual($this->manualCandidate('F.REOG.700402'), '2026-10-30', 'C')->assertSessionHasNoErrors();
         $this->assertSame(1, WorkOrder::query()->whereDate('work_date', '2026-10-30')->where('shift_code', 'C')->count());
     }

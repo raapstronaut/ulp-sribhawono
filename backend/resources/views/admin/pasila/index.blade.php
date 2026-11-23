@@ -22,7 +22,7 @@
         section="Pekerjaan"
         title="PASILA Monitor"
         state="partial"
-        description="Pantau sesi patroli enam Posko, penentuan Section, laporan patroli, dan kewajiban P0 untuk setiap shift."
+        description="Pantau sesi survei area enam POSKO, laporan patroli, serta WO P0 khusus Admin bila ada."
     >
         <x-slot:actions>
             @if ($blockedReason)
@@ -75,7 +75,7 @@
         <div class="mt-3 space-y-2 border-t border-amber-200 pt-3 leading-relaxed text-amber-900">
             <p>Pembukaan sesi {{ $blockedReason ? 'nonaktif di lingkungan ini' : 'diizinkan oleh konfigurasi' }}. Pembukaan otomatis tetap memerlukan scheduler yang berjalan; status scheduler tidak disimpulkan dari konfigurasi ini.</p>
             <p>Strategi {{ $strategy->name() }} {{ $strategy->version() }} adalah rotasi baseline, bukan ML atau skor risiko. Referensi Section–Posko berasal dari SECTION_PIC_RAW yang masih staging; entri ambigu ditahan.</p>
-            <p>Tanpa temuan <strong>dan</strong> tanpa laporan nihil berarti <strong>belum ada laporan patroli</strong>. Target P0 minimal {{ \App\Services\Pasila\P0Service::TARGET_PER_SHIFT }} yang selesai per Posko per shift. P0 pengganti baru belum memenuhi target; PASILA boleh nihil walau target P0 belum terpenuhi.</p>
+            <p>Tanpa temuan <strong>dan</strong> tanpa laporan nihil berarti <strong>belum ada laporan patroli</strong>. P0 adalah pekerjaan khusus yang hanya diterbitkan Admin jika diperlukan, tanpa kuota wajib per shift. PASILA adalah survei area dan dapat melaporkan temuan maupun nihil.</p>
         </div>
     </details>
 
@@ -114,7 +114,7 @@
                     <th class="px-4 py-3">Penyulang · Section</th>
                     <th class="px-4 py-3">Laporan patroli</th>
                     <th class="px-4 py-3">WO APKUK / reschedule</th>
-                    <th class="px-4 py-3">Target P0 · pengganti</th>
+                    <th class="px-4 py-3">P0 khusus Admin</th>
                     <th class="px-4 py-3 text-center">Aksi</th>
                 </x-slot:head>
                 @forelse ($rows as $row)
@@ -181,12 +181,12 @@
                                 <div class="mt-1"><x-admin.status-badge tone="amber">{{ $row['reschedule'] }} reschedule menunggu</x-admin.status-badge></div>
                             @endif
                         </td>
-                        <td class="px-4 py-4 text-[11px]" data-p0-obligation="{{ $row['p0'] === null ? '' : ($row['p0']['fulfilled'] ? 'TERPENUHI' : 'BELUM') }}">
+                        <td class="px-4 py-4 text-[11px]" data-p0-obligation="{{ $row['p0'] === null ? '' : 'TANPA_KUOTA' }}">
                             @if ($row['p0'] === null)
                                 <span class="text-slate-400">—</span>
                             @else
-                                <x-admin.status-badge :tone="$row['p0']['fulfilled'] ? 'emerald' : 'amber'">Target {{ $row['p0']['fulfilled'] ? 'terpenuhi' : 'belum terpenuhi' }}</x-admin.status-badge>
-                                <div class="mt-1.5 font-semibold text-slate-700">{{ $row['p0']['completed'] }}/{{ $row['p0']['target'] }} P0 selesai</div>
+                                <x-admin.status-badge tone="slate">Tidak ada kuota P0</x-admin.status-badge>
+                                <div class="mt-1.5 font-semibold text-slate-700">{{ $row['p0']['assigned'] }} WO diterbitkan · {{ $row['p0']['completed'] }} selesai</div>
                                 @foreach ([\App\Models\P0Item::STAGE_AKTIF => 'aktif', \App\Models\P0Item::STAGE_MENUNGGU_VERIFIKASI => 'menunggu verifikasi', \App\Models\P0Item::STAGE_MENUNGGU_ACC => 'menunggu ACC'] as $stage => $text)
                                     @if (($row['p0']['stages'][$stage] ?? 0) > 0)
                                         <div class="mt-1 text-slate-500">{{ $row['p0']['stages'][$stage] }} {{ $text }}</div>

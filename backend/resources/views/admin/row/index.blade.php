@@ -18,6 +18,7 @@
         description="Pantau WO RABAS, PANGKAS, dan TEBANG, termasuk pelaksanaan, keterlambatan, dan hasil kerja tim ROW."
     >
         <x-slot:actions>
+            <a href="{{ route('admin.row.plan') }}" class="inline-flex items-center rounded-lg border border-blue-200 px-3 py-2 text-sm font-bold text-blue-700 hover:bg-blue-50">Perencanaan dari INSPEKSI</a>
             <x-admin.button :href="route('admin.team-work-orders.create', 'row')">Buat WO ROW</x-admin.button>
         </x-slot:actions>
     </x-admin.page-header>

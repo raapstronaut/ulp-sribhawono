@@ -34,14 +34,16 @@ use Illuminate\Validation\ValidationException;
  * - Usulan SYSTEM menunggu ACC Admin dan bukan pekerjaan. ACC membuat WO P0; tolak menimbulkan
  *   kewajiban P0 manual pengganti dalam sesi yang sama. P0 manual Admin divalidasi setara.
  * - WO P0 dikerjakan POSKO lewat alur WO yang ada (laporan BEFORE/AFTER, GPS, petugas, verifikasi
- *   Admin). Target P0 shift terpenuhi hanya oleh WO P0 yang SELESAI.
+ *   Admin). P0 merupakan tugas khusus yang diterbitkan Admin bila diperlukan; tidak ada
+ *   target jumlah P0 per POSKO per shift. Catatan usulan SYSTEM lama tetap dapat diaudit.
  * - Satu sumber hanya boleh punya satu P0 berjalan (active_source_key unik); titik yang sama tidak
  *   boleh punya dua WO P0 aktif (active_target_key). P0 tidak termasuk kuota WO APKUK.
- * - Tidak ada kandidat yang dikarang: tanpa sumber sah, tidak ada P0 dan kewajiban tetap tampil.
+ * - Tidak ada kandidat yang dikarang: tanpa sumber sah, tidak ada P0; tidak dianggap kurang target.
  */
 class P0Service
 {
-    public const TARGET_PER_SHIFT = 1;
+    /** @deprecated Tidak ada lagi target wajib P0 per shift. Nol untuk kompatibilitas pembaca lama. */
+    public const TARGET_PER_SHIFT = 0;
 
     private const MIN_TEXT = 10;
 
@@ -236,12 +238,13 @@ class P0Service
     }
 
     /**
-     * Dua kewajiban terpisah dalam satu sesi:
-     * - target P0 shift: terpenuhi hanya oleh WO P0 berstatus SELESAI (pengganti yang baru dibuat belum memenuhi);
-     * - kewajiban Admin menyediakan pengganti: jumlah usulan ditolak yang belum diganti.
+     * Ringkasan P0 sesi: bukan kuota wajib. P0 hanya ada jika Admin menerbitkan WO khusus.
+     * Kunci target/fulfilled dipertahankan untuk pembaca snapshot lama (target=0;
+     * fulfilled=true berarti tidak ada target yang harus dikejar, BUKAN ada P0 selesai).
+     * Pengganti usulan lama yang terlanjur ditolak tetap tercatat sebagai histori.
      *
      * @param  Collection<int, P0Item>  $items  P0 sesi (dengan workOrder)
-     * @return array{target: int, completed: int, fulfilled: bool, replacement_open: int, stages: array<string, int>}
+     * @return array{target: int, completed: int, fulfilled: bool, quota_applicable: bool, assigned: int, replacement_open: int, stages: array<string, int>}
      */
     public static function obligation(Collection $items): array
     {
@@ -249,9 +252,11 @@ class P0Service
         $completed = $stages[P0Item::STAGE_SELESAI] ?? 0;
 
         return [
-            'target' => self::TARGET_PER_SHIFT,
+            'target' => 0,
             'completed' => $completed,
-            'fulfilled' => $completed >= self::TARGET_PER_SHIFT,
+            'fulfilled' => true,
+            'quota_applicable' => false,
+            'assigned' => $items->whereNotNull('work_order_id')->count(),
             'replacement_open' => $stages[P0Item::STAGE_MENUNGGU_PENGGANTI] ?? 0,
             'stages' => $stages,
         ];

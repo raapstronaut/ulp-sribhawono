@@ -35,6 +35,7 @@ class TeamWorkOrderCreator
         private readonly WorkOrderCodeGenerator $codes,
         private readonly WorkSchedule $schedule,
         private readonly WorkOrderLifecycleService $lifecycle,
+        private readonly RowPointConflictGuard $rowPointGuard,
     ) {}
 
     /**
@@ -86,6 +87,13 @@ class TeamWorkOrderCreator
         for ($attempt = 1; ; $attempt++) {
             try {
                 return DB::transaction(function () use ($admin, $input, $penyulang, $target, $source, $parent, $payload, $now, $posko, $team, $schedule, $activeKey, $teamType): WorkOrder {
+                    // ROW manual and ROW generator share exactly the same
+                    // PostgreSQL transaction-scoped lock, before code allocation.
+                    // Skip intentional lockTarget=false exception paths.
+                    if ($teamType === WorkOrder::TEAM_ROW && $activeKey !== null) {
+                        $this->rowPointGuard->lock();
+                        $this->rowPointGuard->assertNoActiveRowAtPoint($target);
+                    }
                     $this->assertNotDuplicate($activeKey);
 
                     $workOrder = WorkOrder::create([

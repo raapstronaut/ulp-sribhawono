@@ -161,8 +161,8 @@ class P0Item extends Model
     }
 
     /**
-     * Tahap monitoring. Hanya STAGE_SELESAI (WO SELESAI setelah laporan dan verifikasi) yang
-     * memenuhi target P0 shift.
+     * Tahap monitoring pekerjaan P0 khusus. SELESAI berarti pekerjaan selesai,
+     * bukan pemenuhan kuota (P0 tidak memiliki target minimal per shift).
      */
     public function stage(): string
     {

@@ -34,6 +34,7 @@ use Throwable;
  * - Satu temuan satu lokasi (aset keypoint atau koordinat) dan foto sendiri.
  * - Temuan baru menjadi dasar tindakan setelah ACC Admin; WO tindak lanjut opsional.
  * - Rekomendasi tim penerima otomatis belum ada (algoritma TBD): saran diisi petugas/Admin.
+ * - Satu form INSPEKSI; target APKUK dicatat pada temuan dengan saran tim POSKO.
  */
 class InspectionService
 {
@@ -72,9 +73,9 @@ class InspectionService
                 'personnel' => fn (Inspection $inspection) => IdempotentSubmission::samePersonnel($inspection->personnel, $data['personnel_ids'] ?? [], $data['personnel_names'] ?? []),
                 'findings' => fn (Inspection $inspection) => IdempotentSubmission::sameList(
                     $inspection->findings()->with('media')->get()
-                        ->map(fn (InspectionFinding $finding) => self::findingSignature($finding->finding_code, $finding->description, $finding->keypoint_id, $finding->media->pluck('sha256')->all()))
+                        ->map(fn (InspectionFinding $finding) => self::findingSignature($finding->finding_code, $finding->description, $finding->keypoint_id, $finding->media->pluck('sha256')->all(), $finding->apkuk_no_tiang, $finding->apkuk_target_quantity, $finding->suggested_team_type))
                         ->all(),
-                    array_map(fn (array $finding) => self::findingSignature($finding['finding_code'] ?? '', $finding['description'] ?? '', $finding['keypoint_id'] ?? null, IdempotentSubmission::hashes($finding['photos'] ?? [])), $findings),
+                    array_map(fn (array $finding) => self::findingSignature($finding['finding_code'] ?? '', $finding['description'] ?? '', $finding['keypoint_id'] ?? null, IdempotentSubmission::hashes($finding['photos'] ?? []), $finding['apkuk_no_tiang'] ?? null, $finding['apkuk_target_quantity'] ?? null, $finding['suggested_team_type'] ?? null), $findings),
                 ),
             ],
             fn () => $this->create($data, $actor, $submittingTeam, $source, $requirePhotos),
@@ -86,11 +87,11 @@ class InspectionService
      *
      * @param  array<int, string>  $hashes
      */
-    private static function findingSignature(mixed $code, mixed $description, mixed $keypointId, array $hashes): string
+    private static function findingSignature(mixed $code, mixed $description, mixed $keypointId, array $hashes, mixed $pole = null, mixed $quantity = null, mixed $suggestedTeam = null): string
     {
         sort($hashes);
 
-        return json_encode([trim((string) $code), trim((string) $description), filled($keypointId) ? (int) $keypointId : null, $hashes]);
+        return json_encode([trim((string) $code), trim((string) $description), filled($keypointId) ? (int) $keypointId : null, $hashes, mb_strtoupper(trim((string) $pole)), filled($quantity) ? (int) $quantity : null, filled($suggestedTeam) ? (string) $suggestedTeam : null]);
     }
 
     /**
@@ -142,6 +143,7 @@ class InspectionService
                     'longitude' => $data['longitude'] ?? null,
                     'gps_accuracy_m' => $data['gps_accuracy_m'] ?? null,
                     'source' => $source,
+                    'inspection_type' => Inspection::TYPE_REGULAR, // hidden legacy column; no type distinction
                     'submitted_by_field_team_id' => $submittingTeam?->getKey(),
                     'submitted_by_user_id' => $actor->getKey(),
                     'client_request_id' => $data['client_request_id'] ?? null,
@@ -162,6 +164,8 @@ class InspectionService
                         'longitude' => $finding['longitude'],
                         'occurred_at' => $visitedAt->utc(),
                         'suggested_team_type' => $finding['suggested_team_type'],
+                        'apkuk_no_tiang' => $finding['apkuk_no_tiang'],
+                        'apkuk_target_quantity' => $finding['apkuk_target_quantity'],
                         'validation_status' => InspectionFinding::VALIDATION_MENUNGGU,
                     ]);
                     foreach ($stored[$index] ?? [] as $file) {
@@ -209,6 +213,9 @@ class InspectionService
                 }
                 if ($teamType === WorkOrder::TEAM_HARSUS && $finding->keypoint_id === null) {
                     throw ValidationException::withMessages(['follow_up_team_type' => 'WO HARSUS wajib menunjuk aset jaringan; temuan ini tidak terkait keypoint.']);
+                }
+                if (filled($finding->suggested_team_type) && $finding->suggested_team_type !== $teamType) {
+                    throw ValidationException::withMessages(['follow_up_team_type' => 'Tim WO harus sesuai tim tujuan yang dipilih saat INSPEKSI.']);
                 }
                 $penyulang = $finding->inspection->penyulang;
                 $workOrder = $this->creator->create($admin, [
@@ -321,6 +328,23 @@ class InspectionService
             throw ValidationException::withMessages(["{$key}.suggested_team_type" => 'Saran tim tidak dikenal.']);
         }
 
+        // Tidak memakai `kurang_bh` dari SPS. Kebutuhan APKUK berasal dari temuan INSPEKSI.
+        $apkukPole = mb_strtoupper(trim((string) ($finding['apkuk_no_tiang'] ?? '')));
+        $apkukQuantity = $finding['apkuk_target_quantity'] ?? null;
+        $hasApkukTarget = $apkukPole !== '' || filled($apkukQuantity);
+        if ($hasApkukTarget) {
+            if ($suggested !== WorkOrder::TEAM_POSKO) {
+                throw ValidationException::withMessages(["{$key}.suggested_team_type" => 'Temuan kebutuhan APKUK harus menyarankan tim POSKO.']);
+            }
+            if (in_array($apkukPole, ['', '-', 'DUMMY'], true) || mb_strlen($apkukPole) > 191) {
+                throw ValidationException::withMessages(["{$key}.apkuk_no_tiang" => 'Nomor tiang APKUK wajib diisi dengan identitas yang sah.']);
+            }
+            if (filter_var($apkukQuantity, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => 1000]]) === false) {
+                throw ValidationException::withMessages(["{$key}.apkuk_target_quantity" => 'Jumlah kebutuhan APKUK harus 1–1000.']);
+            }
+            $apkukQuantity = (int) $apkukQuantity;
+        }
+
         $photos = array_values(array_filter($finding['photos'] ?? [], fn ($file) => $file instanceof UploadedFile));
         if ($requirePhotos && $photos === []) {
             throw ValidationException::withMessages(["{$key}.photos" => 'Setiap temuan wajib menyertakan minimal satu foto.']);
@@ -334,6 +358,8 @@ class InspectionService
             'latitude' => $latitude,
             'longitude' => $longitude,
             'suggested_team_type' => $suggested,
+            'apkuk_no_tiang' => $hasApkukTarget ? $apkukPole : null,
+            'apkuk_target_quantity' => $hasApkukTarget ? $apkukQuantity : null,
             'photos' => $photos,
         ];
     }

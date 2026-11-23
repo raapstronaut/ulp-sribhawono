@@ -19,6 +19,13 @@ class Inspection extends Model
 
     public const SOURCE_ADMIN = 'ADMIN';
 
+    // Legacy storage values only. There is ONE inspection form; these values are
+    // retained for historical records and existing database migrations/clients.
+    // Never use inspection_type to decide which approved finding may become a WO.
+    public const TYPE_REGULAR = 'UMUM';
+
+    public const TYPE_FULL = 'FULL';
+
     protected $fillable = [
         'code',
         'field_team_id',
@@ -31,6 +38,7 @@ class Inspection extends Model
         'longitude',
         'gps_accuracy_m',
         'source',
+        'inspection_type',
         'submitted_by_field_team_id',
         'submitted_by_user_id',
         'client_request_id',

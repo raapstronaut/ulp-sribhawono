@@ -144,7 +144,6 @@ class PasilaController extends Controller
         $snapshot = $closure->snapshot;
         // Peringatan tidak memblokir penutupan; kewajiban tetap berjalan terpisah.
         $warnings = array_filter([
-            'P0_TARGET_BELUM_TERPENUHI' => ($snapshot['p0']['fulfilled'] ?? false) ? null : 'Target P0 shift belum terpenuhi; status tetap tercatat belum terpenuhi.',
             'APKUK_RESCHEDULE_MENUNGGU_ACC' => ($snapshot['apkuk']['reschedule_menunggu_acc'] ?? 0) > 0 ? $snapshot['apkuk']['reschedule_menunggu_acc'].' WO APKUK menunggu ACC reschedule; kewajiban WO tetap berjalan.' : null,
             'APKUK_BELUM_SELESAI' => ($snapshot['apkuk']['belum_selesai'] ?? 0) > 0 ? $snapshot['apkuk']['belum_selesai'].' WO APKUK belum selesai.' : null,
         ]);

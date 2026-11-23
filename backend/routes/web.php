@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\HarsusController;
 use App\Http\Controllers\Admin\InspectionController;
+use App\Http\Controllers\Admin\InspectionFullQuotaPreviewController;
 use App\Http\Controllers\Admin\MapDataController;
 use App\Http\Controllers\Admin\MasterDataController;
 use App\Http\Controllers\Admin\MasterDataManageController;
@@ -16,6 +17,7 @@ use App\Http\Controllers\Admin\P0Controller;
 use App\Http\Controllers\Admin\PasilaController;
 use App\Http\Controllers\Admin\ReviewController;
 use App\Http\Controllers\Admin\RowController;
+use App\Http\Controllers\Admin\RowPlanController;
 use App\Http\Controllers\Admin\ShiftQuotaController;
 use App\Http\Controllers\Admin\SpecialCaseController;
 use App\Http\Controllers\Admin\TeamWorkOrderController;
@@ -140,6 +142,8 @@ Route::prefix('admin')
 
         // Kuota 6 WO APKUK per Posko per shift: monitoring, pratinjau, dan generate (terkunci pengaman aktivasi).
         Route::get('/kuota-shift', [ShiftQuotaController::class, 'index'])->name('shift-quota.index');
+        // V6B1: read-only INSPEKSI FULL candidate preview (never invokes legacy generator).
+        Route::get('/kuota-shift/inspeksi-full', [InspectionFullQuotaPreviewController::class, 'index'])->name('shift-quota.inspection-full');
         Route::post('/kuota-shift/eksekusi', [ShiftQuotaController::class, 'run'])->name('shift-quota.run');
 
         // Sesi PASILA per Posko per shift: monitor, buka sesi shift berjalan (terkunci flag), tetapkan Section.
@@ -155,8 +159,14 @@ Route::prefix('admin')
         Route::get('/inspeksi/{inspection}', [InspectionController::class, 'show'])->name('inspeksi.show');
         Route::post('/inspeksi/temuan/{finding}/approve', [InspectionController::class, 'approveFinding'])->name('inspeksi.findings.approve');
         Route::post('/inspeksi/temuan/{finding}/reject', [InspectionController::class, 'rejectFinding'])->name('inspeksi.findings.reject');
+        Route::post('/inspeksi/temuan/{finding}/work-order', [InspectionController::class, 'createApprovedFindingWorkOrder'])->name('inspeksi.findings.work-order');
+        Route::post('/inspeksi/temuan/{finding}/posko-work-order', [InspectionController::class, 'createApprovedPoskoWorkOrder'])->name('inspeksi.findings.posko-work-order');
 
         Route::get('/row', [RowController::class, 'index'])->name('row.index');
+        // V10: penugasan ROW eksplisit oleh Admin; tidak membuat WO dan tidak memanggil generator.
+        Route::get('/row/perencanaan', [RowPlanController::class, 'index'])->name('row.plan');
+        Route::get('/row/perencanaan/pratinjau', [RowPlanController::class, 'preview'])->name('row.plan.preview');
+        Route::post('/row/perencanaan/{finding}', [RowPlanController::class, 'store'])->whereUuid('finding')->name('row.plan.store');
         Route::get('/harsus', [HarsusController::class, 'index'])->name('harsus.index');
         Route::get('/{team}/create', [TeamWorkOrderController::class, 'create'])->whereIn('team', ['row', 'harsus'])->name('team-work-orders.create');
         Route::post('/{team}', [TeamWorkOrderController::class, 'store'])->whereIn('team', ['row', 'harsus'])->name('team-work-orders.store');

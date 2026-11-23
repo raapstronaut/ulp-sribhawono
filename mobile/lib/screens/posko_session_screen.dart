@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/posko_auth.dart';
 import 'login_screen.dart';
+import 'work_order_live_screen.dart';
 
 /// Temporary pilot screen: shows live API identity / roster, NOT mock WO data.
 class PoskoSessionScreen extends StatefulWidget {
@@ -116,6 +117,16 @@ class _PoskoSessionScreenState extends State<PoskoSessionScreen> {
               ),
             ],
             const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => WorkOrderLiveScreen(token: session.token),
+                ),
+              ),
+              icon: const Icon(Icons.assignment_outlined),
+              label: const Text('Lihat WO asli dari Laravel'),
+            ),
+            const SizedBox(height: 12),
             FilledButton(
               onPressed: _loggingOut ? null : _logout,
               child: Text(_loggingOut ? 'Keluar...' : 'Logout dari server'),

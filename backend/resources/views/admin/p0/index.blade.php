@@ -174,7 +174,7 @@
         <div class="space-y-2 border-t border-amber-200 px-4 py-3 text-xs leading-5 text-slate-700">
             <p><strong>1. Sumber tercatat:</strong> temuan PASILA atau inspeksi tervalidasi pada Section milik POSKO yang sesuai.</p>
             <p><strong>2. Keputusan:</strong> usulan SYSTEM wajib ACC Admin sebelum menjadi WO. Jika ditolak, Admin wajib membuat P0 manual pengganti dari sesi yang sama.</p>
-            <p><strong>3. Pelaksanaan:</strong> target minimal <strong>{{ \App\Services\Pasila\P0Service::TARGET_PER_SHIFT }} P0 selesai per POSKO per shift</strong>. P0 yang baru diusulkan atau dibuat belum otomatis memenuhi target; P0 terpisah dari kuota enam WO APKUK.</p>
+            <p><strong>3. Pelaksanaan:</strong> P0 adalah WO khusus yang dibuat berdasarkan keputusan Admin jika diperlukan, <strong>tanpa kuota wajib tiap shift</strong>. P0 terpisah dari kuota enam WO APKUK; tidak adanya P0 bukan kekurangan tugas.</p>
             <p>Usulan SYSTEM otomatis: <strong>{{ $strategy->notReadyReason() ?? ($strategy->name().' '.$strategy->version()) }}</strong></p>
         </div>
     </details>

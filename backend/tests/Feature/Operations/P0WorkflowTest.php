@@ -33,7 +33,7 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * B3.3 — P0 POSKO: usulan SYSTEM (ACC/tolak), P0 manual dan pengganti, pelaksanaan oleh POSKO,
- * target P0 shift dihitung dari penyelesaian. Data simulasi.
+ * P0 khusus tanpa target wajib per shift; usulan SYSTEM lama diuji untuk kompatibilitas. Data simulasi.
  *
  * Waktu uji: 29 Okt 2026 09:00 WIB (Shift A hari operasional 29). PUGUNG memegang LBSM BEDANA
  * (BEDANA) dan LBSM GUNUNG MAS (REOG); WAY JEPARA memegang REC BRAJA DEWA (REOG).
@@ -125,7 +125,7 @@ class P0WorkflowTest extends OperationsTestCase
 
         $this->actingAs($this->admin)->get(route('admin.pasila.index'))->assertOk()->assertSee('Pengganti wajib dibuat Admin: 1');
         $this->actingAs($this->admin)->get($this->pasilaUrl())->assertOk()
-            ->assertSee('Ditolak, menunggu P0 pengganti')->assertSee('Target P0 shift: belum terpenuhi')->assertSee('Kewajiban pengganti Admin: 1 terbuka')->assertSee($item->code.' (ditolak)');
+            ->assertSee('Ditolak, menunggu P0 pengganti')->assertSee('P0 tanpa kuota wajib')->assertSee('Kewajiban pengganti Admin: 1 terbuka')->assertSee($item->code.' (ditolak)');
 
         // Pengganti hanya untuk sesi yang sama.
         $wjFinding = $this->finding($this->wayJeparaSession, 'REC BRAJA DEWA');
@@ -135,11 +135,11 @@ class P0WorkflowTest extends OperationsTestCase
         $replacement = P0Item::query()->where('replaces_p0_item_id', $item->id)->sole();
         $this->assertSame([P0Item::ORIGIN_ADMIN, P0Item::APPROVAL_TIDAK_PERLU, WorkOrder::SOURCE_ADMIN_MANUAL, P0Item::STAGE_AKTIF], [$replacement->origin, $replacement->approval_status, $replacement->workOrder->source, $replacement->stage()]);
         $this->assertSame([P0Item::REPLACEMENT_TERPENUHI, P0Item::STAGE_DIGANTI], [$item->refresh()->replacement_status, $item->stage()]);
-        // Pengganti memenuhi kewajiban penggantian, bukan target P0 selesai.
+        // Pengganti usulan lama tetap tercatat tanpa menciptakan target P0 wajib.
         $obligation = $this->obligation();
-        $this->assertSame([0, false, 0], [$obligation['replacement_open'], $obligation['fulfilled'], $obligation['completed']]);
+        $this->assertSame([0, true, 0, false], [$obligation['replacement_open'], $obligation['fulfilled'], $obligation['completed'], $obligation['quota_applicable']]);
         $this->actingAs($this->admin)->get($this->pasilaUrl())->assertOk()
-            ->assertSee('Target P0 shift: belum terpenuhi')->assertSee('Kewajiban pengganti Admin: tidak ada')->assertSee('Ditolak, pengganti sudah dibuat');
+            ->assertSee('P0 tanpa kuota wajib')->assertSee('Kewajiban pengganti Admin: tidak ada')->assertSee('Ditolak, pengganti sudah dibuat');
 
         // Satu penolakan hanya punya satu pengganti; sumber yang ditolak boleh dipakai lagi untuk P0 manual.
         $this->manual($this->session, $finding, ['replaces_p0_item_id' => $item->id])->assertSessionHasErrors('replaces_p0_item_id');
@@ -199,7 +199,7 @@ class P0WorkflowTest extends OperationsTestCase
         $this->manual($this->session, $this->finding($this->session, 'LBSM BEDANA'))->assertSessionHasNoErrors();
         $item = P0Item::query()->sole();
         $wo = $item->workOrder;
-        $this->assertFalse($this->obligation()['fulfilled'], 'P0 dibuat belum memenuhi target.');
+        $this->assertSame([1, 0, false], [$this->obligation()['assigned'], $this->obligation()['completed'], $this->obligation()['quota_applicable']]);
 
         $this->api($this->fieldAccount($this->wayJeparaTeam, 'posko_wj_app'))->postJson("/api/v1/mobile/work-orders/{$wo->id}/start")->assertNotFound();
         $this->api($this->fieldAccount($this->harsusTeam, 'harsus_app'))->postJson("/api/v1/mobile/work-orders/{$wo->id}/start")->assertNotFound();
@@ -215,20 +215,20 @@ class P0WorkflowTest extends OperationsTestCase
         $api()->postJson("/api/v1/mobile/work-orders/{$wo->id}/start")->assertOk()->assertJsonPath('data.status', 'DIKERJAKAN');
         $api()->postJson("/api/v1/mobile/work-orders/{$wo->id}/escalations", ['client_request_id' => 'esc-p0', 'target_team_type' => 'HARSUS', 'target_work_type' => 'PEKERJAAN_KHUSUS', 'reason_code' => 'BUTUH_PADAM', 'note' => 'Butuh pemadaman'])
             ->assertUnprocessable()->assertJsonValidationErrors('target_team_type');
-        $this->assertFalse($this->obligation()['fulfilled'], 'P0 sedang dikerjakan belum memenuhi target.');
+        $this->assertSame(0, $this->obligation()['completed'], 'P0 sedang dikerjakan belum selesai.');
 
         $api()->post("/api/v1/mobile/work-orders/{$wo->id}/reports", [
             'client_request_id' => 'p0-selesai', 'report_type' => WorkOrderReport::TYPE_PEKERJAAN_SELESAI, 'notes' => 'Ranting dipangkas',
             'latitude' => -5.2001, 'longitude' => 105.7001, 'personnel_ids' => [$this->poskoPerson->id],
             'photos_before' => [$this->photo('before.jpg')], 'photos_after' => [$this->photo('after.jpg')],
         ], ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.work_order.status', 'MENUNGGU_VERIFIKASI');
-        $this->assertSame([P0Item::STAGE_MENUNGGU_VERIFIKASI, false], [$item->refresh()->stage(), $this->obligation()['fulfilled']]);
+        $this->assertSame([P0Item::STAGE_MENUNGGU_VERIFIKASI, 0], [$item->refresh()->stage(), $this->obligation()['completed']]);
 
         $report = WorkOrderReport::query()->where('work_order_id', $wo->id)->sole();
         $adminWeb()->post(route('admin.reviews.reports.approve', $report), ['note' => 'Bukti lengkap'])->assertSessionHasNoErrors();
         $this->assertSame([WorkOrderStatus::Selesai, P0Item::STAGE_SELESAI], [$wo->refresh()->status, $item->refresh()->stage()]);
-        $this->assertSame(['target' => 1, 'completed' => 1, 'fulfilled' => true], array_intersect_key($this->obligation(), ['target' => 0, 'completed' => 0, 'fulfilled' => 0]));
-        $adminWeb()->get(route('admin.pasila.index'))->assertOk()->assertSee('data-p0-obligation="TERPENUHI"', false);
+        $this->assertSame(['target' => 0, 'completed' => 1, 'fulfilled' => true], array_intersect_key($this->obligation(), ['target' => 0, 'completed' => 0, 'fulfilled' => 0]));
+        $adminWeb()->get(route('admin.pasila.index'))->assertOk()->assertSee('data-p0-obligation="TANPA_KUOTA"', false);
     }
 
     public function test_p0_cannot_be_cancelled_on_any_path_while_other_cancellation_rules_stay(): void
@@ -306,7 +306,7 @@ class P0WorkflowTest extends OperationsTestCase
         $this->assertFalse($service->strategy()->isMachineLearning());
         $this->assertSame(0, P0Item::query()->count());
 
-        // PASILA boleh nihil walau kewajiban P0 belum terpenuhi.
+        // PASILA boleh nihil tanpa memiliki P0; tidak ada kuota P0 wajib.
         app(PasilaFindingService::class)->recordNilReport($this->session, $this->pugungAccount, [
             'client_request_id' => 'nil-p0', 'note' => 'Patroli LBSM BEDANA aman tanpa temuan', 'latitude' => -5.21, 'longitude' => 105.71,
             'occurred_at' => '2026-10-29T08:50:00+07:00', 'personnel_ids' => [$this->poskoPerson->id],
@@ -314,7 +314,7 @@ class P0WorkflowTest extends OperationsTestCase
         $this->assertSame(PasilaSession::PATROL_NIHIL, $this->session->refresh()->patrolStatus());
 
         $this->actingAs($this->admin)->get($this->pasilaUrl())->assertOk()
-            ->assertSee('Target P0 shift: belum terpenuhi')->assertSee('Belum ada P0 untuk sesi ini.')->assertSee('Belum ada sumber P0 yang sah.')
+            ->assertSee('P0 tanpa kuota wajib')->assertSee('Belum ada P0 untuk sesi ini.')->assertSee('Belum ada sumber P0 yang sah.')
             ->assertSee('Nihil (dilaporkan petugas)');
         $this->actingAs($this->admin)->get(route('admin.p0.index'))->assertOk()->assertSee('Usulan P0 SYSTEM otomatis belum siap')->assertSee('Belum ada P0 untuk filter ini');
     }

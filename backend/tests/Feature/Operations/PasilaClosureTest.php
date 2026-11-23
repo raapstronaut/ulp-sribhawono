@@ -62,13 +62,13 @@ class PasilaClosureTest extends OperationsTestCase
             ->assertJsonPath('data.patrol_status', PasilaSession::PATROL_ADA_TEMUAN)
             ->assertJsonPath('data.closure.outcome', PasilaClosure::OUTCOME_ADA_TEMUAN)
             ->assertJsonPath('meta.idempotent_replay', false)
-            ->assertJsonPath('meta.warnings.P0_TARGET_BELUM_TERPENUHI', 'Target P0 shift belum terpenuhi; status tetap tercatat belum terpenuhi.');
+            ->assertJsonMissingPath('meta.warnings.P0_TARGET_BELUM_TERPENUHI');
 
         $closure = PasilaClosure::query()->sole();
         $this->assertSame([2, null, $this->account->id, $this->poskoTeam->id], [$closure->finding_count, $closure->pasila_nil_report_id, $closure->submitted_by_user_id, $closure->submitted_by_field_team_id]);
         $this->assertSame([['id' => $this->poskoPerson->id, 'name' => 'Budi Posko']], $closure->personnel);
         $this->assertSame(['finding_count' => 2, 'nil_report_id' => null], $closure->snapshot['patrol']);
-        $this->assertSame([1, 0, false], [$closure->snapshot['p0']['target'], $closure->snapshot['p0']['completed'], $closure->snapshot['p0']['fulfilled']]);
+        $this->assertSame([0, 0, true, false], [$closure->snapshot['p0']['target'], $closure->snapshot['p0']['completed'], $closure->snapshot['p0']['fulfilled'], $closure->snapshot['p0']['quota_applicable']]);
         $this->assertSame('2026-10-29 01:30:00', $closure->occurred_at->toDateTimeString(), '08.30 WIB disimpan UTC.');
         $audit = AuditLog::query()->where('entity_type', 'pasila_session')->where('action', AuditLog::ACTION_CLOSED)->sole();
         $this->assertSame([PasilaSession::STATUS_DIBUKA, PasilaSession::STATUS_DITUTUP, PasilaClosure::OUTCOME_ADA_TEMUAN], [$audit->before['status'], $audit->after['status'], $audit->after['outcome']]);
@@ -126,7 +126,7 @@ class PasilaClosureTest extends OperationsTestCase
 
         $this->actingAs($this->admin)->get(route('admin.pasila.index'))->assertOk()
             ->assertSee('data-session-status="DITUTUP"', false)->assertSee('Ditutup nihil')
-            ->assertSee('data-patrol-status="NIHIL"', false)->assertSee('Target belum terpenuhi')
+            ->assertSee('data-patrol-status="NIHIL"', false)->assertSee('Tidak ada kuota P0')->assertSee('data-p0-obligation="TANPA_KUOTA"', false)
             ->assertSeeInOrder(['data-posko="PUGUNG"', '2 WO · 2 aktif'], false);
         $this->assertSame(1, $this->get(route('admin.pasila.index'))->viewData('totals')['closed']);
     }

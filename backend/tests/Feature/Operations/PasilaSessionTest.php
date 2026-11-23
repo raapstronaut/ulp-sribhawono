@@ -246,7 +246,7 @@ class PasilaSessionTest extends OperationsTestCase
 
         $this->actingAs($this->admin)->get(route('admin.pasila.index'))
             ->assertOk()
-            ->assertSeeInOrder(['PUGUNG', 'Dibuka', 'PSL-20261029-A-PUGUNG', 'Rekomendasi sistem', 'LBSM BEDANA', '0/6', '2 WO · 2 aktif', '1 reschedule menunggu', 'Target belum terpenuhi']);
+            ->assertSeeInOrder(['PUGUNG', 'Dibuka', 'PSL-20261029-A-PUGUNG', 'Rekomendasi sistem', 'LBSM BEDANA', '0/6', '2 WO · 2 aktif', '1 reschedule menunggu', 'Tidak ada kuota P0']);
     }
 
     public function test_sessions_are_still_recorded_when_no_section_reference_exists(): void

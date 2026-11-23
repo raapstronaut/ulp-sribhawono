@@ -134,7 +134,11 @@ class WorkOrderEditor
         }
 
         ApkukShiftQuota::lock($workDate, $shiftCode);
-        $this->quota->assertSlotAvailable($workOrder->posko, $workDate, $shiftCode);
+        // WO manual Admin tidak dibatasi target otomatis enam WO.
+        // WO non-manual sementara tetap memakai pengaman kuota lama.
+        if ($workOrder->source !== WorkOrder::SOURCE_ADMIN_MANUAL) {
+            $this->quota->assertSlotAvailable($workOrder->posko, $workDate, $shiftCode);
+        }
     }
 
     private function plain(mixed $value): mixed

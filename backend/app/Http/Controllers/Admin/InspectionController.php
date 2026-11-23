@@ -7,8 +7,11 @@ use App\Models\FieldTeam;
 use App\Models\Inspection;
 use App\Models\InspectionFinding;
 use App\Models\Penyulang;
+use App\Models\Posko;
 use App\Models\ReferenceCode;
 use App\Models\WorkOrder;
+use App\Services\Inspection\ApprovedFindingWorkOrderService;
+use App\Services\Inspection\InspectionApkukWorkOrderService;
 use App\Services\Inspection\InspectionService;
 use App\Services\ShiftService;
 use App\Services\Work\MediaStore;
@@ -112,6 +115,8 @@ class InspectionController extends Controller
             'findings.*.latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'findings.*.longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'findings.*.suggested_team_type' => ['nullable', 'string', 'max:24'],
+            'findings.*.apkuk_no_tiang' => ['nullable', 'string', 'max:191'],
+            'findings.*.apkuk_target_quantity' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'findings.*.photos' => ['nullable', 'array', 'max:5'],
             'findings.*.photos.*' => $image,
         ]);
@@ -146,7 +151,9 @@ class InspectionController extends Controller
                 WorkOrder::TEAM_ROW.'|'.WorkOrder::TYPE_PANGKAS => 'ROW — Pangkas',
                 WorkOrder::TEAM_ROW.'|'.WorkOrder::TYPE_TEBANG => 'ROW — Tebang',
             ],
-            'teamsByRole' => FieldTeam::query()->where('is_active', true)->whereIn('role', InspectionService::FOLLOW_UP_TEAMS)->orderBy('name')->get(['id', 'name', 'role'])->groupBy('role')->map(fn ($t) => $t->pluck('name', 'id')->all())->all(),
+            'teamsByRole' => FieldTeam::query()->where('is_active', true)->whereIn('role', [WorkOrder::TEAM_POSKO, WorkOrder::TEAM_HARSUS, WorkOrder::TEAM_ROW])->orderBy('name')->get(['id', 'name', 'role'])->groupBy('role')->map(fn ($t) => $t->pluck('name', 'id')->all())->all(),
+            'poskoOptions' => Posko::query()->where('is_active', true)->orderBy('nama_posko')->pluck('nama_posko', 'id')->all(),
+            'shiftOptions' => app(ShiftService::class)->codes(),
             'today' => now(ShiftService::TIMEZONE)->toDateString(),
         ]);
     }
@@ -171,6 +178,56 @@ class InspectionController extends Controller
         return redirect()->route('admin.inspeksi.show', $finding->inspection_id)->with('flash', $finding->follow_up_work_order_id
             ? 'Temuan disetujui dan WO tindak lanjut dibuat.'
             : 'Temuan disetujui.');
+    }
+
+    /**
+     * Admin boleh membuat WO HARSUS/ROW setelah ACC sebelumnya dilakukan tanpa WO.
+     * Tidak dipakai untuk generator dan tidak menyentuh jalur POSKO legacy.
+     */
+    public function createApprovedFindingWorkOrder(Request $request, InspectionFinding $finding, ApprovedFindingWorkOrderService $service): RedirectResponse
+    {
+        $allowed = [
+            WorkOrder::TEAM_HARSUS.'|'.WorkOrder::TYPE_PEKERJAAN_KHUSUS,
+            WorkOrder::TEAM_ROW.'|'.WorkOrder::TYPE_RABAS,
+            WorkOrder::TEAM_ROW.'|'.WorkOrder::TYPE_PANGKAS,
+            WorkOrder::TEAM_ROW.'|'.WorkOrder::TYPE_TEBANG,
+        ];
+        $data = $request->validate([
+            'follow_up' => ['required', 'string', \Illuminate\Validation\Rule::in($allowed)],
+            'field_team_id' => ['nullable', 'uuid'],
+            'work_date' => ['required', 'date_format:Y-m-d'],
+            'due_date' => ['required', 'date_format:Y-m-d', 'after_or_equal:work_date'],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        [$teamType, $workType] = explode('|', $data['follow_up'], 2);
+        $workOrder = $service->create($finding, $request->user(), $data + [
+            'team_type' => $teamType,
+            'work_type' => $workType,
+        ]);
+
+        return redirect()->route('admin.inspeksi.show', $finding->inspection_id)
+            ->with('flash', "WO {$workOrder->code} dibuat dari temuan inspeksi yang telah disetujui.");
+    }
+
+    /**
+     * Admin makes a manual APKUK WO from an approved INSPEKSI finding.
+     * Generator SYSTEM is intentionally untouched.
+     */
+    public function createApprovedPoskoWorkOrder(Request $request, InspectionFinding $finding, InspectionApkukWorkOrderService $service, ShiftService $shifts): RedirectResponse
+    {
+        $data = $request->validate([
+            'posko_id' => ['required', 'uuid'],
+            'field_team_id' => ['nullable', 'uuid'],
+            'work_date' => ['required', 'date_format:Y-m-d'],
+            'shift_code' => ['required', \Illuminate\Validation\Rule::in($shifts->codes())],
+            'notes' => ['nullable', 'string', 'max:2000'],
+        ]);
+
+        $wo = $service->createManual($finding, $request->user(), $data);
+
+        return redirect()->route('admin.inspeksi.show', $finding->inspection_id)
+            ->with('flash', "WO POSKO {$wo->code} dibuat dari temuan INSPEKSI yang disetujui.");
     }
 
     public function rejectFinding(Request $request, InspectionFinding $finding, InspectionService $service): RedirectResponse

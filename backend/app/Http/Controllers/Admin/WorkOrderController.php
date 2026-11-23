@@ -206,6 +206,7 @@ class WorkOrderController extends Controller
             'penyulang',
             'fieldTeam',
             'apkukTarget',
+            'apkukTarget.inspectionFinding.inspection',
             'locationTarget',
             'parent',
             'children',

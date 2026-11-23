@@ -84,9 +84,11 @@
                     <x-admin.select :name="'findings['.$i.'][finding_code]'" label="Jenis temuan" :options="$findingCodes" placeholder="—" />
                     <x-admin.input :name="'findings['.$i.'][keypoint_id]'" label="ID aset keypoint (opsional)" inputmode="numeric" hint="Lihat ID di Master Data → Keypoint." />
                     <x-admin.input :name="'findings['.$i.'][asset_label]'" label="Label aset/lokasi" maxlength="255" />
+                    <x-admin.input :name="'findings['.$i.'][apkuk_no_tiang]'" label="No. tiang APKUK (untuk tujuan POSKO)" maxlength="191" hint="Isi hanya untuk temuan pemasangan APKUK dengan tim tujuan POSKO." />
+                    <x-admin.input type="number" :name="'findings['.$i.'][apkuk_target_quantity]'" label="Jumlah APKUK perlu dipasang" min="1" max="1000" />
                     <x-admin.input :name="'findings['.$i.'][latitude]'" label="Latitude" placeholder="-5.20" />
                     <x-admin.input :name="'findings['.$i.'][longitude]'" label="Longitude" placeholder="105.70" />
-                    <x-admin.select :name="'findings['.$i.'][suggested_team_type]'" label="Saran tim penerima" :options="$teamTypeOptions" placeholder="—" />
+                    <x-admin.select :name="'findings['.$i.'][suggested_team_type]'" label="Tim tujuan pekerjaan" :options="$teamTypeOptions" placeholder="—" />
                 </div>
                 <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
                     <x-admin.textarea :name="'findings['.$i.'][description]'" label="Uraian temuan" rows="2" />
@@ -97,7 +99,7 @@
         @endfor
 
         <div class="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
-            <strong class="text-slate-800">Sebelum menyimpan:</strong> periksa tim, petugas, waktu, dan lokasi. Kunjungan tanpa temuan tidak boleh diisi dengan temuan fiktif. Penyimpanan akan diperiksa lagi oleh validasi server.
+            <strong class="text-slate-800">Sebelum menyimpan:</strong> Untuk kandidat APKUK, pilih tim tujuan POSKO dan isi nomor tiang beserta jumlah kebutuhan. Setiap temuan tetap memerlukan ACC Admin sebelum menjadi kandidat. Periksa tim, petugas, waktu, dan lokasi. Kunjungan tanpa temuan tidak boleh diisi dengan temuan fiktif. Penyimpanan akan diperiksa lagi oleh validasi server.
         </div>
         <div class="flex flex-wrap gap-3">
             <x-admin.button>Simpan inspeksi</x-admin.button>

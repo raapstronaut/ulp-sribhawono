@@ -37,6 +37,8 @@ class InspectionFinding extends Model
         'longitude',
         'occurred_at',
         'suggested_team_type',
+        'apkuk_no_tiang',
+        'apkuk_target_quantity',
         'validation_status',
         'validated_by_user_id',
         'validated_at',
@@ -51,6 +53,7 @@ class InspectionFinding extends Model
             'longitude' => 'decimal:7',
             'occurred_at' => 'datetime',
             'validated_at' => 'datetime',
+            'apkuk_target_quantity' => 'integer',
         ];
     }
 
@@ -77,6 +80,25 @@ class InspectionFinding extends Model
     public function followUpWorkOrder(): BelongsTo
     {
         return $this->belongsTo(WorkOrder::class, 'follow_up_work_order_id');
+    }
+
+    /**
+     * Approved POSKO APKUK finding from the single INSPEKSI form.
+     * Eligibility still requires target deduplication, POSKO mapping and scheduling checks.
+     */
+    public function isApprovedPoskoApkukTarget(): bool
+    {
+        return $this->validation_status === self::VALIDATION_DISETUJUI
+            && $this->suggested_team_type === WorkOrder::TEAM_POSKO
+            && $this->inspection !== null
+            && ! in_array(mb_strtoupper(trim((string) $this->apkuk_no_tiang)), ['', '-', 'DUMMY'], true)
+            && (int) $this->apkuk_target_quantity > 0;
+    }
+
+    /** @deprecated Old method name retained for code outside this batch. */
+    public function isApprovedFullApkukTarget(): bool
+    {
+        return $this->isApprovedPoskoApkukTarget();
     }
 
     public function validationLabel(): string

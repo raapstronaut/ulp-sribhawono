@@ -145,7 +145,7 @@ class MobileApiContractTest extends OperationsTestCase
         ])->assertCreated()
             ->assertJsonStructure(['data' => [...self::SESSION_SUMMARY, 'closure' => ['outcome', 'occurred_at', 'received_at', 'flags']], 'meta' => ['server_time', 'idempotent_replay', 'warnings']])
             ->assertJsonPath('data.status', 'DITUTUP')
-            ->assertJsonPath('meta.warnings.P0_TARGET_BELUM_TERPENUHI', 'Target P0 shift belum terpenuhi; status tetap tercatat belum terpenuhi.');
+            ->assertJsonMissingPath('meta.warnings.P0_TARGET_BELUM_TERPENUHI');
 
         app(P0Service::class)->createManual($this->session, $this->admin, [
             'source_type' => 'PASILA_FINDING', 'source_id' => PasilaFinding::query()->sole()->id, 'description' => 'Pangkas dahan bambu', 'work_date' => '2026-10-28', 'shift_code' => 'A',

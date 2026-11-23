@@ -47,7 +47,7 @@ use Throwable;
  *   Daftar temuan kosong tidak pernah dianggap nihil.
  * - Pengiriman ulang dengan client_request_id sama mengembalikan record yang ada (IdempotentSubmission).
  * - Penutupan sesi (B3.4): hanya bila laporan patroli sudah diterima (temuan atau laporan nihil aktif);
- *   tidak menunggu target P0 maupun reschedule WO APKUK. Sekali per sesi. Temuan sah yang tiba
+ *   tidak menunggu WO P0 maupun reschedule WO APKUK. Sekali per sesi. Temuan sah yang tiba
  *   setelah penutupan tetap diterima (bukti tidak dibuang) dan tercatat sebagai kiriman setelah ditutup.
  * - Tidak mengubah WO APKUK, kuota, maupun P0 (penutupan hanya membaca keduanya untuk snapshot).
  */
@@ -136,7 +136,7 @@ class PasilaFindingService
                 'personnel' => array_map(fn (array $p) => ['id' => $p['field_personnel_id'], 'name' => $p['personnel_name']], $personnel),
                 'snapshot' => [
                     'patrol' => ['finding_count' => $findings, 'nil_report_id' => $nil?->getKey()],
-                    'p0' => array_intersect_key($p0, array_flip(['target', 'completed', 'fulfilled', 'replacement_open', 'stages'])),
+                    'p0' => array_intersect_key($p0, array_flip(['target', 'completed', 'fulfilled', 'quota_applicable', 'assigned', 'replacement_open', 'stages'])),
                     'apkuk' => [
                         'total' => $workOrders->count(),
                         'selesai' => $workOrders->filter(fn ($wo) => $wo->status === WorkOrderStatus::Selesai)->count(),
@@ -154,7 +154,7 @@ class PasilaFindingService
 
             $this->audit->record('pasila_session', $session->getKey(), $session->code, AuditLog::ACTION_CLOSED,
                 ['status' => PasilaSession::STATUS_DIBUKA],
-                ['status' => PasilaSession::STATUS_DITUTUP, 'outcome' => $closure->outcome, 'finding_count' => $findings, 'p0_fulfilled' => $p0['fulfilled'], 'apkuk_reschedule_menunggu_acc' => $closure->snapshot['apkuk']['reschedule_menunggu_acc']],
+                ['status' => PasilaSession::STATUS_DITUTUP, 'outcome' => $closure->outcome, 'finding_count' => $findings, 'p0_assigned' => $p0['assigned'], 'apkuk_reschedule_menunggu_acc' => $closure->snapshot['apkuk']['reschedule_menunggu_acc']],
                 $account, null, $team);
 
             return $closure;

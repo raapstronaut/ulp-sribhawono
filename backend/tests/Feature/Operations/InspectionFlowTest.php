@@ -7,9 +7,52 @@ use App\Models\Inspection;
 use App\Models\InspectionFinding;
 use App\Models\WorkOrder;
 use App\Models\WorkOrderLocationTarget;
+use App\Services\ShiftService;
+use Carbon\Carbon;
 
 class InspectionFlowTest extends OperationsTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Legacy fixtures use the operational date 2026-10-28; avoid past-work-date failures.
+        $this->travelTo(Carbon::create(2026, 10, 28, 8, 20, 0, ShiftService::TIMEZONE));
+    }
+
+    public function test_one_inspection_form_has_team_destination_without_full_umum_selector(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.inspeksi.create'))
+            ->assertOk()
+            ->assertDontSee('name="inspection_type"', false)
+            ->assertSee('Tim tujuan pekerjaan');
+    }
+
+    public function test_admin_legacy_type_field_is_ignored_and_posko_apkuk_target_is_accepted(): void
+    {
+        $person = $this->inspeksiTeam->personnel()->first();
+        $this->actingAs($this->admin)->post(route('admin.inspeksi.store'), [
+            'field_team_id' => $this->inspeksiTeam->id,
+            'penyulang_id' => $this->penyulang->id,
+            'visited_at' => '2026-10-28T08:15',
+            'personnel_ids' => [$person->id],
+            'inspection_type' => 'FULL', // sent by a legacy client; not a user-facing choice
+            'findings' => [[
+                'finding_code' => 'POHON_DEKAT',
+                'description' => 'Kebutuhan APKUK dari satu form',
+                'latitude' => '-5.25', 'longitude' => '105.75',
+                'suggested_team_type' => WorkOrder::TEAM_POSKO,
+                'apkuk_no_tiang' => 'REOG.INS.001',
+                'apkuk_target_quantity' => 2,
+            ]],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(Inspection::TYPE_REGULAR, Inspection::query()->sole()->inspection_type);
+        $finding = InspectionFinding::query()->sole();
+        $this->assertSame(WorkOrder::TEAM_POSKO, $finding->suggested_team_type);
+        $this->assertTrue($finding->isApprovedPoskoApkukTarget() === false); // pending Admin ACC
+        $this->actingAs($this->admin)->post(route('admin.inspeksi.findings.approve', $finding))
+            ->assertSessionHasNoErrors();
+        $this->assertTrue($finding->fresh()->isApprovedPoskoApkukTarget());
+    }
     public function test_admin_records_no_finding_visit_honestly_and_it_is_not_counted_as_finding(): void
     {
         $person = $this->inspeksiTeam->personnel()->first();
@@ -106,8 +149,11 @@ class InspectionFlowTest extends OperationsTestCase
 
         $this->post('/api/v1/mobile/inspections', $payload, ['Accept' => 'application/json'])->assertUnprocessable()->assertJsonValidationErrors('findings.0.photos');
         $payload['findings'][0]['photos'] = [$this->photo()];
+        $payload['inspection_type'] = 'FULL'; // legacy app value is ignored, not a second form
         $this->post('/api/v1/mobile/inspections', $payload, ['Accept' => 'application/json'])->assertCreated()->assertJsonPath('data.findings.0.validation_status', 'MENUNGGU_VALIDASI');
-        $this->post('/api/v1/mobile/inspections', $payload, ['Accept' => 'application/json'])->assertCreated();
+        $payload['inspection_type'] = 'UMUM'; // identical request ID stays idempotent
+        $this->post('/api/v1/mobile/inspections', $payload, ['Accept' => 'application/json'])
+            ->assertCreated()->assertJsonPath('meta.idempotent_replay', true);
         $this->assertSame(1, Inspection::query()->count());
         $this->assertSame(Inspection::SOURCE_MOBILE, Inspection::query()->value('source'));
 

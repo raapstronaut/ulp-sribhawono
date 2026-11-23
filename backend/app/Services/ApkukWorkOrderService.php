@@ -25,8 +25,8 @@ use Illuminate\Validation\ValidationException;
  * Duplikasi dicegah dua lapis: penilaian kandidat (WO_AKTIF) dan unique index
  * work_order_apkuk_targets.active_target_key untuk request yang bersamaan.
  *
- * WO manual menempati kuota enam per Posko per shift (ApkukShiftQuota): ditolak bila shift sudah
- * penuh, diperiksa di bawah kunci kuota yang sama dengan generator.
+ * WO manual Admin boleh melebihi enam WO per Posko per shift, tanpa melompati
+ * validasi target/duplikasi; lock kuota tetap dipakai untuk sinkronisasi.
  */
 class ApkukWorkOrderService
 {
@@ -103,8 +103,8 @@ class ApkukWorkOrderService
             throw ValidationException::withMessages(['shift_code' => 'Shift yang dipilih sudah berakhir.']);
         }
 
-        // Dibaca di bawah kunci kuota: WO yang baru di-commit generator atau Admin lain ikut terhitung.
-        $this->quota->assertSlotAvailable($posko, $input['work_date'], $input['shift_code']);
+        // WO manual Admin boleh melebihi kuota 6; lock dan validasi lain tetap berlaku.
+
 
         return $this->store($candidate, $posko, $input['work_date'], $input['shift_code'], $window, $now, $admin, [
             'source' => WorkOrder::SOURCE_ADMIN_MANUAL,

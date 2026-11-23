@@ -114,9 +114,15 @@
     </div>
 
     @if ($target)
-        <x-admin.panel id="lokasi" title="Target tiang (snapshot data APKUK)" :description="'Disalin dari baris apkuks #'.$target->apkuk_id.' saat WO dibuat; sinkronisasi berikutnya tidak mengubah target WO.'">
+        <x-admin.panel id="lokasi" :title="$target->inspection_finding_id ? 'Target tiang (snapshot INSPEKSI)' : 'Target tiang (snapshot data APKUK)'"
+            :description="$target->inspection_finding_id
+                ? 'Disalin dari temuan INSPEKSI yang disetujui Admin; perubahan inspeksi berikutnya tidak mengubah target WO.'
+                : 'Disalin dari baris apkuks #'.$target->apkuk_id.' saat WO dibuat; sinkronisasi berikutnya tidak mengubah target WO.'">
             <dl class="grid grid-cols-2 gap-5 text-sm md:grid-cols-4">
                 <x-admin.detail-item label="No. tiang">{{ $target->no_tiang }}</x-admin.detail-item>
+                @if ($target->inspection_finding_id)
+                    <x-admin.detail-item label="ID temuan INSPEKSI">{{ $target->inspection_finding_id }}</x-admin.detail-item>
+                @endif
                 <x-admin.detail-item label="Penyulang (sumber)">{{ $target->penyulang_source }}</x-admin.detail-item>
                 <x-admin.detail-item label="Section (sumber)">{{ $target->section_source }}</x-admin.detail-item>
                 <x-admin.detail-item label="Naik dari">{{ $target->naik_dari }}</x-admin.detail-item>
@@ -127,7 +133,13 @@
                     @if ($coordinates)<a class="text-blue-600 hover:text-blue-800" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query={{ $coordinates[0] }},{{ $coordinates[1] }}">{{ $coordinates[0] }}, {{ $coordinates[1] }}</a>@endif
                 </x-admin.detail-item>
             </dl>
-            <a href="{{ route('admin.apkuk.show', $target->apkuk_id) }}" class="mt-4 inline-flex text-xs font-bold text-blue-700 hover:underline">Lihat laporan APKUK sumber →</a>
+            @if ($target->apkuk_id !== null)
+                <a href="{{ route('admin.apkuk.show', $target->apkuk_id) }}" class="mt-4 inline-flex text-xs font-bold text-blue-700 hover:underline">Lihat laporan APKUK sumber →</a>
+            @elseif ($target->inspection_finding_id !== null && $target->inspectionFinding?->inspection)
+                <a href="{{ route('admin.inspeksi.show', $target->inspectionFinding->inspection) }}" class="mt-4 inline-flex text-xs font-bold text-blue-700 hover:underline">Lihat inspeksi sumber →</a>
+            @elseif ($target->inspection_finding_id !== null)
+                <p class="mt-4 text-xs text-amber-700">Tautan inspeksi sumber belum tersedia. ID temuan tetap tercatat pada snapshot WO.</p>
+            @endif
         </x-admin.panel>
     @elseif ($location)
         <x-admin.panel title="Target lokasi" :description="$location->typeLabel().' · snapshot saat WO dibuat'">

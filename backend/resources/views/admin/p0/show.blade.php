@@ -175,7 +175,7 @@
                     <div><span class="font-semibold">Pengganti:</span>
                         @if ($item->replacement)
                             <a href="{{ route('admin.p0.show', $item->replacement) }}" class="font-semibold text-blue-600 hover:underline">{{ $item->replacement->code }}</a>
-                            <span class="block text-[11px] text-slate-500">Kewajiban penggantian terpenuhi. Target P0 shift baru terpenuhi bila P0 pengganti selesai.</span>
+                            <span class="block text-[11px] text-slate-500">Pengganti historis sudah dibuat. P0 kini tidak memiliki target wajib per shift.</span>
                         @elseif ($item->replacement_status === P0Item::REPLACEMENT_WAJIB)
                             <span class="font-semibold text-red-700">Wajib dibuat</span> — <a href="{{ $pasilaUrl }}#p0" class="text-blue-600 hover:underline">buat P0 manual di sesi PASILA</a>
                         @else
@@ -191,7 +191,7 @@
     </section>
 
     <div class="rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs text-slate-500">
-        P0 dihitung sebagai pekerjaan tersendiri dan tidak mengisi kuota enam WO APKUK. Target P0 pada sesi PASILA terpenuhi hanya setelah pekerjaan P0 selesai.
+        P0 adalah pekerjaan khusus POSKO yang diterbitkan Admin bila diperlukan dan tidak mengisi kuota enam WO APKUK. P0 tidak mempunyai target jumlah per shift.
     </div>
     @if (isset($crewAudit) && $crewAudit !== null)
         @include('admin.partials.posko-crew-audit', ['crewAudit' => $crewAudit])

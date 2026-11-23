@@ -17,6 +17,7 @@ class WorkOrderApkukTarget extends Model
     protected $fillable = [
         'work_order_id',
         'apkuk_id',
+        'inspection_finding_id',
         'target_key',
         'active_target_key',
         'no_tiang',
@@ -56,5 +57,11 @@ class WorkOrderApkukTarget extends Model
     public function apkuk(): BelongsTo
     {
         return $this->belongsTo(Apkuk::class);
+    }
+
+    /** Origin of a POSKO APKUK WO created from an approved INSPEKSI finding. */
+    public function inspectionFinding(): BelongsTo
+    {
+        return $this->belongsTo(InspectionFinding::class, 'inspection_finding_id');
     }
 }

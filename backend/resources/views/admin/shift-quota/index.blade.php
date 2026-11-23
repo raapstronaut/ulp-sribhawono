@@ -24,7 +24,7 @@
     <x-admin.posko-tabs />
 
     <x-admin.page-header section="Pekerjaan" title="Kuota Shift APKUK" state="partial"
-        description="Pantau kuota enam WO per POSKO, limpahan sah, dan kekurangan per shift.">
+        description="Pantau patokan enam WO otomatis per POSKO/shift, total pekerjaan, dan tambahan WO manual Admin. Generator INSPEKSI belum tersedia.">
         <x-slot:actions>
             <x-admin.status-badge tone="slate">Lingkungan: {{ $environment }}</x-admin.status-badge>
         </x-slot:actions>
@@ -39,16 +39,16 @@
                     <span class="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">{{ $isCurrent ? 'Shift berjalan' : 'Shift terpilih' }}</span>
                     <span class="text-xs font-semibold text-slate-700">Shift {{ $code }} · {{ $shift['name'] ?? 'APKUK' }} · {{ \Illuminate\Support\Carbon::parse($date)->format('d/m/Y') }}</span>
                 </div>
-                <p class="mt-2 text-xs text-slate-600">{{ $fmt($window['start']) }} – {{ $fmt($window['end']) }} · Angka kuota adalah jumlah WO nyata, bukan unit APKUK atau hasil simulasi.</p>
+                <p class="mt-2 text-xs text-slate-600">{{ $fmt($window['start']) }} – {{ $fmt($window['end']) }} · Angka WO menunjukkan pekerjaan nyata, bukan unit APKUK atau simulasi. Enam adalah patokan otomatis, bukan batas total WO manual Admin.</p>
             </div>
             <div class="rounded-lg border border-blue-100 bg-white px-3 py-2 text-right">
-                <div class="text-[10px] font-bold uppercase text-slate-500">Target / POSKO</div>
+                <div class="text-[10px] font-bold uppercase text-slate-500">Patokan otomatis / POSKO</div>
                 <div class="text-lg font-bold text-blue-700">{{ $target }} <span class="text-xs font-normal text-slate-500">WO/shift</span></div>
             </div>
         </div>
         <div class="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-blue-100 pt-2 text-xs text-slate-600">
-            <span><strong>{{ $rows->count() }} POSKO</strong> · <strong>{{ $rows->count() * $target }} slot</strong> · Kelebihan beban <strong>{{ $totals['overload'] }} WO</strong></span>
-            <span class="font-semibold {{ $blockedReason ? 'text-amber-800' : 'text-blue-700' }}">Generator: {{ $blockedReason ? 'nonaktif' : 'diizinkan oleh pengaman lingkungan' }} · Pratinjau tanpa membuat WO</span>
+            <span><strong>{{ $rows->count() }} POSKO</strong> · Patokan <strong>{{ $rows->count() * $target }} WO otomatis</strong> · Total di atas patokan <strong>{{ $totals['overload'] }} WO</strong> (tambahan manual/limpahan dapat sah)</span>
+            <span class="font-semibold {{ $blockedReason ? 'text-amber-800' : 'text-blue-700' }}">Generator otomatis nonaktif di tampilan Web Admin: sumber INSPEKSI belum tersedia · Backend: {{ $blockedReason ?: 'jalur legacy masih ada, jangan digunakan' }}</span>
         </div>
     </section>
 
@@ -59,50 +59,35 @@
             <x-admin.filter-select name="shift_code" label="Shift" :options="$shiftOptions" :value="$code" :allow-empty="false" />
         </x-admin.filter-bar>
         <div class="flex flex-wrap items-center gap-2 px-4 py-2.5">
-            <form method="POST" action="{{ route('admin.shift-quota.run') }}">
-                @csrf
-                <input type="hidden" name="operational_date" value="{{ $date }}">
-                <input type="hidden" name="shift_code" value="{{ $code }}">
-                <input type="hidden" name="mode" value="{{ ApkukGenerationRun::MODE_PREVIEW }}">
-                <x-admin.button variant="secondary">Hitung pratinjau (tanpa WO)</x-admin.button>
-            </form>
-            @if ($blockedReason)
-                <x-admin.unavailable-action label="Generate WO" variant="secondary" :reason="$blockedReason" />
-            @else
-                <form method="POST" action="{{ route('admin.shift-quota.run') }}" data-confirm="Buat WO APKUK otomatis untuk shift ini di lingkungan {{ $environment }}?">
-                    @csrf
-                    <input type="hidden" name="operational_date" value="{{ $date }}">
-                    <input type="hidden" name="shift_code" value="{{ $code }}">
-                    <input type="hidden" name="mode" value="{{ ApkukGenerationRun::MODE_GENERATE }}">
-                    <x-admin.button>Generate WO ({{ $environment }})</x-admin.button>
-                </form>
-            @endif
-            <span class="ml-auto text-[11px] text-slate-500">Pratinjau = simulasi · bukan WO aktif</span>
+            <x-admin.unavailable-action label="Pratinjau WO otomatis" variant="secondary" reason="Generator lama membaca data APKUK SPS, bukan INSPEKSI. Pratinjau lama ditangguhkan." />
+            <a href="{{ route('admin.shift-quota.inspection-full', ['operational_date' => $date, 'shift_code' => $code]) }}" class="inline-flex rounded-lg border border-blue-300 bg-white px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50">Lihat kandidat INSPEKSI (baca-saja)</a>
+            <x-admin.unavailable-action label="Generate WO" variant="secondary" reason="Sumber INSPEKSI belum terintegrasi. WO otomatis tidak boleh dibuat dari generator legacy." />
+            <span class="ml-auto text-[11px] text-amber-800">Aksi generator Web Admin ditangguhkan hingga integrasi INSPEKSI selesai</span>
         </div>
     </x-admin.panel>
 
     <section aria-label="Ringkasan kuota shift" class="space-y-2">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="text-sm font-bold text-slate-900">Ringkasan kuota shift</h2>
-            <span class="text-xs text-slate-500">{{ $target }} WO/POSKO · {{ $rows->count() * $target }} slot total</span>
+            <span class="text-xs text-slate-500">{{ $target }} WO otomatis/POSKO (rancangan) · WO manual Admin tidak dibatasi enam</span>
         </div>
         <div class="grid grid-cols-2 gap-2 md:grid-cols-3 xl:grid-cols-6">
-            <x-admin.stat-card label="Total target" :value="$rows->count() * $target" hint="Semua POSKO aktif pada shift ini" />
+            <x-admin.stat-card label="Patokan otomatis" :value="$rows->count() * $target" hint="Semua POSKO aktif pada shift ini" />
             <x-admin.stat-card label="WO terjadwal" :value="$rows->sum('total')" hint="WO nyata, tidak termasuk simulasi" tone="blue" />
-            <x-admin.stat-card label="Slot kosong" :value="$totals['open']" hint="Kekurangan dari target per POSKO" tone="amber" />
+            <x-admin.stat-card label="Selisih total ke 6" :value="$totals['open']" hint="Indikator total vs patokan, bukan slot generator otomatis" tone="amber" />
             <x-admin.stat-card label="WO limpahan sah" :value="$totals['carry']" hint="Reschedule yang disetujui" />
             <x-admin.stat-card label="WO manual/lain" :value="$totals['manual']" hint="Bukan dari generator" />
             <x-admin.stat-card label="WO dari generator" :value="$totals['generated']" hint="Sudah tersimpan, bukan pratinjau" tone="blue" />
         </div>
     </section>
 
-    <x-admin.panel flush title="Pencapaian kuota per POSKO" description="WO nyata tersimpan, bukan simulasi. WO dibatalkan tidak mengisi slot. Hanya limpahan sah yang dapat melebihi target; alokasi generate adalah catatan historis.">
+    <x-admin.panel flush title="Pencapaian kuota per POSKO" description="WO nyata, bukan simulasi. Enam adalah patokan otomatis, bukan batas total. Tambahan manual Admin maupun limpahan sah dapat membuat total di atas enam. Alokasi generator lama masih historis.">
         @if ($load->failed('scheduled') || $load->failed('poskos'))
             <x-admin.error-state />
         @else
             <x-admin.table>
                 <x-slot:head>
-                    <th class="px-4 py-3">Posko</th><th class="px-4 py-3 text-right">Target</th><th class="px-4 py-3 text-right">Limpahan</th><th class="px-4 py-3 text-right">Manual/lain</th><th class="px-4 py-3 text-right">Generator</th><th class="px-4 py-3">Terisi / target</th><th class="px-4 py-3 text-right">Slot kosong</th><th class="px-4 py-3 text-right">Kelebihan</th><th class="px-4 py-3">Alokasi generate</th>
+                    <th class="px-4 py-3">Posko</th><th class="px-4 py-3 text-right">Target</th><th class="px-4 py-3 text-right">Limpahan</th><th class="px-4 py-3 text-right">Manual/lain</th><th class="px-4 py-3 text-right">Generator</th><th class="px-4 py-3">Terisi / target</th><th class="px-4 py-3 text-right">Selisih total ke 6</th><th class="px-4 py-3 text-right">Di atas patokan</th><th class="px-4 py-3">Alokasi generate</th>
                 </x-slot:head>
                 @foreach ($rows as $row)
                     <tr class="hover:bg-slate-50" data-posko="{{ $row['posko']->nama_posko }}">
@@ -115,7 +100,7 @@
                             <div class="flex min-w-[135px] items-center gap-2">
                                 <span class="w-12 shrink-0 font-bold text-slate-900">{{ $row['total'] }}/{{ $target }}</span>
                                 <div class="h-2 flex-1 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Kuota {{ $row['posko']->nama_posko }}" aria-valuemin="0" aria-valuenow="{{ min($row['total'], $target) }}" aria-valuemax="{{ $target }}">
-                                    <div class="h-full rounded-full {{ $row['overload'] ? 'bg-amber-500' : 'bg-blue-600' }}" style="width: {{ $target > 0 ? min(100, round(100 * $row['total'] / $target)) : 0 }}%"></div>
+                                    <div class="h-full rounded-full bg-blue-600" style="width: {{ $target > 0 ? min(100, round(100 * $row['total'] / $target)) : 0 }}%"></div>
                                 </div>
                             </div>
                         </td>
@@ -123,11 +108,7 @@
                         <td class="px-4 py-3 text-right text-xs">
                             @if ($row['overload'])
                                 <span class="font-semibold">{{ $row['overload'] }}</span>
-                                @if ($row['overload_from_carry_over'])
-                                    <div class="text-slate-500" data-overload-source="carry-over">dari limpahan sah, dipertahankan</div>
-                                @else
-                                    <div class="text-red-700" data-overload-source="other">melebihi limpahan: periksa WO lain</div>
-                                @endif
+                                <div class="text-slate-500" data-overload-source="allowed">Di atas patokan; WO manual dan limpahan dapat sah</div>
                             @else
                                 —
                             @endif
@@ -152,13 +133,13 @@
 
     <details class="group rounded-xl border border-amber-200 bg-amber-50/60 shadow-sm" data-quota-limitations>
         <summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-xs font-semibold text-amber-900">
-            <span>Kesiapan generator dan batasan data APKUK</span>
+            <span>Kesiapan generator INSPEKSI dan histori legacy APKUK</span>
             <span class="group-open:hidden">Lihat aturan +</span><span class="hidden group-open:inline">Tutup −</span>
         </summary>
         <div class="space-y-2 border-t border-amber-200 px-4 py-3 text-xs leading-relaxed text-amber-900">
             <p>Generator otomatis {{ $blockedReason ? 'nonaktif' : 'diizinkan di lingkungan ini' }}. Strategi yang tersedia adalah {{ $ranking->name() }} {{ $ranking->version() }}: baseline rule-based, bukan machine learning.</p>
-            <p>Generate hanya dapat berjalan di lingkungan development/testing dengan aktivasi eksplisit. Production dan Neon tetap ditolak oleh pengaman sampai model ML tervalidasi dan prosedur kesiapan tersedia.</p>
-            <p>Pratinjau hanya simulasi dan tidak membuat WO. Kandidat tanpa pemetaan Section-POSKO yang terbukti ditahan, bukan ditebak.</p>
+            <p>Alur generator lama masih memakai kandidat APKUK SPS, bukan hasil INSPEKSI. Jangan aktifkan atau jalankan generate/pratinjau lama untuk keputusan operasional. Production dan Neon tetap ditolak oleh pengaman; integrasi sumber INSPEKSI, validasi dan ML belum selesai.</p>
+            <p>Pratinjau legacy tidak membuat WO, tetapi mencatat run/shift pada database. Kandidat yang belum terpetakan Section–POSKO ditahan. Target 6 WO otomatis dan tambahan manual Admin kini kebijakan yang terpisah; generator lama belum menerapkan pemisahan ini.</p>
         </div>
     </details>
 
@@ -211,7 +192,7 @@
     @php $heldRun = $latestPreview ?? $latestGenerate; $breakdown = $heldRun?->breakdown; @endphp
     <details class="rounded-xl border border-slate-200 bg-white shadow-sm" data-quota-breakdown @if($breakdown) open @endif>
         <summary class="flex cursor-pointer items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-800">
-            <span>Kualitas kandidat dan rincian laporan</span>
+            <span>Histori kandidat legacy APKUK SPS (bukan INSPEKSI)</span>
             <span class="text-xs text-blue-600">Lihat rincian +</span>
         </summary>
         <div class="px-3 pb-3">

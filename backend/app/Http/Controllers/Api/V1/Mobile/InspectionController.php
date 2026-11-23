@@ -59,6 +59,8 @@ class InspectionController extends Controller
             'findings.*.latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'findings.*.longitude' => ['nullable', 'numeric', 'between:-180,180'],
             'findings.*.suggested_team_type' => ['nullable', 'string', 'max:24'],
+            'findings.*.apkuk_no_tiang' => ['nullable', 'string', 'max:191'],
+            'findings.*.apkuk_target_quantity' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'findings.*.photos' => ['nullable', 'array', 'max:10'],
             'findings.*.photos.*' => ['file', 'mimes:'.implode(',', MediaStore::MIMES), 'max:'.MediaStore::MAX_KILOBYTES],
         ]);

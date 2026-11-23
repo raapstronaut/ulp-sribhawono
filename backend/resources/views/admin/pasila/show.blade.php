@@ -75,11 +75,11 @@
                 <div class="mt-1 text-xs text-slate-500">{{ ! $load->failed('findings') && $session ? $findings->count().' temuan tercatat' : 'Belum dapat dihitung' }}</div>
             </div>
             <div class="rounded-lg border border-slate-200 bg-white p-2.5">
-                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">Target P0</div>
-                <div class="mt-1 text-base font-bold {{ $session && $p0Obligation['fulfilled'] ? 'text-emerald-700' : 'text-amber-700' }}">
-                    {{ $session ? $p0Obligation['completed'].' / '.$p0Obligation['target'].' selesai' : 'Belum ada sesi' }}
+                <div class="text-[11px] font-bold uppercase tracking-wide text-slate-500">P0 khusus Admin</div>
+                <div class="mt-1 text-base font-bold text-slate-800">
+                    {{ $session ? $p0Obligation['assigned'].' WO · '.$p0Obligation['completed'].' selesai' : 'Belum ada sesi' }}
                 </div>
-                <div class="mt-1 text-xs text-slate-500">Indikator P0 terpisah dari status patroli</div>
+                <div class="mt-1 text-xs text-slate-500">Tidak ada target minimal P0 per shift</div>
             </div>
         </div>
     </section>
@@ -288,7 +288,7 @@
                         <x-admin.status-badge tone="emerald">Sesi ditutup · {{ $closure->outcomeLabel() }}</x-admin.status-badge>
                         <span class="text-slate-600">{{ $fmt($closure->occurred_at) }} · diterima {{ $fmt($closure->received_at) }} · Akun {{ $closure->submittedByTeam?->code ?? '-' }} ({{ $closure->submittedBy?->username ?? '-' }}) · Petugas: {{ collect($closure->personnel)->pluck('name')->implode(', ') }}</span>
                     </div>
-                    <p class="mt-1 text-slate-500" data-closure-snapshot>Saat ditutup: {{ $closure->finding_count }} temuan · target P0 {{ ($closure->snapshot['p0']['fulfilled'] ?? false) ? 'terpenuhi' : 'belum terpenuhi' }} ({{ $closure->snapshot['p0']['completed'] ?? 0 }}/{{ $closure->snapshot['p0']['target'] ?? 1 }} selesai) · WO APKUK {{ $closure->snapshot['apkuk']['belum_selesai'] ?? 0 }} belum selesai, {{ $closure->snapshot['apkuk']['reschedule_menunggu_acc'] ?? 0 }} menunggu ACC reschedule. Status terkini ditampilkan di bawah dan dapat berbeda.</p>
+                    <p class="mt-1 text-slate-500" data-closure-snapshot>Saat ditutup: {{ $closure->finding_count }} temuan · P0 {{ $closure->snapshot['p0']['completed'] ?? 0 }} selesai{{ ($closure->snapshot['p0']['target'] ?? 0) > 0 ? ' (snapshot lama: target '.$closure->snapshot['p0']['target'].'/shift)' : ' (tanpa target wajib)' }} · WO APKUK {{ $closure->snapshot['apkuk']['belum_selesai'] ?? 0 }} belum selesai, {{ $closure->snapshot['apkuk']['reschedule_menunggu_acc'] ?? 0 }} menunggu ACC reschedule. Status terkini ditampilkan di bawah dan dapat berbeda.</p>
                     @if ($closure->note)
                         <p class="mt-1 text-slate-700">{{ $closure->note }}</p>
                     @endif
@@ -299,7 +299,7 @@
                     @if (($minutes = $session->minutesUnclosedAfterShift()) !== null)
                         <p class="mb-1 font-semibold text-amber-700" data-unclosed-minutes="{{ $minutes }}">Shift berakhir {{ $fmt($session->shiftInstance->ends_at) }}; belum ada penutupan yang diterima server selama {{ PasilaSession::durationLabel($minutes) }}. Status tetap Dibuka dan sistem tidak menutup otomatis. Bila HP petugas masih offline, penutupan yang terkirim kemudian tetap diterima dan ditandai “Ditutup setelah shift berakhir”.</p>
                     @endif
-                    <span class="text-slate-500">Sesi belum ditutup. Penutupan dilakukan tim POSKO lewat aplikasi setelah laporan patroli (temuan atau laporan nihil) diterima; tidak menunggu target P0 maupun reschedule WO APKUK.</span>
+                    <span class="text-slate-500">Sesi belum ditutup. Penutupan dilakukan tim POSKO lewat aplikasi setelah laporan patroli (temuan atau laporan nihil) diterima; tidak menunggu WO P0 maupun reschedule WO APKUK.</span>
                 @endif
             </div>
 
@@ -366,19 +366,19 @@
         <h2 class="mb-2 text-base font-bold text-slate-900">Pekerjaan P0</h2>
         <p class="mb-3 text-xs text-slate-500">P0 dihitung berdasarkan pekerjaan yang selesai, bukan sekadar usulan atau sesi PASILA yang dibuka.</p>
     </div>
-    <x-admin.panel flush title="P0 sesi ini" description="P0 POSKO dari sumber masalah yang tercatat (temuan PASILA atau temuan inspeksi tervalidasi) pada Section milik Posko ini. Usulan SYSTEM perlu ACC; usulan ditolak wajib diganti P0 manual. Target terpenuhi hanya oleh P0 yang selesai.">
+    <x-admin.panel flush title="P0 khusus Admin" description="P0 adalah WO khusus POSKO jika Admin menerbitkannya dari sumber sah. Tidak ada target minimal P0 tiap shift. Usulan SYSTEM lama tetap dapat ditinjau dan jejaknya tidak dihapus.">
         <div id="p0"></div>
         @if (! $session)
             <div class="p-4 text-xs text-slate-500">Tersedia setelah sesi PASILA shift ini dibuka.</div>
         @else
-            <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3 text-xs" data-p0-obligation="{{ $p0Obligation['fulfilled'] ? 'TERPENUHI' : 'BELUM' }}">
-                <x-admin.status-badge :tone="$p0Obligation['fulfilled'] ? 'emerald' : 'amber'">Target P0 shift: {{ $p0Obligation['fulfilled'] ? 'terpenuhi' : 'belum terpenuhi' }}</x-admin.status-badge>
-                <span class="text-slate-600">{{ $p0Obligation['completed'] }}/{{ $p0Obligation['target'] }} P0 selesai</span>
+            <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-4 py-3 text-xs" data-p0-obligation="TANPA_KUOTA">
+                <x-admin.status-badge tone="slate">P0 tanpa kuota wajib</x-admin.status-badge>
+                <span class="text-slate-600">{{ $p0Obligation['assigned'] }} WO diterbitkan · {{ $p0Obligation['completed'] }} P0 selesai</span>
                 <x-admin.status-badge :tone="$p0Obligation['replacement_open'] > 0 ? 'red' : 'slate'" data-p0-replacement-open="{{ $p0Obligation['replacement_open'] }}">Kewajiban pengganti Admin: {{ $p0Obligation['replacement_open'] > 0 ? $p0Obligation['replacement_open'].' terbuka' : 'tidak ada' }}</x-admin.status-badge>
-                @if (! $p0Obligation['fulfilled'] && $p0Items->isEmpty())
+                @if ($p0Items->isEmpty())
                     <span class="text-amber-800">Belum ada P0 untuk sesi ini.</span>
                 @endif
-                <span class="text-slate-500">Usulan SYSTEM otomatis: {{ $p0Strategy->notReadyReason() ? 'belum siap' : $p0Strategy->name() }}</span>
+                <span class="text-slate-500">Usulan SYSTEM historis: {{ $p0Strategy->notReadyReason() ? 'nonaktif' : $p0Strategy->name() }}</span>
             </div>
             @if ($p0Items->isNotEmpty())
                 <ul class="divide-y divide-slate-100">
