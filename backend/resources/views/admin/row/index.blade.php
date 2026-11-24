@@ -10,7 +10,7 @@
     $rowCompleted = $rowSummaryReady ? (int) ($summary['completed_today'] ?? 0) : null;
     $rowOverdue = $rowSummaryReady ? (int) ($summary['overdue'] ?? 0) : null;
 @endphp
-<div class="mx-auto max-w-7xl space-y-3 pb-8">
+<div class="pln-operations-workspace mx-auto max-w-7xl space-y-3 pb-8">
     <x-admin.page-header
         section="Pekerjaan"
         title="ROW"
@@ -69,8 +69,8 @@
         <x-admin.error-state :inset="false" />
     @endif
 
-    <x-admin.panel flush title="Daftar WO ROW" description="Cari pekerjaan, filter status dan jadwal, lalu buka detail atau bukti laporannya.">
-        <x-admin.filter-bar :action="route('admin.row.index')" :reset-url="route('admin.row.index')" :active="$hasFilter">
+    <x-admin.panel class="pln-operations-list" flush title="Daftar WO ROW" description="Cari pekerjaan, filter status dan jadwal, lalu buka detail atau bukti laporannya.">
+        <x-admin.filter-bar :action="route('admin.row.index')" :reset-url="route('admin.row.index')" :active="$hasFilter" title="PENCARIAN & FILTER ROW" button-label="Search" :always-reset="true" class="pln-operations-filter">
             <x-admin.filter-input name="q" label="Cari" :value="$filters['q']" placeholder="Kode WO atau Section" />
             <x-admin.filter-select name="work_type" label="Jenis" :options="$workTypeOptions" :value="$filters['work_type']" placeholder="Semua jenis" />
             <x-admin.filter-select name="status" label="Status" :options="$statusOptions" :value="$filters['status']" placeholder="Semua status" />

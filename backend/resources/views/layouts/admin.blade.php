@@ -107,6 +107,17 @@
         @media (max-width:1023px) {
             html[data-sidebar-collapsed="true"] #mobile-sidebar .pln-tree-summary { justify-content:flex-start; padding:.45rem .6rem; }
         }
+        /* PLN operational workspace V2.2: scoped to POSKO / ROW / HARSUS / INSPEKSI indexes. */
+        .pln-operations-workspace .pln-operations-list { border-color: #a5c2e5; border-radius: 7px; }
+        .pln-operations-workspace .pln-operations-list > div:first-child { background: linear-gradient(#e6f1ff, #cee1f8); border-bottom-color: #a8c4e4; }
+        .pln-operations-workspace .pln-operations-list > div:first-child h2 { color: #214b80; }
+        .pln-operations-workspace .pln-operations-filter { background: #f2f7fe; border-bottom-color: #b6cce8; }
+        .pln-operations-workspace .pln-operations-filter-title { display: block; width: 100%; flex-basis: 100%; margin: -16px -16px 0; padding: 9px 14px; border-bottom: 1px solid #aac5e6; background: linear-gradient(#deebfd, #c6dcf6); color: #1f4a81; font-size: 11px; font-weight: 800; letter-spacing: .045em; }
+        .pln-operations-workspace .pln-operations-filter button[type="submit"] { border-radius: 4px; border-color: #1f59a7; background: linear-gradient(#4089e5, #1e5eaf); color: #fff; min-width: 88px; font-weight: 750; }
+        .pln-operations-workspace .pln-operations-filter button[type="submit"]:hover { background: #174f99; color: #fff; }
+        .pln-operations-workspace .pln-operations-filter button[type="submit"]:focus-visible, .pln-operations-workspace .pln-operations-filter a:focus-visible { outline: 2px solid #326fd4; outline-offset: 2px; }
+        .pln-operations-workspace .pln-operations-list table thead { background: #dae8f8; }
+        .pln-operations-workspace .pln-operations-list table tbody tr:hover { background: #f0f6ff; }
     </style>
 </head>
 <body class="pln-shell flex h-screen overflow-hidden bg-slate-50 text-slate-800 antialiased">

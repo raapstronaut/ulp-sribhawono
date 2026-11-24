@@ -24,7 +24,7 @@
         : null;
 @endphp
 
-<div class="mx-auto max-w-7xl space-y-3 pb-8">
+<div class="pln-operations-workspace mx-auto max-w-7xl space-y-3 pb-8">
     <x-admin.page-header
         section="Pekerjaan"
         title="HARSUS"
@@ -128,6 +128,7 @@
     @endif
 
     <x-admin.panel
+        class="pln-operations-list"
         flush
         title="Daftar WO Pekerjaan Khusus"
         description="Cari pekerjaan, filter asal dan status, lalu buka detail, laporan, atau riwayat audit."
@@ -135,7 +136,7 @@
         <x-admin.filter-bar
             :action="route('admin.harsus.index')"
             :reset-url="route('admin.harsus.index')"
-            :active="$hasFilter"
+            :active="$hasFilter" title="PENCARIAN & FILTER HARSUS" button-label="Search" :always-reset="true" class="pln-operations-filter"
         >
             <x-admin.filter-input
                 name="q"

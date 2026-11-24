@@ -9,7 +9,7 @@
     $summaryReady = ! $load->failed('summary');
 @endphp
 
-<div class="mx-auto max-w-7xl space-y-3 pb-8">
+<div class="pln-operations-workspace mx-auto max-w-7xl space-y-3 pb-8">
     <x-admin.page-header
         section="Pekerjaan"
         title="INSPEKSI"
@@ -17,6 +17,7 @@
         description="Pantau kunjungan, temuan per titik, dan validasi Admin. Kunjungan tanpa temuan tetap dicatat."
     >
         <x-slot:actions>
+            <a href="{{ route('admin.inspeksi.queue') }}" class="inline-flex items-center rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-bold text-blue-700 hover:bg-blue-50">Antrean temuan ACC</a>
             <x-admin.button :href="route('admin.inspeksi.create')">Catat kunjungan</x-admin.button>
         </x-slot:actions>
     </x-admin.page-header>
@@ -73,6 +74,7 @@
     @endif
 
     <x-admin.panel
+        class="pln-operations-list"
         flush
         title="Daftar kunjungan inspeksi"
         description="Cari dan filter kunjungan; buka detail untuk melihat temuan dan keputusan validasi."
@@ -80,7 +82,7 @@
         <x-admin.filter-bar
             :action="route('admin.inspeksi.index')"
             :reset-url="route('admin.inspeksi.index')"
-            :active="$hasFilter"
+            :active="$hasFilter" title="PENCARIAN & FILTER INSPEKSI" button-label="Search" :always-reset="true" class="pln-operations-filter"
         >
             <x-admin.filter-input name="q" label="Cari" :value="$filters['q']" placeholder="Kode atau Section" />
             <x-admin.filter-select name="field_team_id" label="Tim" :options="$teamOptions" :value="$filters['field_team_id']" placeholder="Semua tim" />
