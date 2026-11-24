@@ -53,15 +53,20 @@
                 <div><div class="text-[11px] font-bold uppercase text-slate-500">Target APKUK</div><div class="mt-1 text-sm font-bold text-slate-900">{{ $target?->target_quantity ?? '—' }} bh</div></div>
             </div>
         </section>
-        <nav aria-label="Navigasi detail pekerjaan" class="flex flex-wrap gap-2 text-xs font-semibold">
-            <a href="#penugasan" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Penugasan</a>
-            <a href="#lokasi" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Lokasi & sumber</a>
-            <a href="#laporan" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Laporan & bukti</a>
-            @if ($wo->status->isActive())<a href="#aksi" class="rounded-full border border-blue-200 bg-blue-50 px-3 py-2 text-blue-700 hover:border-blue-400">Tindakan Admin</a>@endif
-            <a href="#riwayat" class="rounded-full border border-slate-200 bg-white px-3 py-2 text-slate-700 hover:border-blue-300">Riwayat audit</a>
-        </nav>
     @endif
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div class="pln-workspace-panel" data-pln-detail-root data-pln-detail-default="{{ $errors->any() && $wo->status->isActive() ? 'aksi' : 'penugasan' }}">
+        <div class="pln-panel-title">DETAIL WORK ORDER / {{ $wo->teamLabel() }}</div>
+        <div class="pln-subtabs" role="tablist" aria-label="Navigasi detail pekerjaan - Tab detail work order">
+            <button type="button" class="pln-subtab" id="pln-tab-penugasan" role="tab" data-pln-detail-tab="penugasan" aria-controls="pln-panel-penugasan" aria-selected="true">Penugasan</button>
+            <button type="button" class="pln-subtab" id="pln-tab-lokasi" role="tab" data-pln-detail-tab="lokasi" aria-controls="pln-panel-lokasi" aria-selected="false">Lokasi &amp; Sumber</button>
+            <button type="button" class="pln-subtab" id="pln-tab-laporan" role="tab" data-pln-detail-tab="laporan" aria-controls="pln-panel-laporan" aria-selected="false">Laporan &amp; Bukti</button>
+            <button type="button" class="pln-subtab" id="pln-tab-riwayat" role="tab" data-pln-detail-tab="riwayat" aria-controls="pln-panel-riwayat" aria-selected="false">Riwayat</button>
+            @if ($wo->status->isActive())
+                <button type="button" class="pln-subtab" id="pln-tab-aksi" role="tab" data-pln-detail-tab="aksi" aria-controls="aksi" aria-selected="false">Tindakan Admin</button>
+            @endif
+        </div>
+    </div>
+    <div id="pln-panel-penugasan" role="tabpanel" aria-labelledby="pln-tab-penugasan" data-pln-detail-panel="penugasan" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <x-admin.panel title="Penugasan" id="penugasan" class="lg:col-span-2">
             <dl class="grid grid-cols-1 gap-5 text-sm sm:grid-cols-3">
                 <x-admin.detail-item label="Tim">{{ $wo->teamLabel() }}</x-admin.detail-item>
@@ -113,6 +118,7 @@
         @endif
     </div>
 
+    <div id="pln-panel-lokasi" role="tabpanel" aria-labelledby="pln-tab-lokasi" data-pln-detail-panel="lokasi" class="space-y-4">
     @if ($target)
         <x-admin.panel id="lokasi" :title="$target->inspection_finding_id ? 'Target tiang (snapshot INSPEKSI)' : 'Target tiang (snapshot data APKUK)'"
             :description="$target->inspection_finding_id
@@ -160,7 +166,9 @@
             </dl>
         </x-admin.panel>
     @endif
+    </div>
 
+    <div id="pln-panel-laporan" role="tabpanel" aria-labelledby="pln-tab-laporan" data-pln-detail-panel="laporan">
     <x-admin.panel title="Laporan pelaksanaan & bukti" id="laporan" :description="$wo->reports->isEmpty() ? 'Belum ada laporan. Laporan berisi foto BEFORE/AFTER, GPS, petugas, dan hasil pekerjaan.' : null">
         <div class="space-y-4">
             @foreach ($wo->reports as $report)
@@ -193,8 +201,9 @@
             @endforeach
         </div>
     </x-admin.panel>
+    </div>
 
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+    <div id="pln-panel-riwayat" role="tabpanel" aria-labelledby="pln-tab-riwayat" data-pln-detail-panel="riwayat" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <x-admin.panel title="Reschedule" id="reschedule">
             @forelse ($wo->reschedules as $reschedule)
                 <div class="mb-3 rounded-lg border border-slate-100 p-3 text-xs">
@@ -233,7 +242,7 @@
     </div>
 
     @if ($wo->status->isActive())
-        <x-admin.panel id="aksi" title="Catat atas nama tim lapangan" description="Dipakai selama aplikasi Android belum tersedia. Pencatatan memakai aturan yang sama dengan aplikasi (foto BEFORE/AFTER, petugas, status) dan tercatat sebagai input Admin di riwayat audit.">
+        <x-admin.panel id="aksi" data-pln-detail-panel="aksi" role="tabpanel" aria-labelledby="pln-tab-aksi" title="Catat atas nama tim lapangan" description="Dipakai selama aplikasi Android belum tersedia. Pencatatan memakai aturan yang sama dengan aplikasi (foto BEFORE/AFTER, petugas, status) dan tercatat sebagai input Admin di riwayat audit.">
             <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <div class="space-y-4">
                     @if ($startable)
@@ -324,7 +333,7 @@
         </x-admin.panel>
     @endif
 
-    <x-admin.panel id="riwayat" title="Riwayat audit" description="Append-only: setiap perubahan status, data, dan keputusan tercatat dengan pelaku dan waktu.">
+    <x-admin.panel id="riwayat" data-pln-detail-panel="riwayat" title="Riwayat audit" description="Append-only: setiap perubahan status, data, dan keputusan tercatat dengan pelaku dan waktu.">
         <ol class="space-y-3">
             @foreach ($wo->statusLogs as $log)
                 <li class="flex gap-3 text-sm">
@@ -355,4 +364,8 @@
     @endif
 
 </div>
+@endsection
+
+@section('scripts')
+    @include('layouts.partials.work-detail-tabs-script')
 @endsection

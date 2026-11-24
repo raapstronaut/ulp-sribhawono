@@ -32,7 +32,14 @@
         </div>
     </section>
 
-    <x-admin.panel title="Informasi kunjungan" description="Identitas pelaksana, penyulang, waktu, dan catatan yang tercatat di sistem.">
+    <div class="pln-workspace-panel" data-pln-detail-root data-pln-detail-default="{{ $errors->any() ? 'temuan' : 'kunjungan' }}">
+        <div class="pln-panel-title">DETAIL INSPEKSI</div>
+        <div class="pln-subtabs" role="tablist" aria-label="Tab detail inspeksi">
+            <button type="button" class="pln-subtab" id="pln-tab-kunjungan" role="tab" data-pln-detail-tab="kunjungan" aria-controls="pln-panel-kunjungan" aria-selected="true">Informasi Kunjungan</button>
+            <button type="button" class="pln-subtab" id="pln-tab-temuan" role="tab" data-pln-detail-tab="temuan" aria-controls="pln-panel-temuan" aria-selected="false">Temuan &amp; Keputusan ({{ $inspection->findings->count() }})</button>
+        </div>
+    </div>
+    <x-admin.panel id="pln-panel-kunjungan" role="tabpanel" aria-labelledby="pln-tab-kunjungan" data-pln-detail-panel="kunjungan" title="Informasi kunjungan" description="Identitas pelaksana, penyulang, waktu, dan catatan yang tercatat di sistem.">
         <dl class="grid grid-cols-1 gap-5 text-sm sm:grid-cols-3">
             <x-admin.detail-item label="Tim">{{ $inspection->fieldTeam?->name }}</x-admin.detail-item>
             <x-admin.detail-item label="Penyulang">{{ $inspection->penyulang?->nama_penyulang }}</x-admin.detail-item>
@@ -49,6 +56,7 @@
         @endif
     </x-admin.panel>
 
+    <div id="pln-panel-temuan" role="tabpanel" aria-labelledby="pln-tab-temuan" data-pln-detail-panel="temuan" class="space-y-4">
     <div class="flex flex-wrap items-end justify-between gap-2">
         <div>
             <h2 class="text-base font-bold text-slate-900">Temuan dan keputusan Admin</h2>
@@ -205,5 +213,10 @@
             <x-admin.empty-state title="Kunjungan tanpa temuan." description="Hasil 'Tidak Ada Temuan' tercatat jujur dan tidak dihitung sebagai temuan." />
         </x-admin.panel>
     @endforelse
+    </div>
 </div>
+@endsection
+
+@section('scripts')
+    @include('layouts.partials.work-detail-tabs-script')
 @endsection
