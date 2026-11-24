@@ -110,8 +110,10 @@ class AdminModuleAccessTest extends FoundationTestCase
         $this->assertStringNotContainsString('modul belum tersedia', $html);
         $this->assertStringNotContainsString('Modul lainnya belum tersedia', $html);
         $this->assertStringContainsString('id="mobile-sidebar"', $html);
-        // Tetap 18 tujuan route, tetapi tiga di antaranya merupakan subtab POSKO.
-        $this->assertCount(18, AdminNavigation::routeNames());
+        // Dua halaman baca-saja V1 ditambahkan; tiga tujuan lainnya tetap subtab POSKO.
+        $this->assertCount(20, AdminNavigation::routeNames());
+        $this->assertContains('admin.inspeksi.queue', AdminNavigation::routeNames());
+        $this->assertContains('admin.aset.index', AdminNavigation::routeNames());
     }
 
     public function test_current_module_is_marked_active_in_navigation(): void

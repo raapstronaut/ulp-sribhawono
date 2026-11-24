@@ -47,12 +47,12 @@ class ApprovedInspectionFindingSourceTest extends TestCase
         $this->assertFalse(ApprovedInspectionFindingSource::matches($finding));
     }
 
-    public function test_team_filter_uses_suggestion_and_full_only_is_explicit(): void
+    public function test_team_filter_uses_suggestion_and_legacy_full_only_is_ignored(): void
     {
         $harsus = $this->finding(WorkOrder::TEAM_HARSUS, Inspection::TYPE_REGULAR);
         $this->assertTrue(ApprovedInspectionFindingSource::matches($harsus, WorkOrder::TEAM_HARSUS));
         $this->assertFalse(ApprovedInspectionFindingSource::matches($harsus, WorkOrder::TEAM_ROW));
-        $this->assertFalse(ApprovedInspectionFindingSource::matches($harsus, null, true));
+        $this->assertTrue(ApprovedInspectionFindingSource::matches($harsus, null, true));
 
         $full = $this->finding(WorkOrder::TEAM_ROW);
         $this->assertTrue(ApprovedInspectionFindingSource::matches($full, WorkOrder::TEAM_ROW, true));

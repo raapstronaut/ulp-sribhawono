@@ -12,7 +12,7 @@ class AdminNavigationPoskoTest extends TestCase
         $sections = AdminNavigation::sections();
         $work = collect($sections)->firstWhere('label', 'Pekerjaan');
         $this->assertNotNull($work);
-        $this->assertSame(['POSKO', 'ROW', 'HARSUS', 'INSPEKSI'], array_column($work['items'], 'label'));
+        $this->assertSame(['POSKO', 'ROW', 'HARSUS', 'INSPEKSI', 'Antrean Temuan ACC'], array_column($work['items'], 'label'));
 
         $posko = $work['items'][0];
         $this->assertSame('admin.work-orders.index', $posko['route']);

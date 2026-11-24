@@ -45,9 +45,71 @@
         @media (max-width: 1023px) {
             #admin-sidebar { display: none; }
         }
+        /* PLN Admin Workspace V2: struktur dari referensi Info DIL, tidak menyalin visual mentah. */
+        .pln-shell { background: #eef3fa; }
+        .pln-shell #admin-sidebar, .pln-shell #mobile-sidebar { background: #edf3fc; border-color: #b9cde7; }
+        .pln-shell .sidebar-brand { background: linear-gradient(#f7fbff, #dbe8fa); border-color: #bdcfe4; }
+        .pln-shell .sidebar-navigation { gap: 0; padding-top: .65rem; }
+        .pln-tree-group { margin: 0 0 .4rem; border: 1px solid #b8cbe4; border-radius: 6px; overflow: hidden; background: #f6f9fe; }
+        .pln-tree-summary { cursor: pointer; list-style: none; display:flex; align-items:center; gap:.5rem; min-height: 33px; padding: .45rem .6rem; background: linear-gradient(#dce9fa, #c7dbf4); color:#23446f; font-size: 11px; font-weight: 800; letter-spacing:.03em; }
+        .pln-tree-summary::-webkit-details-marker, .pln-tree-subsummary::-webkit-details-marker { display: none; }
+        .pln-tree-summary:focus-visible, .pln-tree-subsummary:focus-visible { outline: 2px solid #1d4ed8; outline-offset:-2px; }
+        .pln-tree-folder { font-size: 12px; line-height:1; color:#3463a4; }
+        .pln-tree-arrow { margin-left:auto; transition: transform .15s ease; }
+        .pln-tree-group[open] > .pln-tree-summary .pln-tree-arrow { transform: rotate(90deg); }
+        .pln-tree-list { padding: .28rem .3rem .4rem; }
+        .pln-tree-list .sidebar-link { font-size: 12px; min-height: 33px; border-radius: 3px; padding: .45rem .5rem; gap: .6rem; }
+        .pln-tree-list .sidebar-link[aria-current="page"] { background: #d5e5ff; color:#0c4393; box-shadow: inset 3px 0 #1d4ed8; font-weight: 750; }
+        .pln-tree-subgroup { margin: .15rem 0; border-left: 1px dotted #a5bad7; }
+        .pln-tree-subsummary { display:flex; align-items:center; gap:.5rem; min-height:29px; padding:.3rem .55rem; color:#315780; cursor:pointer; font-size:12px; font-weight:650; }
+        .pln-tree-subgroup[open] > .pln-tree-subsummary { background:#e7effb; }
+        .pln-tree-sublist { margin-left:.8rem; border-left: 1px solid #cad7e9; padding-left: .2rem; }
+        html[data-sidebar-collapsed="true"] .pln-tree-summary { justify-content:center; padding:.4rem; }
+        html[data-sidebar-collapsed="true"] .pln-tree-list, html[data-sidebar-collapsed="true"] .pln-tree-subgroup { display:none; }
+        .pln-workspace-strip { display:flex; gap:0; flex-shrink:0; min-height:35px; align-items:end; padding: 5px 9px 0; background:linear-gradient(#dfebfb,#c4d9f4); border-bottom:1px solid #9ebadb; overflow-x:auto; }
+        .pln-workspace-strip a, .pln-workspace-current { white-space:nowrap; display:inline-flex; align-items:center; gap:.4rem; min-height:29px; padding: .35rem .85rem; border:1px solid #a4bbd8; border-bottom:0; border-radius:6px 6px 0 0; font-size:12px; color:#365c8d; background:#d9e7f9; }
+        .pln-workspace-strip a:hover { color:#0b448d; background:#ecf4ff; }
+        .pln-workspace-current { background:#fff; border-color:#91b4db; color:#153c6f; font-weight:700; }
+        .pln-workspace-strip a.pln-workspace-current { background:#fff; border-color:#91b4db; color:#153c6f; font-weight:700; }
+        .pln-shell main > header { background:linear-gradient(#fff,#edf4ff); border-bottom-color:#bdcfe5; }
+        .pln-shell main > div.flex-1 { background:#f2f6fb; }
+        .pln-shell main table thead { background:#dce8f8; color:#1e416c; }
+        .pln-shell main table thead th { border-bottom:1px solid #9fbada; }
+        .pln-shell main table tbody tr:hover { background:#f0f6ff; }
+        .pln-shell main input:focus, .pln-shell main select:focus { outline:2px solid #93baf3; outline-offset: 1px; }
+        .pln-workspace-panel { border:1px solid #b8cce7; border-radius:6px; background:#fff; box-shadow:0 1px 2px #c3cfdd44; overflow:hidden; }
+        .pln-panel-title { background:linear-gradient(#dceafa,#c7dcf4); border-bottom:1px solid #a4bfdf; color:#214c82; font-size:12px; font-weight:800; padding:8px 12px; }
+        .pln-panel-body { padding:14px; }
+        .pln-filter-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:10px; }
+        .pln-field-label { display:block; color:#29466b; font-size:12px; font-weight:600; margin-bottom:5px; }
+        .pln-field { display:block; border:1px solid #adc2db; background:#fff; border-radius:4px; width:100%; min-height:34px; padding:7px 10px; color:#1d3556; font-size:13px; }
+        .pln-action-row { display:flex; gap:8px; align-items:center; padding: 12px 14px; background:#eff4fb; border-top:1px solid #c4d3e7; }
+        .pln-btn { display:inline-flex; justify-content:center; align-items:center; min-width:90px; min-height:32px; border:1px solid #698fbd; border-radius:4px; padding:6px 14px; font-size:12px; font-weight:700; background:linear-gradient(#fefefe,#cdddf0); color:#1e4b82; }
+        .pln-btn:hover { background:#dceafd; }
+        .pln-btn-primary { color:#fff; border-color:#154e9d; background:linear-gradient(#3f83df,#1c5ebc); }
+        .pln-btn-primary:hover { background:#174fa0; }
+        .pln-btn:focus-visible { outline:3px solid #92b8ef; outline-offset:2px; }
+        .pln-subtabs { display:flex; flex-wrap:wrap; gap:4px; padding:8px 8px 0; border-bottom:1px solid #a3bfdf; background:#e3edfa; }
+        .pln-subtab { cursor:pointer; padding:9px 14px; border:1px solid #adc5e2; border-bottom:0; border-radius:5px 5px 0 0; color:#345a86; font-size:12px; font-weight:650; background:linear-gradient(#eef5ff,#d0e2f8); }
+        .pln-subtab[aria-selected="true"] { background:white; color:#123f7a; font-weight:800; position:relative; top:1px; }
+        .pln-subtab:focus-visible { outline:2px solid #2361bb; outline-offset:-3px; }
+        .pln-tabpanel[hidden] { display:none!important; }
+        .pln-detail-dl { display:grid; grid-template-columns: minmax(135px,34%) minmax(0,1fr); gap:0; max-width:960px; }
+        .pln-detail-dl dt,.pln-detail-dl dd { border-bottom:1px solid #e1e9f4; padding:9px 10px; min-width:0; font-size:12px; }
+        .pln-detail-dl dt { font-weight:650; color:#51647c; background:#f7f9fc; }
+        .pln-detail-dl dd { color:#1b3656; overflow-wrap:anywhere; }
+        @media(max-width:767px) { .pln-workspace-strip { padding-left:2px; } .pln-workspace-strip a,.pln-workspace-current { padding:.3rem .55rem; font-size:11px; } .pln-detail-dl { grid-template-columns: minmax(115px, 44%) minmax(0, 1fr); } }
+        @media (max-width:1023px) {
+            html[data-sidebar-collapsed="true"] #mobile-sidebar .sidebar-label { display:inline; }
+            html[data-sidebar-collapsed="true"] #mobile-sidebar .pln-tree-list,
+            html[data-sidebar-collapsed="true"] #mobile-sidebar .pln-tree-subgroup { display:block; }
+        }
+        @media (max-width:1023px) {
+            html[data-sidebar-collapsed="true"] #mobile-sidebar .pln-tree-summary { justify-content:flex-start; padding:.45rem .6rem; }
+        }
     </style>
 </head>
-<body class="flex h-screen overflow-hidden bg-slate-50 text-slate-800 antialiased">
+<body class="pln-shell flex h-screen overflow-hidden bg-slate-50 text-slate-800 antialiased">
     @php
         $navigationSections = \App\Support\AdminNavigation::sections();
     @endphp
@@ -71,25 +133,8 @@
             </button>
         </div>
 
-        <nav class="sidebar-navigation flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-3 py-3" aria-label="Navigasi utama">
-            @foreach ($navigationSections as $navigationSection)
-                @if ($navigationSection['label'] === null)
-                    <ul class="space-y-1">
-                        @foreach ($navigationSection['items'] as $navigationItem)
-                            <li>@include('layouts.partials.sidebar-link', ['item' => $navigationItem])</li>
-                        @endforeach
-                    </ul>
-                @else
-                    <div class="sidebar-section">
-                        <h2 class="sidebar-section-label mb-1.5 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">{{ $navigationSection['label'] }}</h2>
-                        <ul class="space-y-1">
-                            @foreach ($navigationSection['items'] as $navigationItem)
-                                <li>@include('layouts.partials.sidebar-link', ['item' => $navigationItem])</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
-            @endforeach
+        <nav class="sidebar-navigation flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-3 py-3" aria-label="Navigasi utama">
+            @include('layouts.partials.workspace-navigation', ['mobile' => false])
         </nav>
 
         <div class="shrink-0 border-t border-slate-200 p-3">
@@ -116,19 +161,7 @@
             </button>
         </div>
         <nav class="flex-1 overflow-y-auto p-3" aria-label="Navigasi utama seluler">
-            @foreach ($navigationSections as $navigationSection)
-                <div class="{{ $loop->first ? '' : 'mt-3 border-t border-slate-100 pt-3' }}">
-                    @if ($navigationSection['label'] !== null)
-                        <h2 class="mb-1 px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">{{ $navigationSection['label'] }}</h2>
-                    @endif
-                    <div class="space-y-1">
-                        @foreach ($navigationSection['items'] as $navigationItem)
-                            @php($isActiveItem = request()->routeIs(...(array) $navigationItem['active']))
-                            <a href="{{ route($navigationItem['route']) }}" class="block rounded-md px-3 py-2.5 text-sm font-medium {{ $isActiveItem ? 'bg-blue-600 text-white' : 'text-slate-700 hover:bg-slate-50' }}" @if ($isActiveItem) aria-current="page" @endif>{{ $navigationItem['label'] }}</a>
-                        @endforeach
-                    </div>
-                </div>
-            @endforeach
+            @include('layouts.partials.workspace-navigation', ['mobile' => true])
         </nav>
     </aside>
 
@@ -163,6 +196,25 @@
                 </form>
             </div>
         </header>
+
+        @php
+            $workspaceQuickTabs = [
+                ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'active' => ['admin.dashboard']],
+                ['label' => 'INSPEKSI', 'route' => 'admin.inspeksi.index', 'active' => ['admin.inspeksi.*']],
+                ['label' => 'Data Aset', 'route' => 'admin.aset.index', 'active' => ['admin.aset.*']],
+                ['label' => 'ROW', 'route' => 'admin.row.index', 'active' => ['admin.row.*']],
+            ];
+            $workspaceIsQuickPage = request()->routeIs('admin.dashboard', 'admin.inspeksi.*', 'admin.aset.*', 'admin.row.*');
+        @endphp
+        <div class="pln-workspace-strip" aria-label="Tab modul cepat">
+            @foreach ($workspaceQuickTabs as $workspaceTab)
+                @php($workspaceTabActive = request()->routeIs(...$workspaceTab['active']))
+                <a href="{{ route($workspaceTab['route']) }}" @if ($workspaceTabActive) class="pln-workspace-current" aria-current="page" @endif>{{ $workspaceTab['label'] }}</a>
+            @endforeach
+            @unless ($workspaceIsQuickPage)
+                <span class="pln-workspace-current">@yield('title', 'Dashboard')</span>
+            @endunless
+        </div>
 
         <div id="page-loading" class="hidden h-0.5 w-full shrink-0 overflow-hidden bg-blue-100" role="status" aria-live="polite">
             <div class="h-full w-1/3 animate-pulse bg-blue-600"></div>

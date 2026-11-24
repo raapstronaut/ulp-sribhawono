@@ -8,6 +8,8 @@ use App\Http\Controllers\Admin\AuditLogController;
 use App\Http\Controllers\Admin\DashboardController;
 use App\Http\Controllers\Admin\HarsusController;
 use App\Http\Controllers\Admin\InspectionController;
+use App\Http\Controllers\Admin\ApprovedFindingQueueController;
+use App\Http\Controllers\Admin\AssetCatalogController;
 use App\Http\Controllers\Admin\InspectionFullQuotaPreviewController;
 use App\Http\Controllers\Admin\MapDataController;
 use App\Http\Controllers\Admin\MasterDataController;
@@ -156,6 +158,7 @@ Route::prefix('admin')
         Route::get('/inspeksi', [InspectionController::class, 'index'])->name('inspeksi.index');
         Route::get('/inspeksi/create', [InspectionController::class, 'create'])->name('inspeksi.create');
         Route::post('/inspeksi', [InspectionController::class, 'store'])->name('inspeksi.store');
+        Route::get('/inspeksi/antrean', [ApprovedFindingQueueController::class, 'index'])->name('inspeksi.queue');
         Route::get('/inspeksi/{inspection}', [InspectionController::class, 'show'])->name('inspeksi.show');
         Route::post('/inspeksi/temuan/{finding}/approve', [InspectionController::class, 'approveFinding'])->name('inspeksi.findings.approve');
         Route::post('/inspeksi/temuan/{finding}/reject', [InspectionController::class, 'rejectFinding'])->name('inspeksi.findings.reject');
@@ -183,6 +186,8 @@ Route::prefix('admin')
         Route::get('/special-case/detail', [SpecialCaseController::class, 'show'])->name('special-case.show');
         Route::post('/special-case/kendala/{issue}/resolve', [SpecialCaseController::class, 'resolveIssue'])->name('special-case.issues.resolve');
 
+        Route::get('/aset', [AssetCatalogController::class, 'index'])->name('aset.index');
+        Route::get('/aset/{asset}', [AssetCatalogController::class, 'show'])->whereNumber('asset')->name('aset.show');
         Route::get('/master-data', [MasterDataController::class, 'index'])->name('master-data.index');
         Route::get('/master-data/posko/{posko}', [MasterDataController::class, 'showPosko'])->name('master-data.posko.show');
         Route::get('/master-data/penyulang/{penyulang}', [MasterDataController::class, 'showPenyulang'])->name('master-data.penyulang.show');

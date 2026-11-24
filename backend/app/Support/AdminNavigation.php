@@ -36,7 +36,8 @@ final class AdminNavigation
                     ],
                     ['label' => 'ROW', 'route' => 'admin.row.index', 'active' => 'admin.row.*', 'icon' => 'RW'],
                     ['label' => 'HARSUS', 'route' => 'admin.harsus.index', 'active' => 'admin.harsus.*', 'icon' => 'HS'],
-                    ['label' => 'INSPEKSI', 'route' => 'admin.inspeksi.index', 'active' => 'admin.inspeksi.*', 'icon' => 'IN'],
+                    ['label' => 'INSPEKSI', 'route' => 'admin.inspeksi.index', 'active' => ['admin.inspeksi.index', 'admin.inspeksi.create', 'admin.inspeksi.show', 'admin.inspeksi.findings.*'], 'icon' => 'IN'],
+                    ['label' => 'Antrean Temuan ACC', 'route' => 'admin.inspeksi.queue', 'active' => 'admin.inspeksi.queue', 'icon' => 'AT'],
                 ],
             ],
             [
@@ -44,6 +45,7 @@ final class AdminNavigation
                 'items' => [
                     ['label' => 'APKUK — Data Sumber', 'route' => 'admin.apkuk.index', 'active' => 'admin.apkuk.*', 'icon' => 'AP'],
                     ['label' => 'Master Data', 'route' => 'admin.master-data.index', 'active' => 'admin.master-data.*', 'icon' => 'MD'],
+                    ['label' => 'Katalog Aset (Sumber)', 'route' => 'admin.aset.index', 'active' => 'admin.aset.*', 'icon' => 'AS'],
                     ['label' => 'Rekonsiliasi APKUK', 'route' => 'admin.apkuk-reconciliation.index', 'active' => 'admin.apkuk-reconciliation.*', 'icon' => 'RK'],
                 ],
             ],

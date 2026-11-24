@@ -81,6 +81,15 @@ class RowTreeIdentityTest extends OperationsTestCase
         $this->assertSame(2, WorkOrder::query()->where('status', WorkOrderStatus::Ditugaskan->value)->count());
     }
 
+    public function test_same_tree_different_row_work_type_is_still_blocked(): void
+    {
+        $tree = $this->vegetation(['id_pohon_raw' => '220001', 'id_tiang_raw' => '17TG0121009999']);
+        $this->createRow($tree, WorkOrder::TYPE_RABAS);
+
+        $this->postRow($tree, WorkOrder::TYPE_PANGKAS, '220001')->assertSessionHasErrors('target');
+        $this->assertSame(1, WorkOrder::query()->count());
+    }
+
     public function test_blank_id_pohon_is_rejected_without_inventing_an_identity(): void
     {
         $row = $this->vegetation(['id_pohon_raw' => '  ']);
