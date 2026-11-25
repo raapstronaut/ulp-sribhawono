@@ -111,11 +111,20 @@
         .pln-operations-workspace .pln-operations-list { border-color: #a5c2e5; border-radius: 7px; }
         .pln-operations-workspace .pln-operations-list > div:first-child { background: linear-gradient(#e6f1ff, #cee1f8); border-bottom-color: #a8c4e4; }
         .pln-operations-workspace .pln-operations-list > div:first-child h2 { color: #214b80; }
-        .pln-operations-workspace .pln-operations-filter { background: #f2f7fe; border-bottom-color: #b6cce8; }
-        .pln-operations-workspace .pln-operations-filter-title { display: block; width: 100%; flex-basis: 100%; margin: -16px -16px 0; padding: 9px 14px; border-bottom: 1px solid #aac5e6; background: linear-gradient(#deebfd, #c6dcf6); color: #1f4a81; font-size: 11px; font-weight: 800; letter-spacing: .045em; }
-        .pln-operations-workspace .pln-operations-filter button[type="submit"] { border-radius: 4px; border-color: #1f59a7; background: linear-gradient(#4089e5, #1e5eaf); color: #fff; min-width: 88px; font-weight: 750; }
-        .pln-operations-workspace .pln-operations-filter button[type="submit"]:hover { background: #174f99; color: #fff; }
-        .pln-operations-workspace .pln-operations-filter button[type="submit"]:focus-visible, .pln-operations-workspace .pln-operations-filter a:focus-visible { outline: 2px solid #326fd4; outline-offset: 2px; }
+        /* V2.5 - operational filter: header, responsive fields, separate action row. */
+        .pln-operations-workspace .pln-operations-filter { display:block; min-width:0; padding:0; background:#fff; border-bottom-color:#b6cce8; }
+        .pln-operations-workspace .pln-operations-filter-title { display:block; width:auto; margin:0; padding:9px 14px; border-bottom:1px solid #aac5e6; background:linear-gradient(#deebfd,#c6dcf6); color:#1f4a81; font-size:12px; font-weight:800; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:12px; padding:14px; min-width:0; align-items:end; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-fields > label { display:flex; flex-direction:column; gap:5px; min-width:0; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-fields > label > span { color:#29466b; font-size:12px; font-weight:600; text-transform:none; letter-spacing:normal; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-fields input, .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-fields select { box-sizing:border-box; width:100%; min-width:0; height:36px; padding:7px 10px; border:1px solid #adc2db; border-radius:4px; background:#fff; color:#1d3556; font-size:13px; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:12px 14px; background:#eff4fb; border-top:1px solid #c4d3e7; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > button[type="submit"], .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > a { display:inline-flex; justify-content:center; align-items:center; min-width:90px; min-height:34px; padding:6px 14px; border:1px solid #698fbd; border-radius:4px; font-size:12px; font-weight:700; text-decoration:none; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > a { color:#1e4b82; background:linear-gradient(#fefefe,#cdddf0); }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > a:hover { background:#dceafd; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > button[type="submit"] { border-color:#1f59a7; background:linear-gradient(#4089e5,#1e5eaf); color:#fff; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > button[type="submit"]:hover { background:#174f99; }
+        .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > button[type="submit"]:focus-visible, .pln-operations-workspace .pln-operations-filter > .pln-operations-filter-actions > a:focus-visible { outline:2px solid #326fd4; outline-offset:2px; }
         .pln-operations-workspace .pln-operations-list table thead { background: #dae8f8; }
         .pln-operations-workspace .pln-operations-list table tbody tr:hover { background: #f0f6ff; }
         /* V2.4 - tab halaman seperti browser. Panel dan konten halaman tetap tidak berubah. */

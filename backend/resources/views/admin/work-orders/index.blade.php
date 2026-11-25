@@ -103,37 +103,49 @@
             <a href="{{ route('admin.reviews.index') }}" class="text-xs font-bold text-blue-700 hover:underline">Review & Validasi →</a>
         </div>
         <!-- Filter Bar -->
-        <form method="GET" action="{{ route('admin.work-orders.index') }}" class="pln-operations-filter p-4 border-b border-slate-200 bg-slate-50/50 flex flex-col lg:flex-row lg:flex-wrap gap-4 items-center justify-between">
+        <form method="GET" action="{{ route('admin.work-orders.index') }}" class="pln-operations-filter border-b border-slate-200">
             <h3 class="pln-operations-filter-title">PENCARIAN &amp; FILTER POSKO</h3>
-            <div class="flex-1 w-full lg:w-auto relative">
-                <svg class="w-4 h-4 absolute left-3 top-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="Cari kode WO atau no. tiang..." class="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+            <div class="pln-operations-filter-fields">
+                <label>
+                    <span>Cari</span>
+                    <input type="text" name="q" value="{{ $filters['q'] }}" placeholder="Cari kode WO atau no. tiang...">
+                </label>
+                <label>
+                    <span>Status</span>
+                    <select name="status" aria-label="Status">
+                        <option value="">Semua Status</option>
+                        @foreach($statuses as $status)
+                            <option value="{{ $status->value }}" @selected($filters['status'] === $status->value)>{{ $status->label() }}</option>
+                        @endforeach
+                        <option value="{{ \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE }}" @selected($filters['status'] === \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE)>Terlambat</option>
+                    </select>
+                </label>
+                <label>
+                    <span>Posko</span>
+                    <select name="posko_id" aria-label="Posko">
+                        <option value="">Semua Posko</option>
+                        @foreach($poskos as $posko)
+                            <option value="{{ $posko->id }}" @selected($filters['posko_id'] === $posko->id)>{{ $posko->nama_posko }}</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>
+                    <span>Shift</span>
+                    <select name="shift_code" aria-label="Shift">
+                        <option value="">Semua Shift</option>
+                        @foreach($shift_options as $option)
+                            <option value="{{ $option['code'] }}" @selected($filters['shift_code'] === $option['code'])>Shift {{ $option['code'] }} ({{ $option['name'] }})</option>
+                        @endforeach
+                    </select>
+                </label>
+                <label>
+                    <span>Tanggal operasional</span>
+                    <input type="date" name="work_date" value="{{ $filters['work_date'] }}" aria-label="Tanggal operasional">
+                </label>
             </div>
-
-            <div class="flex flex-wrap items-center gap-3 w-full lg:w-auto">
-                <select name="status" aria-label="Status" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
-                    <option value="">Semua Status</option>
-                    @foreach($statuses as $status)
-                        <option value="{{ $status->value }}" @selected($filters['status'] === $status->value)>{{ $status->label() }}</option>
-                    @endforeach
-                    <option value="{{ \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE }}" @selected($filters['status'] === \App\Http\Controllers\Admin\WorkOrderController::STATUS_FILTER_OVERDUE)>Terlambat</option>
-                </select>
-                <select name="posko_id" aria-label="Posko" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
-                    <option value="">Semua Posko</option>
-                    @foreach($poskos as $posko)
-                        <option value="{{ $posko->id }}" @selected($filters['posko_id'] === $posko->id)>{{ $posko->nama_posko }}</option>
-                    @endforeach
-                </select>
-                <select name="shift_code" aria-label="Shift" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
-                    <option value="">Semua Shift</option>
-                    @foreach($shift_options as $option)
-                        <option value="{{ $option['code'] }}" @selected($filters['shift_code'] === $option['code'])>Shift {{ $option['code'] }} ({{ $option['name'] }})</option>
-                    @endforeach
-                </select>
-                <input type="date" name="work_date" value="{{ $filters['work_date'] }}" aria-label="Tanggal operasional" class="bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:border-blue-500">
-
-                <button type="submit" class="bg-white border border-slate-300 rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50">Search</button>
-                <a href="{{ route('admin.work-orders.index') }}" class="text-sm font-semibold text-blue-600 hover:text-blue-800 px-2">Reset</a>
+            <div class="pln-operations-filter-actions">
+                <button type="submit">Search</button>
+                <a href="{{ route('admin.work-orders.index') }}">Reset</a>
             </div>
         </form>
 

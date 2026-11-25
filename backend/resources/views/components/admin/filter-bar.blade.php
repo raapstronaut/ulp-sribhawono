@@ -14,10 +14,10 @@
     @if ($title)
         <h3 class="pln-operations-filter-title">{{ $title }}</h3>
     @endif
-    <div class="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="pln-operations-filter-fields grid flex-1 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {{ $slot }}
     </div>
-    <div class="flex shrink-0 flex-wrap items-center gap-2">
+    <div class="pln-operations-filter-actions flex shrink-0 flex-wrap items-center gap-2">
         @if ($disabled)
             <span class="rounded bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">Filter belum aktif</span>
         @else
