@@ -56,6 +56,14 @@ final class InspectionFullGeneratorPilot
             ->where('shift_code', $shift)->first();
         $allocations = $instance === null ? collect() : ApkukShiftAllocation::query()
             ->where('shift_instance_id', $instance->getKey())->with('generationRun')->get()->keyBy('posko_id');
+
+        // The writer rejects mixing sources for the entire shift, not just one Posko.
+        // Include inactive Posko and missing/unverified target provenance in this check.
+        $blockedByLegacy = $allocations->contains(fn ($allocation) =>
+            $allocation->generationRun?->strategy !== self::STRATEGY)
+            || $this->generatedForOriginalShift($date, $shift)
+                ->whereDoesntHave('apkukTarget', fn ($q) => $q->whereNotNull('inspection_finding_id'))
+                ->exists();
         foreach ($poskos as $posko) {
             // All SYSTEM WOs count toward the six, even if cancelled; no hidden re-generation.
             $system = $this->generatedForOriginalShift($date, $shift, $posko->getKey())
@@ -72,8 +80,8 @@ final class InspectionFullGeneratorPilot
                 && $allocation->generationRun?->strategy !== self::STRATEGY;
             $slots = max(0, self::TARGET - $existingSystem);
             $ranked = $pool['by_posko'][$posko->getKey()] ?? [];
-            // No misleading "planned" WOs if the shift is already owned by SPS legacy.
-            $planned = ($legacySystem || $legacyAllocationConflict) ? [] : array_slice($ranked, 0, $slots);
+            // No misleading plans anywhere in a shift blocked by legacy generation.
+            $planned = $blockedByLegacy ? [] : array_slice($ranked, 0, $slots);
             $rows[] = [
                 'posko_id' => $posko->getKey(),
                 'posko' => $posko->nama_posko,
@@ -89,7 +97,8 @@ final class InspectionFullGeneratorPilot
             ];
         }
         return ['date' => $date, 'shift' => $shift, 'rows' => $rows, 'held' => $pool['held'],
-            'source_total' => $pool['total'], 'eligible' => $pool['eligible'], 'strategy' => self::STRATEGY];
+            'source_total' => $pool['total'], 'eligible' => $pool['eligible'], 'strategy' => self::STRATEGY,
+            'blocked_by_legacy' => $blockedByLegacy];
     }
 
     /**
@@ -109,8 +118,7 @@ final class InspectionFullGeneratorPilot
             // Entire pilot run is atomic. SQLite :memory: executes these tests sequentially.
             ApkukShiftQuota::lock($date, $shift);
             $preview = $this->preview($date, $shift);
-            if (collect($preview['rows'])->contains(fn (array $row) =>
-                $row['legacy_system_conflict'] || $row['legacy_allocation_conflict'])) {
+            if ($preview['blocked_by_legacy']) {
                 throw new LogicException('Terdapat WO atau alokasi generator SPS legacy dalam shift; pilot menolak pencampuran sumber.');
             }
             $map = SectionPoskoMap::load();
@@ -251,9 +259,10 @@ final class InspectionFullGeneratorPilot
     }
 
     /** Count original shift production, not WO carried over into this shift by reschedule. */
-    private function generatedForOriginalShift(string $date, string $shift, string $poskoId): \Illuminate\Database\Eloquent\Builder
+    private function generatedForOriginalShift(string $date, string $shift, ?string $poskoId = null): \Illuminate\Database\Eloquent\Builder
     {
-        return WorkOrder::query()->apkuk()->where('posko_id', $poskoId)
+        return WorkOrder::query()->apkuk()
+            ->when($poskoId !== null, fn ($q) => $q->where('posko_id', $poskoId))
             ->where('source', WorkOrder::SOURCE_SYSTEM)
             ->whereHas('generationRun.shiftInstance', fn ($q) => $q
                 ->whereDate('operational_date', $date)->where('shift_code', $shift));

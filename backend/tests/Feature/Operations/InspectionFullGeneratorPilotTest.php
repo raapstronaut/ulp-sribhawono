@@ -131,6 +131,9 @@ class InspectionFullGeneratorPilotTest extends OperationsTestCase
     public function test_legacy_zero_allocation_is_not_overwritten_or_planned(): void
     {
         $this->finding('F.REOG.LEGACY.ALLOC', 2);
+        Posko::create(['kode_posko' => 'WAY JEPARA', 'nama_posko' => 'WAY JEPARA']);
+        $this->addMapping('SEC WAYJEP', 'WAY JEPARA');
+        $this->finding('F.REOG.LEGACY.OTHER', 2, InspectionFinding::VALIDATION_DISETUJUI, Inspection::TYPE_FULL, 'SEC WAYJEP');
         $shift = ShiftInstance::ensure(app(ShiftService::class), self::DATE, self::SHIFT);
         $legacyRun = ApkukGenerationRun::create([
             'shift_instance_id' => $shift->getKey(),
@@ -157,10 +160,23 @@ class InspectionFullGeneratorPilotTest extends OperationsTestCase
             'generated_at' => now(),
         ]);
         $pilot = app(InspectionFullGeneratorPilot::class);
-        $row = $this->poskoRow($pilot->preview(self::DATE, self::SHIFT), 'PUGUNG');
+        $preview = $pilot->preview(self::DATE, self::SHIFT);
+        $row = $this->poskoRow($preview, 'PUGUNG');
+        $other = $this->poskoRow($preview, 'WAY JEPARA');
+        $this->assertTrue($preview['blocked_by_legacy']);
+        $this->assertSame(1, $other['eligible']);
+        $this->assertFalse($other['legacy_allocation_conflict']);
+        $this->assertSame([], $other['planned']);
+        $this->assertSame(0, $other['new']);
+        $this->assertSame(6, $other['shortfall']);
         $this->assertTrue($row['legacy_allocation_conflict']);
         $this->assertSame(0, $row['new']);
         $this->assertSame([], $row['planned']);
+
+        $this->actingAs($this->admin)->get(route('admin.shift-quota.inspection-full', [
+            'operational_date' => self::DATE, 'shift_code' => self::SHIFT,
+        ]))->assertOk()->assertSee('Seluruh shift ditahan.')
+            ->assertSee('Tidak ada rencana baru karena seluruh shift ditahan.');
 
         try {
             $pilot->generateForIsolatedTest(self::DATE, self::SHIFT);
@@ -173,6 +189,75 @@ class InspectionFullGeneratorPilotTest extends OperationsTestCase
         $this->assertSame(0, $allocation->generated_count);
         $this->assertSame(1, ApkukGenerationRun::query()->count());
         $this->assertSame(0, WorkOrder::query()->count());
+
+        // An inactive Posko still owns its old allocation; do not ignore it.
+        $this->posko->update(['is_active' => false]);
+        $inactivePreview = $pilot->preview(self::DATE, self::SHIFT);
+        $this->assertTrue($inactivePreview['blocked_by_legacy']);
+        $this->assertSame(0, $this->poskoRow($inactivePreview, 'WAY JEPARA')['new']);
+        try {
+            $pilot->generateForIsolatedTest(self::DATE, self::SHIFT);
+            $this->fail('Generation must refuse an inactive Posko legacy allocation.');
+        } catch (\LogicException $exception) {
+            $this->assertStringContainsString('SPS legacy', $exception->getMessage());
+        }
+        $this->assertSame(0, WorkOrder::query()->count());
+        $this->assertSame(1, ApkukGenerationRun::query()->count());
+    }
+
+    public function test_legacy_system_wo_from_inactive_posko_blocks_entire_original_shift(): void
+    {
+        $oldPosko = Posko::create(['kode_posko' => 'WAY JEPARA', 'nama_posko' => 'WAY JEPARA', 'is_active' => false]);
+        $this->finding('F.REOG.CLEAR.POSKO', 3);
+        $shift = ShiftInstance::ensure(app(ShiftService::class), self::DATE, self::SHIFT);
+        $legacyRun = ApkukGenerationRun::create([
+            'shift_instance_id' => $shift->getKey(),
+            'mode' => ApkukGenerationRun::MODE_GENERATE,
+            'status' => ApkukGenerationRun::STATUS_COMPLETED,
+            'trigger' => ApkukGenerationRun::TRIGGER_CLI,
+            'strategy' => 'SPS_LEGACY_BASELINE',
+            'strategy_version' => 'v1',
+            'is_machine_learning' => false,
+            'app_environment' => 'testing',
+            'started_at' => now(),
+        ]);
+        // Even an old WO without target provenance must prevent mixing sources.
+        WorkOrder::create([
+            'code' => 'WO-LEGACY-INACTIVE',
+            'team_type' => WorkOrder::TEAM_POSKO,
+            'work_type' => WorkOrder::TYPE_PEMASANGAN_APKUK,
+            'source' => WorkOrder::SOURCE_SYSTEM,
+            'status' => \App\Enums\WorkOrderStatus::Ditugaskan,
+            'posko_id' => $oldPosko->getKey(),
+            'penyulang_id' => $this->penyulang->getKey(),
+            'work_date' => self::DATE,
+            'shift_code' => self::SHIFT,
+            'generation_run_id' => $legacyRun->getKey(),
+        ]);
+        $pilot = app(InspectionFullGeneratorPilot::class);
+        $preview = $pilot->preview(self::DATE, self::SHIFT);
+        $row = $this->poskoRow($preview, 'PUGUNG');
+        $this->assertTrue($preview['blocked_by_legacy']);
+        $this->assertSame(1, $row['eligible']);
+        $this->assertSame([], $row['planned']);
+        $this->assertSame(0, $row['new']);
+        $this->assertSame(6, $row['shortfall']);
+
+        // The restriction applies to the original shift only, not another shift.
+        $next = $pilot->preview(self::DATE, 'B');
+        $this->assertFalse($next['blocked_by_legacy']);
+        $this->assertSame(1, $this->poskoRow($next, 'PUGUNG')['new']);
+
+        try {
+            $pilot->generateForIsolatedTest(self::DATE, self::SHIFT);
+            $this->fail('Generation must refuse legacy WO even from an inactive Posko.');
+        } catch (\LogicException $exception) {
+            $this->assertStringContainsString('SPS legacy', $exception->getMessage());
+        }
+        $this->assertSame(1, WorkOrder::query()->count());
+        $this->assertSame(1, ApkukGenerationRun::query()->count());
+        $this->assertSame(0, ApkukShiftAllocation::query()->count());
+        $this->assertSame(0, DB::table('inspection_findings')->whereNotNull('follow_up_work_order_id')->count());
     }
 
     public function test_repeat_is_idempotent_and_shortfall_can_top_up_without_manual_penalty(): void

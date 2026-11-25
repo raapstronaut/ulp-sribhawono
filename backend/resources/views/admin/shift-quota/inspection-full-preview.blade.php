@@ -26,6 +26,12 @@
         <a class="text-sm font-semibold text-blue-700 underline" href="{{ route('admin.shift-quota.index', ['operational_date' => $date, 'shift_code' => $shift]) }}">Kembali ke monitor kuota lama</a>
     </form>
 
+    @if ($preview['blocked_by_legacy'])
+        <div role="alert" class="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900">
+            <strong>Seluruh shift ditahan.</strong> Ada WO SYSTEM atau alokasi dari generator lama pada shift asal ini. Tidak ada rencana WO baru untuk semua POSKO, termasuk bila POSKO pemilik catatan lama sudah tidak aktif. Kandidat layak tetap ditampilkan sebagai jumlah untuk peninjauan, bukan izin menerbitkan WO.
+        </div>
+    @endif
+
     <section class="overflow-x-auto rounded-xl border border-slate-200 bg-white p-4">
         <h2 class="text-base font-bold text-slate-900">Rencana kuota · {{ $date }} · Shift {{ $shift }}</h2>
         <p class="mt-1 text-xs text-slate-600">Sumber INSPEKSI disetujui untuk POSKO: {{ $preview['source_total'] }} · kandidat layak: {{ $preview['eligible'] }} · ditahan: {{ count($preview['held']) }}. Baris SYSTEM menghitung asal shift generate, termasuk WO yang sudah dibatalkan, agar tidak mengisi kuota dua kali secara tersembunyi.</p>
@@ -62,7 +68,7 @@
             <table class="w-full min-w-[700px] text-left text-sm">
                 <thead class="border-b bg-slate-50 text-xs uppercase"><tr><th class="p-2">POSKO</th><th class="p-2">No. tiang</th><th class="p-2">Penyulang</th><th class="p-2">Section</th><th class="p-2">Kebutuhan (bh)</th><th class="p-2">Asal</th></tr></thead>
                 <tbody>
-                    @forelse ($preview['rows'] as $row)
+                    @foreach ($preview['rows'] as $row)
                         @foreach ($row['planned'] as $item)
                             <tr class="border-b border-slate-100">
                                 <td class="p-2">{{ $row['posko'] }}</td>
@@ -73,9 +79,10 @@
                                 <td class="p-2"><a class="text-blue-700 underline" href="{{ route('admin.inspeksi.show', $item['inspection_id']) }}">Lihat inspeksi</a></td>
                             </tr>
                         @endforeach
-                    @empty
-                        <tr><td colspan="6" class="p-3 text-slate-500">Belum ada POSKO aktif.</td></tr>
-                    @endforelse
+                    @endforeach
+                    @if (array_sum(array_column($preview['rows'], 'new')) === 0)
+                        <tr><td colspan="6" class="p-3 text-slate-500">{{ $preview['blocked_by_legacy'] ? 'Tidak ada rencana baru karena seluruh shift ditahan.' : 'Tidak ada kandidat yang masuk rencana pada shift ini.' }}</td></tr>
+                    @endif
                 </tbody>
             </table>
         </div>

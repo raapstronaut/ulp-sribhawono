@@ -56,12 +56,23 @@ class InspectionFullQuotaPreviewTest extends OperationsTestCase
             ->assertOk()
             ->assertSee('F.PREVIEW.001')
             ->assertSee('Pratinjau kandidat INSPEKSI')
-            ->assertSee('1 / 6');
+            ->assertSee('1 / 6')
+            ->assertDontSee('Seluruh shift ditahan.');
 
         $this->assertSame(0, WorkOrder::query()->count());
         $this->assertSame(0, DB::table('shift_instances')->count());
         $this->assertSame(0, DB::table('apkuk_generation_runs')->count());
         $this->assertSame(0, DB::table('apkuk_shift_allocations')->count());
+    }
+
+    public function test_empty_preview_explains_why_there_are_no_planned_candidates(): void
+    {
+        $this->actingAs($this->admin)->get(route('admin.shift-quota.inspection-full'))
+            ->assertOk()
+            ->assertSee('Tidak ada kandidat yang masuk rencana pada shift ini.')
+            ->assertDontSee('Seluruh shift ditahan.');
+        $this->assertSame(0, WorkOrder::query()->count());
+        $this->assertSame(0, DB::table('apkuk_generation_runs')->count());
     }
 
     public function test_preview_route_is_admin_only_and_fail_closed_for_nonlocal_database(): void
