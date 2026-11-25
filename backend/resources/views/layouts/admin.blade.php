@@ -118,6 +118,18 @@
         .pln-operations-workspace .pln-operations-filter button[type="submit"]:focus-visible, .pln-operations-workspace .pln-operations-filter a:focus-visible { outline: 2px solid #326fd4; outline-offset: 2px; }
         .pln-operations-workspace .pln-operations-list table thead { background: #dae8f8; }
         .pln-operations-workspace .pln-operations-list table tbody tr:hover { background: #f0f6ff; }
+        /* V2.4 - tab halaman seperti browser. Panel dan konten halaman tetap tidak berubah. */
+        .pln-workspace-strip { align-items:flex-end; gap:4px; overflow-x:auto; overflow-y:hidden; scrollbar-width:thin; padding:5px 10px 0; }
+        .pln-workspace-strip .pln-browser-tab { display:inline-flex; align-items:center; flex:0 0 auto; min-width:0; max-width:220px; height:31px; border:1px solid #afc4dd; border-bottom:0; border-radius:7px 7px 0 0; background:#dbe8f8; color:#35577e; }
+        .pln-workspace-strip .pln-browser-tab.pln-workspace-current { background:#fff; border-color:#91b4db; color:#153c6f; box-shadow:0 -1px 2px #acc3dd44; }
+        .pln-workspace-strip .pln-browser-tab a { display:block; flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; border:0; border-radius:0; min-height:0; padding:7px 6px 7px 12px; background:transparent; color:inherit; font-weight:600; font-size:12px; text-decoration:none; }
+        .pln-workspace-strip .pln-browser-tab.pln-workspace-current a { font-weight:800; background:transparent; color:inherit; }
+        .pln-workspace-strip .pln-browser-tab a:hover { background:transparent; color:#0b448d; }
+        .pln-workspace-strip .pln-browser-tab button { flex:0 0 auto; margin:0 4px 0 0; width:23px; height:23px; display:inline-flex; align-items:center; justify-content:center; border:0; border-radius:4px; background:transparent; color:#587397; font-size:18px; font-weight:400; line-height:1; cursor:pointer; }
+        .pln-workspace-strip .pln-browser-tab button:hover { background:#c9dcf5; color:#173e72; }
+        .pln-workspace-strip .pln-browser-tab a:focus-visible, .pln-workspace-strip .pln-browser-tab button:focus-visible { outline:2px solid #2166c2; outline-offset:-2px; }
+        .pln-workspace-strip .pln-browser-tab.pln-dashboard-tab { max-width:145px; }
+        @media (max-width:767px) { .pln-workspace-strip .pln-browser-tab { max-width:155px; } .pln-workspace-strip .pln-browser-tab a { font-size:11px; padding-left:9px; } }
     </style>
 </head>
 <body class="pln-shell flex h-screen overflow-hidden bg-slate-50 text-slate-800 antialiased">
@@ -209,21 +221,29 @@
         </header>
 
         @php
-            $workspaceQuickTabs = [
-                ['label' => 'Dashboard', 'route' => 'admin.dashboard', 'active' => ['admin.dashboard']],
-                ['label' => 'INSPEKSI', 'route' => 'admin.inspeksi.index', 'active' => ['admin.inspeksi.*']],
-                ['label' => 'Data Aset', 'route' => 'admin.aset.index', 'active' => ['admin.aset.*']],
-                ['label' => 'ROW', 'route' => 'admin.row.index', 'active' => ['admin.row.*']],
-            ];
-            $workspaceIsQuickPage = request()->routeIs('admin.dashboard', 'admin.inspeksi.*', 'admin.aset.*', 'admin.row.*');
+            // Hanya Dashboard (+ halaman sekarang) dirender dari server.
+            // Riwayat tab lain dipulihkan oleh browser dalam sessionStorage per akun.
+            $workspaceCurrentLabel = match (true) {
+                request()->routeIs('admin.dashboard') => 'Dashboard',
+                request()->routeIs('admin.work-orders.index') => 'POSKO',
+                request()->routeIs('admin.row.index') => 'ROW',
+                request()->routeIs('admin.harsus.index') => 'HARSUS',
+                request()->routeIs('admin.inspeksi.index') => 'INSPEKSI',
+                request()->routeIs('admin.inspeksi.queue') => 'Antrean Temuan ACC',
+                request()->routeIs('admin.aset.index', 'admin.aset.show') => 'Data Aset',
+                default => trim($__env->yieldContent('title', 'Halaman Admin')),
+            };
+            $workspaceCurrentUrl = request()->fullUrl();
+            $workspaceDashboardUrl = route('admin.dashboard');
         @endphp
-        <div class="pln-workspace-strip" aria-label="Tab modul cepat">
-            @foreach ($workspaceQuickTabs as $workspaceTab)
-                @php($workspaceTabActive = request()->routeIs(...$workspaceTab['active']))
-                <a href="{{ route($workspaceTab['route']) }}" @if ($workspaceTabActive) class="pln-workspace-current" aria-current="page" @endif>{{ $workspaceTab['label'] }}</a>
-            @endforeach
-            @unless ($workspaceIsQuickPage)
-                <span class="pln-workspace-current">@yield('title', 'Dashboard')</span>
+        <div class="pln-workspace-strip" id="pln-workspace-strip" role="navigation" aria-label="Tab halaman terbuka"
+             data-dashboard-url="{{ $workspaceDashboardUrl }}"
+             data-current-url="{{ $workspaceCurrentUrl }}"
+             data-current-label="{{ $workspaceCurrentLabel }}"
+             data-user-key="{{ auth()->id() }}">
+            <a href="{{ $workspaceDashboardUrl }}" @if (request()->routeIs('admin.dashboard')) class="pln-workspace-current" aria-current="location" @endif>Dashboard</a>
+            @unless (request()->routeIs('admin.dashboard'))
+                <a href="{{ $workspaceCurrentUrl }}" class="pln-workspace-current" aria-current="location">{{ $workspaceCurrentLabel }}</a>
             @endunless
         </div>
 
@@ -384,6 +404,7 @@
             });
         });
     </script>
+    @include('layouts.partials.workspace-tabs-script')
     @yield('scripts')
 </body>
 </html>

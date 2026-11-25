@@ -25,9 +25,9 @@ class WebsiteWorkspaceNavigationV21Test extends OperationsTestCase
 
         $this->assertStringNotContainsString('Selamat Datang', $strip);
         $this->assertSame(1, substr_count($strip, '>Dashboard</a>'));
-        $this->assertSame(1, substr_count($strip, 'aria-current="page"'));
+        $this->assertSame(1, substr_count($strip, 'aria-current="location"'));
         $this->assertMatchesRegularExpression(
-            '/<a href="'.preg_quote(route('admin.dashboard'), '/').'"\s+class="pln-workspace-current"\s+aria-current="page"\s*>Dashboard<\/a>/',
+            '/<a href="'.preg_quote(route('admin.dashboard'), '/').'"\s+class="pln-workspace-current"\s+aria-current="location"\s*>Dashboard<\/a>/',
             $strip
         );
         $this->assertStringNotContainsString('<span class="pln-workspace-current">Dashboard</span>', $strip);
@@ -50,9 +50,9 @@ class WebsiteWorkspaceNavigationV21Test extends OperationsTestCase
             ->get(route('admin.aset.show', $id))->assertOk()->getContent();
         $strip = $this->quickTabStrip($html);
 
-        $this->assertSame(1, substr_count($strip, 'aria-current="page"'));
+        $this->assertSame(1, substr_count($strip, 'aria-current="location"'));
         $this->assertMatchesRegularExpression(
-            '/<a href="'.preg_quote(route('admin.aset.index'), '/').'"\s+class="pln-workspace-current"\s+aria-current="page"\s*>Data Aset<\/a>/',
+            '/<a href="'.preg_quote(route('admin.aset.show', $id), '/').'"\s+class="pln-workspace-current"\s+aria-current="location"\s*>Data Aset<\/a>/',
             $strip
         );
         $this->assertStringNotContainsString('<span class="pln-workspace-current">', $strip);
@@ -67,8 +67,8 @@ class WebsiteWorkspaceNavigationV21Test extends OperationsTestCase
 
         $this->assertStringContainsString('>Dashboard</a>', $strip);
         $this->assertStringNotContainsString('Selamat Datang', $strip);
-        $this->assertStringNotContainsString('aria-current="page"', $strip);
-        $this->assertSame(1, substr_count($strip, '<span class="pln-workspace-current">'));
+        $this->assertSame(1, substr_count($strip, 'aria-current="location"'));
+        $this->assertStringContainsString('href="'.route('admin.harsus.index').'" class="pln-workspace-current" aria-current="location">HARSUS</a>', $strip);
     }
 
     private function quickTabStrip(string $html): string
