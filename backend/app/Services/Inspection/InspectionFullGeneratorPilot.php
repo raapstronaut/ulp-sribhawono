@@ -25,9 +25,9 @@ use LogicException;
 use RuntimeException;
 
 /**
- * V6A pilot ONLY. No CLI, route or scheduler entry point.
- * The write method is irrevocably restricted to testing + SQLite :memory:.
- * Production integration requires a separate audited V6B patch.
+ * Isolated pilot only. No route, registered CLI command or scheduler entry point.
+ * SQLite V6A and PostgreSQL V6B3 use separate fail-closed test gates.
+ * Neither path may write to the development or operational database.
  */
 final class InspectionFullGeneratorPilot
 {
@@ -108,15 +108,47 @@ final class InspectionFullGeneratorPilot
     public function generateForIsolatedTest(string $date, string $shift): ApkukGenerationRun
     {
         $this->assertIsolatedTestDatabase();
+        return $this->generateBatch($date, $shift, false);
+    }
+
+    public const PG_TEST_DATABASE = 'ulp_posko_concurrency_test';
+
+    /** Staged test entry only; not exposed through HTTP, Artisan or scheduler. */
+    public function generateForIsolatedPostgresTest(string $date, string $shift): ApkukGenerationRun
+    {
+        $this->assertConfiguredForIsolatedPgTest();
+        // Avoid reusing an existing transaction with unknown isolation/locks.
+        if (DB::transactionLevel() !== 0) {
+            throw new RuntimeException('POSKO V6B3 DITOLAK: transaksi sudah aktif.');
+        }
+        return $this->generateBatch($date, $shift, true);
+    }
+
+    private function generateBatch(string $date, string $shift, bool $postgresTest): ApkukGenerationRun
+    {
         $this->validateShift($date, $shift);
         $now = CarbonImmutable::now();
         if ($this->shifts->window($date, $shift)['end']->lte($now)) {
             throw new LogicException('Shift pilot sudah berakhir.');
         }
 
-        return DB::transaction(function () use ($date, $shift, $now): ApkukGenerationRun {
-            // Entire pilot run is atomic. SQLite :memory: executes these tests sequentially.
+        return DB::transaction(function () use ($date, $shift, $now, $postgresTest): ApkukGenerationRun {
+            if ($postgresTest) {
+                $this->assertActualIsolatedPgServer();
+                // Serialize isolated pilot runs across shifts (including daily WO codes).
+                DB::statement("SET LOCAL lock_timeout = '5s'");
+                DB::select('SELECT pg_advisory_xact_lock(210063, 63)');
+            }
+            // Shared shift lock also used by the existing APKUK manual path.
             ApkukShiftQuota::lock($date, $shift);
+            if ($postgresTest) {
+                // Re-read candidates only after acquiring the locks.
+                InspectionFinding::query()->where('suggested_team_type', WorkOrder::TEAM_POSKO)
+                    ->orderBy('id')->lockForUpdate()->get(['id']);
+                if ($this->shifts->window($date, $shift)['end']->lte(CarbonImmutable::now())) {
+                    throw new LogicException('Shift pilot sudah berakhir.');
+                }
+            }
             $preview = $this->preview($date, $shift);
             if ($preview['blocked_by_legacy']) {
                 throw new LogicException('Terdapat WO atau alokasi generator SPS legacy dalam shift; pilot menolak pencampuran sumber.');
@@ -283,6 +315,55 @@ final class InspectionFullGeneratorPilot
         // Reject normalized invalid dates instead of silently rolling forward.
         if (CarbonImmutable::createFromFormat('!Y-m-d', $date)?->format('Y-m-d') !== $date) {
             throw new LogicException('Tanggal operasional tidak valid.');
+        }
+    }
+
+    private function assertConfiguredForIsolatedPgTest(): void
+    {
+        $cfg = (array) config('database.connections.pgsql', []);
+        if (PHP_SAPI !== 'cli'
+            || ! app()->environment('testing')
+            || config('database.default') !== 'pgsql'
+            || ! $this->isIsolatedPgConfiguration($cfg)
+            || (string) getenv('DB_URL') !== ''
+            || (string) getenv('DATABASE_URL') !== ''
+            || config('apkuk.generator.enabled') !== false
+            || config('apkuk.inspection_pg_test_enabled') !== true
+            || getenv('POSKO_PG_TEST_APPROVED') !== 'ISOLATED_POSKO_PG_TEST_ONLY') {
+            throw new RuntimeException('POSKO V6B3 DITOLAK: hanya CLI testing, database PG terisolasi lokal, generator legacy OFF, dan dua izin uji eksplisit.');
+        }
+        // The resolved connection may predate a runtime config change.
+        if (! $this->isIsolatedPgConfiguration(DB::connection()->getConfig())) {
+            throw new RuntimeException('POSKO V6B3 DITOLAK: konfigurasi koneksi aktual berbeda.');
+        }
+    }
+
+    private function isIsolatedPgConfiguration(array $cfg): bool
+    {
+        return ($cfg['driver'] ?? null) === 'pgsql'
+            && ($cfg['database'] ?? null) === self::PG_TEST_DATABASE
+            && in_array($cfg['host'] ?? null, ['127.0.0.1', 'localhost', '::1'], true)
+            && (string) ($cfg['port'] ?? '') === '5432'
+            && ! filled($cfg['url'] ?? null)
+            && ! array_key_exists('read', $cfg) && ! array_key_exists('write', $cfg)
+            && ($cfg['search_path'] ?? null) === 'public'
+            && ($cfg['prefix'] ?? '') === '';
+    }
+
+    private function assertActualIsolatedPgServer(): void
+    {
+        if (DB::connection()->getPdo()->getAttribute(\PDO::ATTR_DRIVER_NAME) !== 'pgsql') {
+            throw new RuntimeException('POSKO V6B3 DITOLAK: driver aktual bukan PostgreSQL.');
+        }
+        $actual = DB::selectOne("SELECT current_database() AS db_name,
+            host(inet_server_addr()) AS ip, inet_server_port() AS port,
+            current_schema() AS schema_name, current_setting('transaction_read_only') AS read_only,
+            current_setting('transaction_isolation') AS isolation", [], false);
+        if ($actual === null || $actual->db_name !== self::PG_TEST_DATABASE
+            || ! in_array((string) $actual->ip, ['127.0.0.1', '::1'], true)
+            || (int) $actual->port !== 5432 || $actual->schema_name !== 'public'
+            || $actual->read_only !== 'off' || $actual->isolation !== 'read committed') {
+            throw new RuntimeException('POSKO V6B3 DITOLAK: identitas server atau transaksi tidak sesuai.');
         }
     }
 

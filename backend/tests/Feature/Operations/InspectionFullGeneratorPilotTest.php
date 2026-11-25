@@ -339,6 +339,78 @@ class InspectionFullGeneratorPilotTest extends OperationsTestCase
         app(InspectionFullGeneratorPilot::class)->generateForIsolatedTest(self::DATE, self::SHIFT);
     }
 
+    public function test_pg_pilot_refuses_sqlite_even_with_test_approval(): void
+    {
+        $previous = getenv('POSKO_PG_TEST_APPROVED');
+        try {
+            putenv('POSKO_PG_TEST_APPROVED=ISOLATED_POSKO_PG_TEST_ONLY');
+            config(['apkuk.generator.enabled' => false, 'apkuk.inspection_pg_test_enabled' => true]);
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('POSKO V6B3 DITOLAK');
+            app(InspectionFullGeneratorPilot::class)->generateForIsolatedPostgresTest(self::DATE, self::SHIFT);
+        } finally {
+            putenv($previous === false ? 'POSKO_PG_TEST_APPROVED' : 'POSKO_PG_TEST_APPROVED='.$previous);
+        }
+    }
+
+    public function test_pg_pilot_refuses_dev_remote_url_and_missing_gates_before_connection(): void
+    {
+        $previous = getenv('POSKO_PG_TEST_APPROVED');
+        $original = config('database.connections.pgsql');
+        try {
+            putenv('POSKO_PG_TEST_APPROVED=ISOLATED_POSKO_PG_TEST_ONLY');
+            config(['database.default' => 'pgsql', 'apkuk.generator.enabled' => false,
+                'apkuk.inspection_pg_test_enabled' => true]);
+            $valid = ['driver' => 'pgsql', 'host' => '127.0.0.1', 'port' => '5432',
+                'database' => InspectionFullGeneratorPilot::PG_TEST_DATABASE,
+                'url' => null, 'search_path' => 'public', 'prefix' => ''];
+            $cases = [
+                ['database' => 'ulp_sribhawono_dev'], ['database' => 'neondb'],
+                ['host' => 'example.invalid'], ['url' => 'pgsql://example.invalid/test'],
+                ['port' => '5433'], ['search_path' => 'other'],
+                ['read' => ['host' => 'example.invalid']],
+            ];
+            $pilot = app(InspectionFullGeneratorPilot::class);
+            foreach ($cases as $case) {
+                config(['database.connections.pgsql' => array_replace($valid, $case)]);
+                try {
+                    $pilot->generateForIsolatedPostgresTest(self::DATE, self::SHIFT);
+                    $this->fail('Konfigurasi PG tidak sah harus ditolak.');
+                } catch (RuntimeException $e) {
+                    $this->assertStringStartsWith('POSKO V6B3 DITOLAK', $e->getMessage());
+                }
+            }
+            config(['database.connections.pgsql' => $valid, 'apkuk.inspection_pg_test_enabled' => false]);
+            try {
+                $pilot->generateForIsolatedPostgresTest(self::DATE, self::SHIFT);
+                $this->fail('Flag uji harus eksplisit.');
+            } catch (RuntimeException $e) {
+                $this->assertStringStartsWith('POSKO V6B3 DITOLAK', $e->getMessage());
+            }
+            config(['apkuk.inspection_pg_test_enabled' => true]);
+            putenv('POSKO_PG_TEST_APPROVED');
+            try {
+                $pilot->generateForIsolatedPostgresTest(self::DATE, self::SHIFT);
+                $this->fail('Izin proses harus eksplisit.');
+            } catch (RuntimeException $e) {
+                $this->assertStringStartsWith('POSKO V6B3 DITOLAK', $e->getMessage());
+            }
+            putenv('POSKO_PG_TEST_APPROVED=ISOLATED_POSKO_PG_TEST_ONLY');
+            config(['apkuk.generator.enabled' => true]);
+            try {
+                $pilot->generateForIsolatedPostgresTest(self::DATE, self::SHIFT);
+                $this->fail('Generator legacy harus OFF.');
+            } catch (RuntimeException $e) {
+                $this->assertStringStartsWith('POSKO V6B3 DITOLAK', $e->getMessage());
+            }
+        } finally {
+            config(['database.default' => 'sqlite', 'database.connections.pgsql' => $original,
+                'apkuk.generator.enabled' => false, 'apkuk.inspection_pg_test_enabled' => false]);
+            putenv($previous === false ? 'POSKO_PG_TEST_APPROVED' : 'POSKO_PG_TEST_APPROVED='.$previous);
+        }
+        $this->assertSame(0, WorkOrder::query()->count());
+    }
+
     private function addMapping(string $section, string $posko): void
     {
         static $row = 1;
